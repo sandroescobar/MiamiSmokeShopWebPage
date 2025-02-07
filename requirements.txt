@@ -37,3 +37,4 @@ virtualenv==20.26.4
 websockets==14.2
 Werkzeug==3.0.4
 xlrd==2.0.1
+gunicorn
