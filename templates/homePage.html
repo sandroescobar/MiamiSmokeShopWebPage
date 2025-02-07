@@ -1,0 +1,126 @@
+{% extends "navbar.html" %}
+
+{% block title %}Home Page{% endblock %}
+
+{% block content %}
+<div class="main-content">
+    <form id="scheduleForm" method="POST" action="/homePage">
+        <table  id = "scheduleTable">
+            <caption class="tableCaption">Schedule for smoke shops</caption>
+            <thead>
+                <tr class="tableHeader">
+                    <th scope="col">Day</th>
+                    <th scope="col">Morning Employee</th>
+                    <th scope="col">Morning Hours</th>
+                    <th scope="col">Afternoon Employee</th>
+                    <th scope="col">Afternoon Hours</th>
+                    <th scope="col">Tasks</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                <tr class="tableRows">
+                    <td><input type="text" name="day[]" placeholder="Enter day"></td>
+                    <td><input type="text" name="morning_employee[]" placeholder="Enter morning employee"></td>
+                    <td><input type="text" name="morning_hours[]" placeholder="Enter morning hours"></td>
+                    <td><input type="text" name="afternoon_employee[]" placeholder="Enter afternoon employee"></td>
+                    <td><input type="text" name="afternoon_hours[]" placeholder="Enter afternoon hours"></td>
+                    <td><input type="text" name="tasks[]" placeholder="Enter tasks"></td>
+                </tr>
+                
+                
+            </tbody>
+        </table>
+
+        <div  type="button" class = "tableButtons" >
+            
+            <div class="dropdown">
+                <a class="btn btn-secondary dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Select Store
+                </a>
+            
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" data-store="Calle 8">Calle 8</a></li>
+                    <li><a class="dropdown-item" href="#" data-store="79th St">79th store</a></li>
+                    <li><a class="dropdown-item" href="#" data-store="Miami Market">Miami Market</a></li>
+                </ul>
+            </div>
+            
+            <!-- Hidden input to store the selected store -->
+            <input type="hidden" name="store" id="selectedStore" value="">
+            
+           <!--    <button id = "chooseShopButton"> Choose store </button>      --> 
+            <button type="button" id="launchModalButton" data-modal-url="{{ url_for('modal') }}">Submit Table</button>
+            <button type = "button" class = "excelTransferButton" id = "ExcelTransfer"> Export to excel</button>
+
+        </div>
+    </form>
+
+    <!-- Modal for Export Options -->
+    <div id="exportModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3>Export Options</h3>
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="display: none;" />
+            <button id="addToExisting">Add to Existing Sheet</button>
+            <button id="createNewSheet">Create New Sheet</button>
+            <button id="closeModal">Cancel</button>
+        </div>
+    </div>
+
+</div>
+
+
+
+{% include 'modal.html' %}
+
+
+
+
+{% endblock %}

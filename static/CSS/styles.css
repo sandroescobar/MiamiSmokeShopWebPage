@@ -1,0 +1,437 @@
+
+
+
+/*EVERYTHING BELOW IS FOR THE TABLE */
+
+.tableCaption {
+    font-size: 30px;
+    caption-side: top;
+    text-align: center;
+    color: black;
+}
+
+.main-content{
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+}
+
+table, th, td {
+    border: 2px solid black !important; /* Force borders to appear */
+    border-collapse: collapse !important; /* Ensure borders touch each other */
+    padding: 20px;
+}
+
+
+.dropdown-toggle{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+    background-color: #F5F5F5 !important;
+    color: black !important;
+}
+
+.tableButtons{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px; /* Space between items */
+    
+}
+
+#launchModalButton{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+    background-color: #A7B49E;
+    
+}
+
+
+
+#ExcelTransfer{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+    background-color: #5C7285;
+    
+  
+}
+/*EVERYTHING ABOVE IS FOR THE TABLE */
+
+/*EVERYTHING BELOW IS FOR THE NAVBAR */
+
+
+/* General link styles inside the offcanvas */
+.offcanvas-body a {
+    display: flex;
+    align-items: center;
+    text-decoration: none; /* Remove underline */
+    padding: 10px; /* Add some padding for spacing */
+    color: #bbb; /* Default text color */
+    border-radius: 5px; /* Smooth edges */
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth hover transition */
+}
+
+
+  /* Hover effect for links */
+.offcanvas-body a:hover {
+    background-color: #444; /* Dark background on hover */
+    color: white; /* White text on hover */
+}
+
+
+  /* Adjust icon and text alignment for better aesthetics */
+.offcanvas-body a i {
+    margin-right: 10px; /* Add space between icon and text */
+}
+
+
+
+  /* Optional: Tooltip styling */
+.offcanvas-body .tooltip {
+    display: none; /* Hide tooltips by default */
+    background-color: #444;
+    color: white;
+    border-radius: 4px;
+    padding: 5px;
+    position: absolute;
+    left: 100%; /* Show to the right of the item */
+    margin-left: 10px; /* Add some space */
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+
+
+
+  /* Show tooltip on hover */
+.offcanvas-body a:hover + .tooltip {
+    display: inline-block;
+    opacity: 1;
+}
+
+/*EVERYTHING ABOVE IS FOR THE NAVBAR */
+
+/*EVERYTHING BELOW IS FOR THE SIGN-UP AND LOGIN */
+/* 
+made display flex to move elements how i wanted and it made more sense since 
+login and signUp page are a in a column format, also allows for positing to be center very easily
+
+*/
+
+.login_signup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;     
+    justify-content: center; /* Vertically center if needed */
+    height: 100vh; /* Full viewport height */
+    margin: 0;
+}
+
+/* main class in both signUp and login html files that cover the form, makes the max width of the two
+inputs, and the button 330px and gives them all padding for space
+*/
+
+.form-signin {
+    max-width: 330px;
+    padding: 1rem;
+}
+    
+
+/* Gives padding for the w input boxes not to be so close  and for t
+he remember me checkboxand sign up buttom */
+
+.form-floating {
+    padding-bottom: 20px;
+}
+/*EVERYTHING ABOVE IS FOR THE SIGN-UP AND LOGIN */
+
+
+/*EVERYTHING BELOW IS FOR THE PAYOUTPAGE */
+
+.payOutWeekBody {
+    height: 100vh;
+    display: flex;
+    padding-top: 50px;
+    flex-direction: column;
+    justify-content:flex-start; /* Align everything at the top */
+    align-items: center;
+    background: white;
+    font-family: Arial, sans-serif;
+    padding-top: 90px;
+}
+
+
+.searchTableContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px; /* Add spacing between search bar and table */
+    width: 100%;
+}
+
+.searchResult table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.searchResult th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+.searchResult {
+    
+    width: 80%; /* Adjust width as needed */
+    text-align: center;
+}
+
+.searchResult th,
+.searchResult td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+/* Container for search section */
+.overlayContainer {
+    background-color: antiquewhite;
+    width: 800px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Heading styling */
+.heading {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+/* Horizontal line styling */
+.horLine {
+    width: 100%;
+    height: 1px;
+    background-color: grey;
+    margin-bottom: 20px;
+}
+
+/* Search box styling */
+.box {
+    background-color: white;
+    height: 50px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.box:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Input box styling */
+
+.input-box {
+    flex: 1;
+    height: 100%;
+    border: none;
+    outline: none;
+    padding: 0 15px;
+    font-size: 16px;
+    border-radius: 30px;
+    background: transparent;
+    color: #333;
+}
+
+/* Placeholder color */
+.input-box::placeholder {
+    color: grey;
+    font-size: 14px;
+}
+
+/* Search button styling */
+.search-button {
+    height: 40px;
+    width: 40px;
+    background-color: #1daf;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+}
+
+.search-button:hover {
+    background-color: #16a085;
+}
+
+.search-button i {
+    font-size: 18px;
+}
+
+/* Center search bar */
+#search-form {
+    height: 350px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Center the search result container */
+.searchResult {
+    width: 80%; /* Make the container smaller */
+    margin: 20px auto; /* Center horizontally */
+    text-align: center; /* Center text inside */
+}
+
+/* Center and properly size the table */
+.searchResult table {
+    width: 100%; /* Full width of the container */
+    max-width: 1000px; /* Prevents stretching too much */
+    margin: auto; /* Centers the table */
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+}
+
+/* Table headers */
+.searchResult th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+    text-align: center;
+    padding: 12px;
+}
+
+/* Table content */
+.searchResult th,
+.searchResult td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: center;
+}
+
+/* Add spacing between rows */
+.searchResult tr {
+    height: 40px;
+}
+
+/* Alternate row colors for better readability */
+.searchResult tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+
+.dropdownForSearch{
+    margin-top: 10px;
+    
+}
+
+.store-filter{
+    padding: 5px;
+
+}
+
+/* Make table responsive */
+@media screen and (max-width: 768px) {
+    .searchResult {
+        width: 100%;
+    }
+
+    .searchResult table {
+        width: 100%;
+        font-size: 14px;
+    }
+}
+
+/*EVERYTHING ABOVE IS FOR THE PAYOUTPAGE */
+
+
+/*EVERYTHING BELOW IS FOR THE EXPORTMODAL */
+
+#exportModal {
+    display: flex;               /* Enables Flexbox */
+    justify-content: center;     /* Center horizontally */
+    align-items: center;         /* Center vertically */
+    position: fixed;             /* Fixed position to cover the entire screen */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);  /* Semi-transparent background */
+    z-index: 999;               /* Ensures the modal stays on top */
+    overflow: auto;             /* Handles overflow if content is too large */
+}
+
+.modal-content {
+    background-color: lightgray;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 200px;           /* Adjust height if needed */
+    max-height: 80vh;
+    max-width: 400px;            /* Controls modal width */
+    width: 90%;                  /* Responsive for smaller screens */
+    border-radius: 8px;          /* Smooth rounded corners */
+    padding: 20px;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);  /* Subtle shadow for depth */
+    margin: auto;                /* This ensures centering in Flexbox */
+}
+
+
+#addToExisting{
+    border-radius: 4px;
+    padding: 5px;
+
+}
+
+
+#createNewSheet{
+    border-radius: 4px;
+    padding: 5px;
+}
+
+#closeModal{
+    border-radius: 4px;
+    padding: 5px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

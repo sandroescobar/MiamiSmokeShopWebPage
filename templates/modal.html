@@ -1,0 +1,205 @@
+<style>
+    .modalBody {
+    flex-grow: 1;  /* Expands to take available space */
+    }
+
+
+.saveChangeButton{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+    background-color: #48A6A7;
+
+}
+
+.modalTitle{
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#startingDate{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+}
+
+#endingDate{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+}
+
+.closeButton{
+    border-radius: 8px;
+    padding: 5px;
+    margin-top: 5px;
+    margin-right: 5px;
+    background-color: #D2665A;
+}
+
+.hrClass{
+    border: 0.5px solid black !important;
+    opacity: 1; /* Remove any transparency */
+    
+}
+
+.hrClass2{
+    border: 1px solid black;
+    width: 100%; /* Ensure it spans the full width */
+    position: relative;
+    top: 180px;
+
+}
+
+
+#modalID {
+    display: none; /* Hide modal initially */
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4); /* Optional: Adds a dim background */
+}
+
+.modalContent {
+    background-color: lightgray;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 500px;
+    max-height: 80vh;
+    border-radius: 6px;
+    padding: 10px;
+    position: relative;
+}
+
+
+.modalBody {
+    flex-grow: 1;  /* Expands to take available space */
+    overflow-y: auto; /* Enables scrolling inside the modal if content overflows */
+    max-height: 50vh; /* Adjusts so content doesn't push buttons down */
+    padding-bottom: 10px;
+}
+
+
+.modalFooter {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    padding: 15px;
+    position: sticky; /* Keep it at the bottom */
+    bottom: 0;
+    background-color: lightgray; /* Match modal color */
+    border-top: 1px solid black; /* Ensure a clean separation */
+}
+
+.modalFooter .buttonContainer {
+    display: flex;
+    justify-content: space-between; /* Moves buttons to opposite ends */
+    width: 100%;
+    padding: 10px 0;
+}
+
+
+
+
+
+
+
+
+.employeeHeaderRow {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    padding: 5px;
+    border-bottom: 1px solid black;
+    margin-bottom: 10px;
+}
+
+.employeeHeader {
+    flex: 1;
+    text-align: center;
+}
+
+.employeeContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.employeeRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 5px 0;
+}
+
+.employeeInput {
+    flex: 1;
+}
+
+.paySelect {
+    flex: 1;
+}
+
+
+.flatpickr-input {
+    width: 200px; /* Match other input widths */
+    height: 38px; /* Adjust to match your form elements */
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    padding: 8px 10px;
+    font-size: 16px;
+    background-color: white;
+}
+
+.flatpickr-calendar {
+    z-index: 9999 !important; /* Ensure calendar appears above everything */
+    font-family: "Poppins", sans-serif; /* Match with your site font */
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+
+
+</style>
+
+
+
+<form  id = "modalForm"  method="POST" action="/homePage">
+
+
+<div class = "modal" id = "modalID">
+    <div class=" modalContent">
+        <div class = "modalHeader">
+            <h5 class="modalTitle"> enter start and end of week</h5>
+            <input class="flatpickr flatpickr-input employee-input" name = "start_of_week" id = "startingDate"type="text" placeholder="Select starting date.." data-id="minDate" >
+            <input class="flatpickr flatpickr-input employee-input" name = "end_of_week"id = "endingDate"type="text" placeholder="Select ending date.." data-id="minDate" >
+            <hr class="hrClass">
+        
+        </div>
+        <div class = "modalBody">
+            <div class="dateContainer"> </div>
+            
+            <div id="employeeDropdowns">
+
+            </div>
+
+        </div>
+        
+        <div class = "modalFooter">
+                <button type="submit" class = "saveChangeButton"> save changes</button>
+                <button type="button" class="closeButton"> close modal </button>   
+        </div>
+    
+    </div> 
+
+</div>
+</form>

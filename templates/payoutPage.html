@@ -1,0 +1,93 @@
+{% extends "navbar.html" %}
+
+{% block title %}
+Payout Page
+{% endblock %}
+
+{% block content %}
+<form id="search-form" onsubmit="return false;"> 
+    <div id="searchTableContainer">
+        <div class="overlayContainer">
+            <h3 class="heading">Search for Employee Weekly Pay</h3>
+            <hr class="horLine">
+            <div class="box">
+                <input type="text" class="input-box" placeholder="Enter employee name or date...">
+
+                <!-- Store Filter Dropdown -->
+                
+
+                <button type="submit" class="search-button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class = "dropdownForSearch">
+            <select class="store-filter">
+                <option value="">All Stores</option>
+                <option value="Calle 8">Calle 8</option>
+                <option value="79th St">79th St</option>
+                <option value="Miami Market">Miami Market</option>
+            </select>
+    
+    
+        </div>
+    </div>
+
+
+    
+    
+</form>
+
+<div class="searchResult">
+    <!-- Results dynamically populated here -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script>
+   $(document).ready(function () {
+    function performSearch() {
+        let input = $(".input-box").val().trim();
+        let selectedStore = $(".store-filter").val();
+
+        if (input !== "") {
+            let requestData = { query: input };
+
+            if (selectedStore !== "All") {
+                requestData.store = selectedStore;
+            }
+
+            $.ajax({
+                url: "/payoutPage",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(requestData),
+                success: function (data) {
+                    $(".searchResult").html(data);
+                },
+                error: function (xhr, status, error) {
+                    console.error("Error fetching data:", error);
+                    $(".searchResult").html("<h6 class='text-danger'>Error fetching data. Please try again.</h6>");
+                },
+            });
+        } else {
+            $(".searchResult").html("<h6>Please enter an employee name or date to search.</h6>");
+        }
+    }
+
+    // Trigger search only when typing in the input-box
+    $(".input-box").on("keyup", performSearch);
+
+    // Trigger search on button click
+    $(".search-button").click(function (e) {
+        e.preventDefault();
+        performSearch();
+    });
+});
+
+
+</script>
+{% endblock %}
+
