@@ -336,7 +336,26 @@ def modal():
 
 @app.route('/updateTable', methods=["GET", "POST"])
 def updateTable():
-    return render_template('updateTable.html')
+    try:
+        updatedSchedule = request.json.get("updateTable", [])
+        cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+
+        for row in updatedSchedule:
+            cursor.execute("""
+                UPDATE schedule 
+                SET morning_employee = %s, 
+                    morning_hours = %s,
+                    afternoon_employee = %s, 
+                    afternoon_hours = %s,
+                    tasks = %s 
+                WHERE day = %s
+            """, (row['morning_employee'], row['morning_hours'], row['afternoon_employee'], row['afternoon_hours'], row['tasks'], row['day']))
+
+        mysql.connection.commit()
+        return jsonify({"success": True, "message": "Schedule updated successfully!"})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 
 if __name__ == '__main__':
