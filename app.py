@@ -334,7 +334,9 @@ def modal():
     return render_template('modal.html')  
 
 
-
+@app.route('/updateTable')
+def updateTable():
+    return render_template('updateTable.html')
 
 
 if __name__ == '__main__':
