@@ -430,6 +430,7 @@ function initializeDataTable() {
 // Export Data Based on User Selection
 function exportToExcel(option) {
     const table = document.querySelector('#scheduleTable');
+    console.log("Table2Excel:", typeof Table2Excel); 
     const table2excel = new Table2Excel();
 
     if (!selectedStore) {
