@@ -3,6 +3,9 @@ from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import re
 import os
+from datetime import datetime, timedelta
+
+
 app = Flask(__name__)
 
 
@@ -35,9 +38,11 @@ app.config['MYSQL_DB'] = os.getenv("MYSQL_DB", "railway")
 # ✅ Force MySQLdb to use TCP/IP instead of socket
 app.config['MYSQL_UNIX_SOCKET'] = None
 
+mysql = MySQL(app)
 
 
-from datetime import datetime, timedelta
+
+
 
 # Function to calculate total hours from time range
 def calculate_hours(time_range):
@@ -241,12 +246,20 @@ def login():
 @app.route('/signUp', methods=['GET', 'POST'])
 def signUp():
     msg = ''
+    
+    # Debugging Print Statements
+    print("🔹 MySQL Connection Object:", mysql)
+    
     if request.method == 'POST' and 'email' in request.form and 'password' in request.form:
         email = request.form['email']
         password = request.form['password']
+        
+        print(f"📥 Received Signup Request: Email={email}, Password={password}")
+        
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute('SELECT * FROM accounts WHERE email = %s', (email,))
         account = cursor.fetchone()
+        
         if account:
             msg = 'Account already exists!'
         elif not re.match(r'[^@]+@[^@]+\.[^@]+', email):
@@ -258,7 +271,10 @@ def signUp():
             mysql.connection.commit()
             msg = 'You have successfully registered!'
             return redirect(url_for('login'))
+    
+    print("🔹 Signup Error Message:", msg)
     return render_template('signUp.html', msg=msg)
+
 
 @app.route('/payoutPage', methods=["GET", "POST"])
 def payoutPage():
