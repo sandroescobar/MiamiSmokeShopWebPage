@@ -9,7 +9,7 @@ const StoreHours = {
         Tuesday: { open: 10, close: 22, total: 12 },
         Wednesday: { open: 10, close: 22, total: 12 },
         Thursday: { open: 10, close: 22, total: 12 },
-        Friday: { open: 10, close: 22, total: 12 },
+        Friday: { open: 10, close: 23, total: 13 },
         Saturday: { open: 10, close: 23, total: 13 },
         Sunday: { open: 11, close: 20, total: 9 }
     },
@@ -255,7 +255,7 @@ function fetchTableData(modalElement) {
         const select = document.createElement("select");
         select.name = "hourlyPayRates[]";
         select.className = "form-control paySelect";
-        ["$10", "$12", "$15"].forEach(rate => {
+        ["$14", "$15", "$16"].forEach(rate => {
             const option = document.createElement("option");
             option.value = rate.replace("$", "");
             option.textContent = rate;
