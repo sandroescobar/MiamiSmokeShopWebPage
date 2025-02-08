@@ -1,0 +1,54 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='CSS/styles.css') }}">
+
+<table>
+    <thead>
+        <tr>
+            <th>Day</th>
+            <th>Morning Shift</th>
+            <th>Morning Hours</th>
+            <th>Afternoon Shift</th>
+            <th>Afternoon Hours</th>
+            <th>Tasks</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in schedule_data %}
+        <tr>
+            <td>{{ row['day'] }}</td>
+            <td contenteditable="true" class="editable">{{ row['morning_employee'] }}</td>
+            <td contenteditable="true" class="editable">{{ row['morning_hours'] }}</td>
+            <td contenteditable="true" class="editable">{{ row['afternoon_employee'] }}</td>
+            <td contenteditable="true" class="editable">{{ row['afternoon_hours'] }}</td>
+            <td contenteditable="true" class="editable">{{ row['tasks'] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<button id="updateSchedule">Update Schedule</button>
+
+
+<script>
+    document.getElementById("updateSchedule").addEventListener("click", function () {
+        let updatedData = [];
+    
+        document.querySelectorAll("tbody tr").forEach(row => {
+            let rowData = {
+                day: row.cells[0].innerText,
+                morning_employee: row.cells[1].innerText,
+                morning_hours: row.cells[2].innerText,
+                afternoon_employee: row.cells[3].innerText,
+                afternoon_hours: row.cells[4].innerText,
+                tasks: row.cells[5].innerText
+            };
+            updatedData.push(rowData);
+        });
+    
+        fetch('/updateSchedule', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ updatedSchedule: updatedData })
+        })
+        .then(response => response.json())
+        .then(data => alert(data.message));
+    });
+    </script>

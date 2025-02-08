@@ -334,7 +334,7 @@ def modal():
     return render_template('modal.html')  
 
 
-@app.route('/updateTable')
+@app.route('/updateTable', methods=["GET", "POST"])
 def updateTable():
     return render_template('updateTable.html')
 

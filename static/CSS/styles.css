@@ -420,7 +420,12 @@ he remember me checkboxand sign up buttom */
 
 
 
-
+#updateTableForm{
+    height: 350px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
 
 

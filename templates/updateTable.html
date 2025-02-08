@@ -1,0 +1,48 @@
+{% extends "navbar.html" %}
+
+{% block title %} update table  Page {% endblock %}
+
+{% block content %}
+
+
+<form id="updateTableForm" onsubmit="return false;"> 
+    <div id="searchTableContainer">
+        <div class="overlayContainer">
+            <h3 class="heading">Search for Employee Weekly Pay</h3>
+            <hr class="horLine">
+            <div class="box">
+                <input type="text" class="input-box" placeholder="Enter employee name or date...">
+
+                <!-- Store Filter Dropdown -->
+                
+
+                <button type="submit" class="search-button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class = "dropdownForSearch">
+            <select class="store-filter">
+                <option value="">All Stores</option>
+                <option value="Calle 8">Calle 8</option>
+                <option value="79th St">79th St</option>
+                <option value="Miami Market">Miami Market</option>
+            </select>
+    
+    
+        </div>
+    </div>
+
+
+    
+    
+</form>
+
+
+
+
+
+
+
+{% endblock %}
