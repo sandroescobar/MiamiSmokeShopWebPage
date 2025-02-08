@@ -2,9 +2,11 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import re
-
+import os
 app = Flask(__name__)
 
+
+'''
 # Secret key for session management
 app.secret_key = 'your_secret_key'
 
@@ -16,6 +18,22 @@ app.config['MYSQL_DB'] = 'webPagePractice'
 
 # MySQL connection
 mysql = MySQL(app)
+
+
+'''
+
+
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "default_secret_key")
+print("FLASK_SECRET_KEY:", os.getenv("FLASK_SECRET_KEY"))
+
+app.config['MYSQL_HOST'] = os.getenv("MYSQL_HOST", "monorail.proxy.rlwy.net")
+app.config['MYSQL_PORT'] = int(os.getenv("MYSQL_PORT", 22133))
+app.config['MYSQL_USER'] = os.getenv("MYSQL_USER", "root")
+app.config['MYSQL_PASSWORD'] = os.getenv("MYSQL_PASSWORD", "")
+app.config['MYSQL_DB'] = os.getenv("MYSQL_DB", "railway")
+
+# ✅ Force MySQLdb to use TCP/IP instead of socket
+app.config['MYSQL_UNIX_SOCKET'] = None
 
 
 
