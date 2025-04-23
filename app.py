@@ -3,7 +3,9 @@ from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import re
 import os
+import socket
 from datetime import datetime, timedelta
+
 
 
 app = Flask(__name__)
@@ -39,6 +41,20 @@ app.config['MYSQL_DB'] = os.getenv("MYSQL_DB", "railway")
 app.config['MYSQL_UNIX_SOCKET'] = None
 
 mysql = MySQL(app)
+
+
+
+
+@app.route("/dbtest")
+def dbtest():
+    host, port = app.config['MYSQL_HOST'], app.config['MYSQL_PORT']
+    s = socket.socket(); s.settimeout(5)
+    try:
+        s.connect((host, port))
+        s.close()
+        return "✅ TCP OK!"
+    except Exception as e:
+        return f"❌ TCP ERROR: {e}"
 
 
 
