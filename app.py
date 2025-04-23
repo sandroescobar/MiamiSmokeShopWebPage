@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, json
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import re
@@ -240,7 +240,8 @@ def login():
             msg = 'Logged in successfully!'
             return render_template('homePage.html', msg=msg)
         else:
-            msg = 'Incorrect email or password!'
+            flash("Incorrect email or password!", "danger")
+            #msg = 'Incorrect email or password!'
     return render_template('login.html', msg=msg)
 
 @app.route('/signUp', methods=['GET', 'POST'])
