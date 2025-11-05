@@ -1,0 +1,69 @@
+<div class="card">
+  <img class="product_img" src="jeans3.jpg" alt="Denim Jeans">
+  <h1>Tailored Jeans</h1>
+  <p class="price">$19.99</p>
+  <p>Some text about the jeans..</p>
+  <p><button>Add to Cart</button></p>
+</div>
+
+<style>
+.card {
+    position: relative;
+    top: 50px;
+    max-width: 300px;
+    margin: auto;
+    text-align: center;
+    border-radius: 20px;
+
+    /* NEW: clip inner content so nothing breaks the curve */
+    overflow: hidden;
+
+    /* frosted/glass base */
+    background: rgba(0, 20, 25, 0.18);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+
+    /* teal outline with more presence */
+    border: 1px solid rgba(0, 194, 184, 0.7);
+
+    /* glow */
+    box-shadow:
+        0 30px 60px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(0, 194, 184, 0.2);
+}
+
+.product_img {
+    display: block;
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+
+    /* make the image respect the same rounding on top */
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+}
+
+.price {
+    color: grey;
+    font-size: 22px;
+}
+
+.card button {
+    
+    border-radius: 20px;
+     border: 2px solid rgba(0, 194, 184, 0.7);
+    outline: 0;
+    padding: 10px;
+    color: white;
+    background-color: #000;
+    text-align: center;
+    cursor: pointer;
+    width: 50%;
+    font-size: 18px;
+    
+}
+
+.card button:hover {
+    opacity: 0.7;
+}
+</style>

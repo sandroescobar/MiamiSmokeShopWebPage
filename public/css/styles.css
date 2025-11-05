@@ -1,0 +1,140 @@
+/* everything below is for the navbar changes*/
+.bg-body-tertiary{
+    height: 15vh;
+    background-color: transparent !important;
+    z-index: 2 !important;
+
+    
+}
+
+
+.nav-link, .nav-active{
+
+    color: white !important;
+}
+
+
+
+.navbar-expand-lg .navbar-collapse{
+
+    justify-content: flex-end !important;
+    align-items: center !important;
+    padding-right: 6% !important;
+    
+    
+}
+
+*, ::after, ::before{
+    gap: 60px !important;
+}
+
+/* end of navbar changes */
+
+/* default (desktop / wide) */
+/* wrapper fills the screen */
+.video-wrapper {
+  position: fixed;
+  inset: 0;          /* top:0 right:0 bottom:0 left:0 */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;  /* hide edges when we shift video around */
+  z-index: -1;       /* keep it behind navbar */
+}
+
+/* the actual <video> */
+#myVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.logo{
+    padding-top:3%;
+    width: 150px;
+    height: 150px;
+}
+
+.header_container{
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2;
+}
+
+.location_section {
+  position: relative;
+  z-index: 2;        /* stay above video */
+  margin-top: 475px; /* this is the spacing you’re asking for */
+  text-align: center;
+  color: #fff;
+}
+
+.main_title{
+    font-size: 4rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+}
+
+.sub_title{
+    font-size: 2rem;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+}
+
+.locations_sub_header{
+    line-height: 15px;
+}
+
+
+
+
+
+@media (max-width: 1000px) {
+  .main_title{
+    font-size: 2.5rem;
+  }
+
+  .sub_title{
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 800px) {
+  .main_title{
+    font-size: 2.0rem;
+  }
+
+  .sub_title{
+    font-size: 0.8rem;
+  }
+}
+
+
+@media (max-width: 760px) {
+  .main_title{
+    padding-top: 9%;
+    font-size: 1.5rem;
+  }
+
+  .sub_title{
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .main_title{
+    padding-top: 15%;
+    
+  }
+
+  
+}
