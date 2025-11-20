@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <title>Card Demo</title>
+  <style>
+    /* Vars the card CSS expects */
+    :root{
+      --accent:#69CEE9;
+      --ink:#ffffff;
+      --ink-dim:rgba(255,255,255,.85);
+      --glass:rgba(255,255,255,.06);
+      --glass-border:rgba(255,255,255,.14);
+    }
+
+    /* Center the card on page and STOP full-screen growth */
+    html,body{height:100%}
+    body{
+      margin:0; background:#0a1222; color:var(--ink);
+      font-family:Poppins,system-ui,-apple-system,sans-serif;
+      display:grid; place-items:center; padding:24px;
+    }
+    .card-demo{ width:320px; }             /* <— the key constraint */
+
+    /* === product_cards.css (unchanged) === */
+    .product-card{
+      display:flex; flex-direction:column;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius:16px;
+      overflow:hidden;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 12px 26px rgba(0,0,0,.25);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .product-card:hover{ transform: translateY(-3px); box-shadow: 0 16px 36px rgba(0,0,0,.35); }
+
+    .product-media{ position:relative; width:100%; aspect-ratio:1/1; overflow:hidden; }
+    .product-media img{
+      width:100%; height:100%; object-fit:cover; display:block; transform:scale(1.02);
+      background:linear-gradient(135deg,#1b2437,#0a1222); /* fallback if image missing */
+    }
+
+    .badge-pill{
+      position:absolute; left:.6rem; bottom:.6rem;
+      font-size:.72rem; padding:.25rem .5rem; border-radius:999px;
+      background: rgba(0,0,0,.45); color:#fff; border:1px solid rgba(255,255,255,.25);
+    }
+    .badge-pill.alt{ background: rgba(105,206,233,.85); color:#08121f; }
+
+    .wishlist{
+      position:absolute; right:.6rem; top:.6rem; width:38px; height:38px;
+      border-radius:12px; border:1px solid rgba(255,255,255,.25);
+      background: rgba(0,0,0,.4); color:#fff; display:grid; place-items:center;
+    }
+    .wishlist svg{ width:18px; height:18px; }
+
+    .product-info{ padding:.85rem; display:flex; flex-direction:column; gap:.5rem; }
+    .product-name{ font-size:1rem; margin:0; color:#fff; }
+    .meta{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; }
+    .brand{ font-size:.85rem; opacity:.85; }
+    .rating{ font-size:.85rem; opacity:.9; letter-spacing:.02em; }
+
+    .buy-row{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-top:.25rem; }
+    .price{ font-weight:600; font-size:1.05rem; }
+    .btn-accent{
+      border:0; padding:.5rem .75rem; border-radius:12px; cursor:pointer;
+      background: var(--accent); color:#0a1222; font-weight:600;
+    }
+
+    .sold-out,
+    .product-card.sold-out .btn-accent { pointer-events:none; opacity:.6; }
+
+    .soldout-overlay{
+      position:absolute; inset:0; background:rgba(8,18,31,.6);
+      display:grid; place-items:center; text-transform:uppercase;
+      letter-spacing:.18em; font-weight:600; color:#fff;
+    }
+  </style>
+</head>
+<body>
+
+  <article class="product-card card-demo">
+    <div class="product-media">
+      <!-- NOTE: when opening the file directly, use a RELATIVE path -->
+      <img src="images/products/p-04.webp" alt="Salt Nic Blue Razz 30mg">
+      <div class="soldout-overlay">Sold out</div>
+    </div>
+
+    <div class="product-info">
+      <h3 class="product-name">Salt Nic • Blue Razz 30mg</h3>
+      <div class="meta">
+        <span class="brand">JuiceLab</span>
+        <span class="rating" aria-label="4 out of 5">★★★★☆ <small>(41)</small></span>
+      </div>
+      <div class="buy-row">
+        <span class="price">$14.99</span>
+        <button class="btn-accent" disabled>Unavailable</button>
+      </div>
+    </div>
+  </article>
+
+</body>
+</html>
