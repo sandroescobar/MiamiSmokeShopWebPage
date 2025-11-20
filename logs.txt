@@ -1,150 +1,104 @@
-2025-11-20T16:55:57.118464838Z             |                                                                  ^
-2025-11-20T16:55:57.118466568Z       pandas/_libs/src/klib/khash_python.h:127:74: note: in definition of macro ‘kh_floats_hash_equal’
-2025-11-20T16:55:57.118468319Z         127 | #define kh_floats_hash_equal(a, b) ((a) == (b) || ((b) != (b) && (a) != (a)))
-2025-11-20T16:55:57.118470048Z             |                                                                          ^
-2025-11-20T16:55:57.118471739Z       pandas/_libs/src/klib/khash.h:393:99: note: in expansion of macro ‘kh_complex_hash_equal’
-2025-11-20T16:55:57.118473439Z         393 |                                 while (!__ac_isempty(h->flags, i) && (__ac_isdel(h->flags, i) || !__hash_equal(h->keys[i], key))) { \
-2025-11-20T16:55:57.118475129Z             |                                                                                                   ^~~~~~~~~~~~
-2025-11-20T16:55:57.118476849Z       pandas/_libs/src/klib/khash.h:426:9: note: in expansion of macro ‘KHASH_INIT2’
-2025-11-20T16:55:57.118478499Z         426 |         KHASH_INIT2(name, PANDAS_INLINE, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal)
-2025-11-20T16:55:57.118480139Z             |         ^~~~~~~~~~~
-2025-11-20T16:55:57.118481789Z       pandas/_libs/src/klib/khash_python.h:157:9: note: in expansion of macro ‘KHASH_INIT’
-2025-11-20T16:55:57.118483439Z         157 |         KHASH_INIT(name, khcomplex128_t, khval_t, 1, kh_complex128_hash_func, kh_complex_hash_equal)
-2025-11-20T16:55:57.118485139Z             |         ^~~~~~~~~~
-2025-11-20T16:55:57.118486799Z       pandas/_libs/src/klib/khash_python.h:159:1: note: in expansion of macro ‘KHASH_MAP_INIT_COMPLEX128’
-2025-11-20T16:55:57.118488459Z         159 | KHASH_MAP_INIT_COMPLEX128(complex128, size_t)
-2025-11-20T16:55:57.1184901Z             | ^~~~~~~~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.1184918Z       pandas/_libs/algos.c: At top level:
-2025-11-20T16:55:57.11849345Z       pandas/_libs/algos.c:885:1: warning: ‘Py_UNICODE’ is deprecated [-Wdeprecated-declarations]
-2025-11-20T16:55:57.11849898Z         885 | static CYTHON_INLINE size_t __Pyx_Py_UNICODE_strlen(const Py_UNICODE *u) {
-2025-11-20T16:55:57.11850084Z             | ^~~~~~
-2025-11-20T16:55:57.11850254Z       pandas/_libs/algos.c: In function ‘__Pyx_Py_UNICODE_strlen’:
-2025-11-20T16:55:57.11850416Z       pandas/_libs/algos.c:886:5: warning: ‘Py_UNICODE’ is deprecated [-Wdeprecated-declarations]
-2025-11-20T16:55:57.11850579Z         886 |     const Py_UNICODE *u_end = u;
-2025-11-20T16:55:57.11850744Z             |     ^~~~~
-2025-11-20T16:55:57.11850944Z       pandas/_libs/algos.c: In function ‘__Pyx_init_assertions_enabled’:
-2025-11-20T16:55:57.11851453Z       pandas/_libs/algos.c:3307:39: warning: implicit declaration of function ‘_PyInterpreterState_GetConfig’; did you mean ‘PyInterpreterState_GetID’? [-Wimplicit-function-declaration]
-2025-11-20T16:55:57.118521711Z        3307 |     __pyx_assertions_enabled_flag = ! _PyInterpreterState_GetConfig(__Pyx_PyThreadState_Current->interp)->optimization_level;
-2025-11-20T16:55:57.118524651Z             |                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118527361Z             |                                       PyInterpreterState_GetID
-2025-11-20T16:55:57.118530381Z       pandas/_libs/algos.c:3307:105: error: invalid type argument of ‘->’ (have ‘int’)
-2025-11-20T16:55:57.118533121Z        3307 |     __pyx_assertions_enabled_flag = ! _PyInterpreterState_GetConfig(__Pyx_PyThreadState_Current->interp)->optimization_level;
-2025-11-20T16:55:57.118535951Z             |                                                                                                         ^~
-2025-11-20T16:55:57.118538372Z       pandas/_libs/algos.c: In function ‘__Pyx_PyList_Extend’:
-2025-11-20T16:55:57.118541552Z       pandas/_libs/algos.c:3538:22: warning: implicit declaration of function ‘_PyList_Extend’; did you mean ‘PyList_Extend’? [-Wimplicit-function-declaration]
-2025-11-20T16:55:57.118544242Z        3538 |     PyObject* none = _PyList_Extend((PyListObject*)L, v);
-2025-11-20T16:55:57.118546982Z             |                      ^~~~~~~~~~~~~~
-2025-11-20T16:55:57.118549752Z             |                      PyList_Extend
-2025-11-20T16:55:57.118552622Z       pandas/_libs/algos.c:3538:22: warning: initialization of ‘PyObject *’ {aka ‘struct _object *’} from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-2025-11-20T16:55:57.118555192Z       pandas/_libs/algos.c: In function ‘__pyx_pymod_exec_algos’:
-2025-11-20T16:55:57.118557863Z       pandas/_libs/algos.c:3671:38: warning: implicit declaration of function ‘_PyDict_SetItem_KnownHash’; did you mean ‘_PyDict_GetItem_KnownHash’? [-Wimplicit-function-declaration]
-2025-11-20T16:55:57.118560623Z        3671 |     (likely(PyDict_CheckExact(ns)) ? _PyDict_SetItem_KnownHash(ns, name, value, ((PyASCIIObject *) name)->hash) : PyObject_SetItem(ns, name, value))
-2025-11-20T16:55:57.118563303Z             |                                      ^~~~~~~~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118566283Z       pandas/_libs/algos.c:164401:7: note: in expansion of macro ‘__Pyx_SetNameInClass’
-2025-11-20T16:55:57.118569033Z       164401 |   if (__Pyx_SetNameInClass(__pyx_t_1, __pyx_n_s_lt, __pyx_t_3) < 0) __PYX_ERR(0, 84, __pyx_L1_error)
-2025-11-20T16:55:57.118571873Z              |       ^~~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118574723Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_int’:
-2025-11-20T16:55:57.118577283Z       pandas/_libs/algos.c:176677:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118579753Z       176677 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118582174Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118584654Z       In file included from /opt/render/project/python/Python-3.13.4/include/python3.13/longobject.h:107,
-2025-11-20T16:55:57.118587414Z                        from /opt/render/project/python/Python-3.13.4/include/python3.13/Python.h:81,
-2025-11-20T16:55:57.118590174Z                        from pandas/_libs/algos.c:46:
-2025-11-20T16:55:57.118592664Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118595164Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118597824Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118600314Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_int64’:
-2025-11-20T16:55:57.118607225Z       pandas/_libs/algos.c:176949:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118610045Z       176949 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118612625Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118615225Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118617775Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118620255Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118622766Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_intp’:
-2025-11-20T16:55:57.118638266Z       pandas/_libs/algos.c:177145:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118641146Z       177145 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118643556Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118646396Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118671108Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118674018Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118676558Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_int8’:
-2025-11-20T16:55:57.118679198Z       pandas/_libs/algos.c:177569:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118681878Z       177569 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118684528Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118687098Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118689749Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118692378Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118695089Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_int16’:
-2025-11-20T16:55:57.118698009Z       pandas/_libs/algos.c:177765:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118700509Z       177765 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118703079Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118705689Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118708209Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118710649Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118713059Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_int32’:
-2025-11-20T16:55:57.11871559Z       pandas/_libs/algos.c:177961:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.11871839Z       177961 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.11872123Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.11872426Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.11872679Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.11872976Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.11873532Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_uint8’:
-2025-11-20T16:55:57.11873712Z       pandas/_libs/algos.c:178157:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118738841Z       178157 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118740521Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118742201Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118743881Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118745531Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118747201Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_uint16’:
-2025-11-20T16:55:57.118748891Z       pandas/_libs/algos.c:178353:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118750551Z       178353 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118752211Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118753971Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118755621Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118757281Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118758921Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_uint32’:
-2025-11-20T16:55:57.118760592Z       pandas/_libs/algos.c:178549:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118762252Z       178549 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118763902Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118765612Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118767282Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118768932Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118770582Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_npy_uint64’:
-2025-11-20T16:55:57.118772212Z       pandas/_libs/algos.c:178745:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118773912Z       178745 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118775582Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118777272Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118778902Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118780533Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118782193Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_enum____pyx_t_6pandas_5_libs_5algos_TiebreakEnumType’:
-2025-11-20T16:55:57.118791323Z       pandas/_libs/algos.c:178941:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118793183Z       178941 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118794863Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118796513Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118798193Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118799833Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118804184Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_long’:
-2025-11-20T16:55:57.118806694Z       pandas/_libs/algos.c:179170:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118808364Z       179170 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118810024Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118811674Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118813314Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118814944Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118816584Z       pandas/_libs/algos.c: In function ‘__Pyx_PyInt_As_char’:
-2025-11-20T16:55:57.118818264Z       pandas/_libs/algos.c:179366:27: error: too few arguments to function ‘_PyLong_AsByteArray’
-2025-11-20T16:55:57.118819954Z       179366 |                 int ret = _PyLong_AsByteArray((PyLongObject *)v,
-2025-11-20T16:55:57.118822424Z              |                           ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118824255Z       /opt/render/project/python/Python-3.13.4/include/python3.13/cpython/longobject.h:111:17: note: declared here
-2025-11-20T16:55:57.118825955Z         111 | PyAPI_FUNC(int) _PyLong_AsByteArray(PyLongObject* v,
-2025-11-20T16:55:57.118827645Z             |                 ^~~~~~~~~~~~~~~~~~~
-2025-11-20T16:55:57.118829275Z       error: command '/usr/bin/gcc' failed with exit code 1
-2025-11-20T16:55:57.118830945Z       [end of output]
-2025-11-20T16:55:57.118832675Z
-2025-11-20T16:55:57.118834435Z   note: This error originates from a subprocess, and is likely not a problem with pip.
-2025-11-20T16:55:57.118836205Z   ERROR: Failed building wheel for pandas
-2025-11-20T16:55:57.654270677Z
-2025-11-20T16:55:57.654297698Z [notice] A new release of pip is available: 25.1.1 -> 25.3
-2025-11-20T16:55:57.654301209Z [notice] To update, run: pip install --upgrade pip
-2025-11-20T16:55:57.654719668Z ERROR: Failed to build installable wheels for some pyproject.toml based projects (pandas)
-2025-11-20T16:55:58.079474747Z ==> Build failed 😞
-2025-11-20T16:55:58.079494208Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+e
+
+Rollback
+
+All logs
+Search
+Search
+
+Live tail
+EST
+
+Menu
+
+==> Cloning from https://github.com/sandroescobar/MiamiSmokeShopWebPage
+==> Checking out commit 8b4628da34795734ca1b75ed98d35e153f59c667 in branch main
+==> Installing Python version 3.13.4...
+==> Using Python version 3.13.4 (default)
+==> Docs on specifying a Python version: https://render.com/docs/python-version
+==> Using Poetry version 2.1.3 (default)
+==> Docs on specifying a Poetry version: https://render.com/docs/poetry-version
+==> Running build command 'pip install -r requirements.txt'...
+Collecting pandas>=2.1.0 (from -r requirements.txt (line 1))
+  Downloading pandas-2.3.3-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (91 kB)
+Collecting mysql-connector-python==8.0.33 (from -r requirements.txt (line 2))
+  Downloading mysql_connector_python-8.0.33-py2.py3-none-any.whl.metadata (1.8 kB)
+Collecting python-dotenv==1.0.0 (from -r requirements.txt (line 3))
+  Downloading python_dotenv-1.0.0-py3-none-any.whl.metadata (21 kB)
+Collecting selenium==4.10.0 (from -r requirements.txt (line 4))
+  Downloading selenium-4.10.0-py3-none-any.whl.metadata (7.2 kB)
+Collecting protobuf<=3.20.3,>=3.11.0 (from mysql-connector-python==8.0.33->-r requirements.txt (line 2))
+  Downloading protobuf-3.20.3-py2.py3-none-any.whl.metadata (720 bytes)
+Collecting urllib3<3,>=1.26 (from urllib3[socks]<3,>=1.26->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading urllib3-2.5.0-py3-none-any.whl.metadata (6.5 kB)
+Collecting trio~=0.17 (from selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading trio-0.32.0-py3-none-any.whl.metadata (8.5 kB)
+Collecting trio-websocket~=0.9 (from selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading trio_websocket-0.12.2-py3-none-any.whl.metadata (5.1 kB)
+Collecting certifi>=2021.10.8 (from selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+Collecting attrs>=23.2.0 (from trio~=0.17->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading attrs-25.4.0-py3-none-any.whl.metadata (10 kB)
+Collecting sortedcontainers (from trio~=0.17->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl.metadata (10 kB)
+Collecting idna (from trio~=0.17->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+Collecting outcome (from trio~=0.17->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading outcome-1.3.0.post0-py2.py3-none-any.whl.metadata (2.6 kB)
+Collecting sniffio>=1.3.0 (from trio~=0.17->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+Collecting wsproto>=0.14 (from trio-websocket~=0.9->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading wsproto-1.3.1-py3-none-any.whl.metadata (5.2 kB)
+Collecting pysocks!=1.5.7,<2.0,>=1.5.6 (from urllib3[socks]<3,>=1.26->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading PySocks-1.7.1-py3-none-any.whl.metadata (13 kB)
+Collecting numpy>=1.26.0 (from pandas>=2.1.0->-r requirements.txt (line 1))
+  Downloading numpy-2.3.5-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+Collecting python-dateutil>=2.8.2 (from pandas>=2.1.0->-r requirements.txt (line 1))
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pytz>=2020.1 (from pandas>=2.1.0->-r requirements.txt (line 1))
+  Downloading pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting tzdata>=2022.7 (from pandas>=2.1.0->-r requirements.txt (line 1))
+  Downloading tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas>=2.1.0->-r requirements.txt (line 1))
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting h11<1,>=0.16.0 (from wsproto>=0.14->trio-websocket~=0.9->selenium==4.10.0->-r requirements.txt (line 4))
+  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Downloading mysql_connector_python-8.0.33-py2.py3-none-any.whl (390 kB)
+Downloading python_dotenv-1.0.0-py3-none-any.whl (19 kB)
+Downloading selenium-4.10.0-py3-none-any.whl (6.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.7/6.7 MB 25.7 MB/s eta 0:00:00
+Downloading protobuf-3.20.3-py2.py3-none-any.whl (162 kB)
+Downloading trio-0.32.0-py3-none-any.whl (512 kB)
+Downloading trio_websocket-0.12.2-py3-none-any.whl (21 kB)
+Downloading urllib3-2.5.0-py3-none-any.whl (129 kB)
+Downloading PySocks-1.7.1-py3-none-any.whl (16 kB)
+Downloading pandas-2.3.3-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (12.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.3/12.3 MB 69.7 MB/s eta 0:00:00
+Downloading attrs-25.4.0-py3-none-any.whl (67 kB)
+Downloading certifi-2025.11.12-py3-none-any.whl (159 kB)
+Downloading numpy-2.3.5-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 124.5 MB/s eta 0:00:00
+Downloading outcome-1.3.0.post0-py2.py3-none-any.whl (10 kB)
+Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+Downloading tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+Downloading wsproto-1.3.1-py3-none-any.whl (24 kB)
+Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+Downloading idna-3.11-py3-none-any.whl (71 kB)
+Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+Installing collected packages: sortedcontainers, pytz, urllib3, tzdata, sniffio, six, python-dotenv, pysocks, protobuf, numpy, idna, h11, certifi, attrs, wsproto, python-dateutil, outcome, mysql-connector-python, trio, pandas, trio-websocket, selenium
+Successfully installed attrs-25.4.0 certifi-2025.11.12 h11-0.16.0 idna-3.11 mysql-connector-python-8.0.33 numpy-2.3.5 outcome-1.3.0.post0 pandas-2.3.3 protobuf-3.20.3 pysocks-1.7.1 python-dateutil-2.9.0.post0 python-dotenv-1.0.0 pytz-2025.2 selenium-4.10.0 six-1.17.0 sniffio-1.3.1 sortedcontainers-2.4.0 trio-0.32.0 trio-websocket-0.12.2 tzdata-2025.2 urllib3-2.5.0 wsproto-1.3.1
+[notice] A new release of pip is available: 25.1.1 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+==> Uploading build...
+==> Uploaded in 19.1s. Compression took 4.1s
+==> Build successful 🎉
+==> Deploying...
+==> Running 'start smoking'
+bash: line 1: start: command not found
+==> Exited with status 127
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+==> Running 'start smoking'
+bash: line 1: start: command not found
