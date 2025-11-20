@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Bootstrap + Poppins to match your site -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/products.css" />
+  <title>Shop Products • Miami Vape Smoke Shop</title>
+</head>
+<body id="products_body">
+  <!-- Include your existing navbar partial here -->
+  <!-- {% include 'navbar.html' %} -->
+
+  <!-- Hero -->
+  <header class="hero-products">
+    <div class="hero-inner container">
+      <h1 class="hero-title">Shop Products</h1>
+      <p class="hero-sub">Same-day pickup or delivery from either location.</p>
+      <div class="hero-chips">
+        <span>Best prices</span><span>Open late</span><span>Miami pickup & delivery</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <section class="product-toolbar container">
+    <div class="toolbar-row">
+      <div class="shop-toggle" role="group" aria-label="Filter by shop">
+        <input type="radio" name="shop" id="shop-all" checked>
+        <label for="shop-all">All</label>
+        <input type="radio" name="shop" id="shop-1">
+        <label for="shop-1">Shop #1</label>
+        <input type="radio" name="shop" id="shop-2">
+        <label for="shop-2">Shop #2</label>
+      </div>
+
+      <div class="toolbar-controls">
+        <div class="searchbox">
+          <input type="search" placeholder="Search products…" aria-label="Search products">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 21l-4.2-4.2M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+
+        <select aria-label="Category">
+          <option selected>All categories</option>
+          <option>Disposables</option>
+          <option>Vape Juice</option>
+          <option>Glass & Rigs</option>
+          <option>Accessories</option>
+        </select>
+
+        <select aria-label="Sort">
+          <option selected>Sort: Popular</option>
+          <option>Price: Low → High</option>
+          <option>Price: High → Low</option>
+          <option>Newest</option>
+        </select>
+      </div>
+    </div>
+    <div class="results container--narrow" aria-live="polite">Showing sample inventory</div>
+  </section>
+
+  <!-- Grid -->
+  <main class="container product-grid">
+    <!-- Example product cards (add/remove freely). Use data-shop to tag which location stocks it -->
+
+
+
+
+    <!-- ...add more cards as needed -->
+  </main>
+
+  <!-- Optional pagination shell (no JS) -->
+  <nav class="container pagination-bar" aria-label="Products pages">
+    <a href="#" class="page prev" aria-disabled="true">‹ Prev</a>
+    <a href="#" class="page current" aria-current="page">1</a>
+    <a href="#" class="page">2</a>
+    <a href="#" class="page">3</a>
+    <a href="#" class="page next">Next ›</a>
+  </nav>
+
+  <!-- Footer partial can go here -->
+  <!-- {% include 'footer.html' %} -->
+</body>
+</html>

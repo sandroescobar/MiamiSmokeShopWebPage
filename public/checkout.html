@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- GTM -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-WW7VC75G');</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout – LoveMeNow</title>
+  <meta name="description" content="Secure checkout powered by Stripe. Pick up in-store or get fast Uber Delivery.">
+
+  <!-- Icons / Stripe -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://js.stripe.com/v3/" nonce="{{ csp_nonce() }}"></script>
+
+  <!-- Base site CSS (kept) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='CSS/styles.css') }}">
+  <link rel="preload" href="{{ url_for('static', filename='CSS/mobile-optimizations.css') }}" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="{{ url_for('static', filename='CSS/mobile-optimizations.css') }}"></noscript>
+
+  <!-- CSRF -->
+  {% include 'csrf_meta.html' %}
+
+  <!-- Clean, Shopify-like skin (overrides only) -->
+  <style>
+    :root{
+      --bg:#f6f7f9;
+      --card:#ffffff;
+      --ink:#1f2937;            /* text */
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --primary:#111827;        /* solid, trustworthy button */
+      --primary-ink:#ffffff;
+      --focus:#3b82f6;          /* subtle blue focus ring */
+      --radius:14px;
+      --radius-sm:10px;
+      --shadow:0 6px 24px rgba(0,0,0,.06);
+    }
+    html,body{background:var(--bg);color:var(--ink)}
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+
+    /* Layout */
+    .checkout-container{max-width:1120px;margin:28px auto;padding:0 16px}
+    .checkout-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:28px;align-items:start}
+    @media (max-width: 980px){.checkout-layout{grid-template-columns:1fr}}
+
+    /* Cards */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .checkout-form{padding:22px}
+    .order-summary{padding:22px;position:sticky;top:22px}
+
+    /* Header */
+    .checkout-header{text-align:left;margin:6px 0 18px}
+    .checkout-header h1{font-size:24px;letter-spacing:-.2px;margin:0 0 6px}
+    .checkout-header p{color:var(--muted);margin:0}
+
+    /* Section titles */
+    .form-section{margin:18px 0}
+    .form-section h3{font-size:14px;font-weight:700;margin:0 0 10px;color:var(--ink)}
+    .section-note{font-size:12px;color:var(--muted);margin-top:4px}
+
+    /* Delivery options (radio-like) */
+    .delivery-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .delivery-option{
+      display:flex;gap:10px;align-items:flex-start;padding:12px 12px;border:1px solid var(--border);
+      border-radius:12px;background:#fff;cursor:pointer;transition:border-color .15s,box-shadow .15s
+    }
+    .delivery-option:hover{border-color:#d1d5db}
+    .delivery-option.active{border-color:#9ca3af;box-shadow:0 0 0 3px rgba(156,163,175,.18)}
+    .delivery-option i{font-size:18px;color:#9ca3af;margin-top:2px}
+    .delivery-option.active i{color:#6b7280}
+    .delivery-option-title{font-weight:600;line-height:1.2}
+    .delivery-option-desc{font-size:12px;color:var(--muted)}
+
+    /* Inputs */
+    label{display:block;font-size:12px;font-weight:600;margin:12px 0 6px}
+    input,select{
+      width:100%;padding:12px 11px;border:1px solid var(--border);border-radius:10px;background:#fff;
+      font-size:14px;color:var(--ink);transition:border-color .15s,box-shadow .15s
+    }
+    input:focus,select:focus{outline:0;border-color:#c7d2fe;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:640px){.form-row{grid-template-columns:1fr}}
+
+    /* Stripe */
+    #stripe-checkout{border:1px solid var(--border);border-radius:10px;background:#fff;padding:14px}
+    .trustline{display:flex;gap:10px;align-items:center;margin-top:10px;color:var(--muted);font-size:12px}
+    .trustline i{color:#16a34a}
+
+    /* Summary */
+    .summary-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .order-item{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+    .item-details{flex:1}
+    .item-name{font-weight:600}
+    .item-quantity{color:var(--muted);font-size:12px}
+    .summary-row{display:flex;justify-content:space-between;margin:10px 0;color:var(--ink)}
+    .summary-row.total{border-top:1px solid var(--border);padding-top:12px;font-weight:700}
+
+    /* Button */
+    .checkout-btn{
+      width:100%;padding:14px 16px;border:0;border-radius:12px;background:var(--primary);
+      color:var(--primary-ink);font-weight:700;font-size:15px;letter-spacing:.2px;cursor:pointer;
+      transition:filter .15s,transform .02s
+    }
+    .checkout-btn:hover{filter:brightness(1.08)}
+    .checkout-btn:active{transform:translateY(1px)}
+    .checkout-btn:disabled{opacity:.55;cursor:not-allowed}
+
+    /* Status/help */
+    #checkout-status{text-align:center;margin:12px 0 0;color:var(--muted);font-size:12px}
+    .help-links{margin-top:14px;font-size:12px;color:var(--muted)}
+    .help-links a{color:#6b7280;text-decoration:underline}
+  </style>
+</head>
+<body>
+
+  <!-- GTM (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WW7VC75G"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+
+  {% include "navbar.html" %}
+
+  <div class="checkout-container">
+    <div class="checkout-header">
+      <h1>Secure checkout</h1>
+      <p>Pick up in-store or get fast Uber Delivery</p>
+    </div>
+
+    <div class="checkout-layout">
+      <!-- Left column: Form -->
+      <div class="checkout-form card">
+        <!-- Delivery options -->
+        <div class="form-section">
+          <h3>Delivery options</h3>
+          <div class="delivery-options">
+            <div class="delivery-option active" data-type="pickup" id="opt-pickup">
+              <i class="fa-solid fa-store"></i>
+              <div>
+                <div class="delivery-option-title">Store pickup</div>
+                <div class="delivery-option-desc">Free pickup at our Miami location</div>
+              </div>
+            </div>
+            <div class="delivery-option" data-type="delivery" id="opt-delivery">
+              <i class="fa-solid fa-motorcycle"></i>
+              <div>
+                <div class="delivery-option-title">Uber Delivery</div>
+                <div class="delivery-option-desc">On-demand courier to your door</div>
+              </div>
+            </div>
+          </div>
+          <div class="section-note">We don’t ship by mail. Delivery is local via Uber only.</div>
+        </div>
+
+        <!-- Contact -->
+        <div class="form-section">
+          <h3>Contact</h3>
+          {% if user_data %}
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" value="{{ user_data.email }}" readonly autocomplete="email">
+            <label for="fullName">Full name</label>
+            <input type="text" id="fullName" name="fullName" value="{{ user_data.full_name }}" readonly autocomplete="name">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" name="phone" required placeholder="(###) ###-####" autocomplete="tel">
+          {% else %}
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" required autocomplete="email">
+            <div class="form-row">
+              <div>
+                <label for="firstName">First name</label>
+                <input type="text" id="firstName" name="firstName" required autocomplete="given-name">
+              </div>
+              <div>
+                <label for="lastName">Last name</label>
+                <input type="text" id="lastName" name="lastName" required autocomplete="family-name">
+              </div>
+            </div>
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" name="phone" required autocomplete="tel">
+          {% endif %}
+        </div>
+
+        <!-- Address (shown only for delivery) -->
+        <div class="form-section" id="delivery-address-section" style="display:none;">
+          <h3>Delivery address</h3>
+
+          {% if user_data and user_addresses %}
+            <label for="saved-address">Use saved address</label>
+            <select id="saved-address" name="saved-address">
+              <option value="">Select a saved address</option>
+              {% for address in user_addresses %}
+                <option value="{{ address.id }}"
+                        data-address="{{ address.address }}"
+                        data-suite="{{ address.suite or '' }}"
+                        data-city="{{ address.city }}"
+                        data-state="{{ address.state }}"
+                        data-zip="{{ address.zip }}"
+                        {% if address.is_default %}selected{% endif %}>
+                  {{ address.address }}{% if address.suite %}, {{ address.suite }}{% endif %}, {{ address.city }}, {{ address.state }} {{ address.zip }}{% if address.is_default %} (Default){% endif %}
+                </option>
+              {% endfor %}
+              <option value="manual">Enter new address manually</option>
+            </select>
+            <div id="manual-address-fields" {% if default_address %}style="display:none"{% endif %}>
+          {% else %}
+            <div id="manual-address-fields">
+          {% endif %}
+              <label for="address">Street address</label>
+              <input type="text" id="address" name="address" {% if default_address %} value="{{ default_address.address }}"{% endif %} autocomplete="address-line1">
+
+              <label for="suite">Apartment / suite (optional)</label>
+              <input type="text" id="suite" name="suite" {% if default_address %} value="{{ default_address.suite or '' }}"{% endif %} autocomplete="address-line2">
+
+              <div class="form-row">
+                <div>
+                  <label for="city">City</label>
+                  <input type="text" id="city" name="city" value="{% if default_address %}{{ default_address.city }}{% else %}Miami{% endif %}" autocomplete="address-level2">
+                </div>
+                <div>
+                  <label for="state">State</label>
+                  <select id="state" name="state" autocomplete="address-level1">
+                    <option value="FL" {% if not default_address or default_address.state == 'FL' %}selected{% endif %}>Florida</option>
+                  </select>
+                </div>
+              </div>
+
+              <label for="zip">ZIP code</label>
+              <input type="text" id="zip" name="zip" {% if default_address %} value="{{ default_address.zip }}"{% endif %} autocomplete="postal-code">
+            </div>
+
+          <div id="delivery-error-message" class="error-message" style="display:none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span id="delivery-error-text"></span>
+          </div>
+        </div>
+
+        <!-- Payment -->
+        <div class="form-section">
+          <h3>Payment</h3>
+
+          <!-- NEW: Apple/Google Pay button mounts here (shown only when available) -->
+          <div id="express-checkout" style="margin-bottom:12px;display:none"></div>
+
+          <!-- Stripe Payment Element -->
+          <div id="stripe-checkout"></div>
+
+          <div class="trustline"><i class="fa-solid fa-lock"></i> All transactions are secure & encrypted. Card data never hits our servers (Stripe).</div>
+        </div>
+
+        <div id="error-message" class="error-message" style="display:none;"></div>
+        <div id="success-message" class="success-message" style="display:none;"></div>
+      </div>
+
+      <!-- Right column: Order summary -->
+      <aside class="order-summary card">
+        <div class="summary-header">
+          <h3 style="margin:0;font-size:14px;font-weight:700;">Order summary</h3>
+          <span id="itemCount" class="section-note"></span>
+        </div>
+
+        <div id="cart-items"></div>
+
+        <div class="summary-row" id="subtotal-row">
+          <span>Subtotal</span><span id="subtotal">$0.00</span>
+        </div>
+
+        <div class="summary-row" id="discount-row" style="display:none;">
+          <span>Discount <span id="discount-code-label"></span></span>
+          <span id="discount-amount">-$0.00</span>
+        </div>
+
+        <div class="summary-row" id="delivery-fee-row" style="display:none;">
+          <span>Delivery fee</span><span id="delivery-fee">$0.00</span>
+        </div>
+
+        <div class="summary-row">
+          <span>Tax (8.75%)</span><span id="tax-amount">$0.00</span>
+        </div>
+
+        <div class="summary-row total">
+          <span>Total</span><span id="total">$0.00</span>
+        </div>
+
+        <div id="checkout-status">Select a delivery option to continue</div>
+
+        <button id="checkout-button" class="checkout-btn" disabled>
+          <i class="loading-spinner fas fa-spinner fa-spin" style="display:none"></i>
+          Complete order
+        </button>
+
+        <div id="express-checkout-right" style="margin-top:10px; display:none;"></div>
+
+
+        <div class="help-links">
+          Need help? <a href="/support" rel="nofollow">Contact support</a> · <a href="/policy/returns" rel="nofollow">Returns</a> · <a href="/policy/privacy" rel="nofollow">Privacy</a>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  {% include "footer.html" %}
+
+  <!-- Bootstrap data for checkout.js -->
+  <script id="checkout-bootstrap" type="application/json">
+    {
+      "cart": {{ cart_data | tojson }},
+      "stripePublishableKey": "{{ config.STRIPE_PUBLISHABLE_KEY }}",
+      "defaultDeliveryType": "pickup"
+    }
+  </script>
+
+  <!-- JS (kept) -->
+  <script src="{{ url_for('static', filename='js/mobile-menu.js') }}?v=20250929-1" defer></script>
+  <script src="{{ url_for('static', filename='js/checkout.js') }}?v=20250930-fixed-card-only" defer></script>
+
+  <!-- Tiny UX script: toggle active state (non-blocking) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const opts = document.querySelectorAll('.delivery-option');
+      const addr = document.getElementById('delivery-address-section');
+      opts.forEach(o => o.addEventListener('click', () => {
+        opts.forEach(x => x.classList.remove('active'));
+        o.classList.add('active');
+        const type = o.getAttribute('data-type');
+        addr.style.display = (type === 'delivery') ? '' : 'none';
+      }));
+    });
+  </script>
+</body>
+</html>

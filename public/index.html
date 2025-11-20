@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="css/styles.css">
+    
+    <title>Document</title>
+</head>
+<body id="home_body">
+
+    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+        <div class="container-fluid">
+          <img class="logo" src="/images/miami_vape_logo.webp" alt="Miami Vape Shops Logo">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarNavDropdown">
+            <ul class="navbar-nav">
+              <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="#">Home</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/products">Shop</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">Socials</a>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Locations
+                </a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="#">
+                    <div style="font-weight: 600;">Miami Vape Smoke Shop</div>
+                    <div style="font-size: 0.85rem; opacity: 0.8;">6346 SW 8th St, West Miami, FL 33144</div>
+                  </a></li>
+                  <li><a class="dropdown-item" href="#">
+                    <div style="font-weight: 600;">Miami Vape Smoke Shop #2</div>
+                    <div style="font-size: 0.85rem; opacity: 0.8;">351 NE 79th St Unit 101, Miami, FL 33138</div>
+                  </a></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      <section class="header_container">
+          <h1 class="main_title">Miami Vape Smoke Shops</h1>
+          <span class="sub_title">Keeping you high at the lowest price</span>
+
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" href="/shop">Shop now</a>
+            <a class="btn btn-outline-light btn-lg" href="#locations">Find a store</a>
+          </div>
+
+          <a class="scroll-cue" href="#locations" aria-label="Scroll to locations">▾</a>
+      </section>
+
+    <div class="video-wrapper">
+        <video id="myVideo" autoplay muted loop playsinline>
+        <source src="video/miami_vape_video_background.mp4" type="video/mp4" />
+        </video>
+    </div>
+
+
+
+
+    <section id="locations">
+  <div class="location_section">
+    <h2 class="locations_header">Our Locations</h2>
+    <p class="locations_sub_header">
+      We have two locations in Miami, come visit us for your smoke necessities <br>
+      or get your favorites delivered right to your door!
+    </p>
+  </div>
+
+  <div class="shop_photos">
+    <!-- First Location -->
+    <div class="slideshow-wrapper">
+      <header class="location-header">
+        <h3 class="location-title">Miami Vape Smoke Shop #2</h3>
+        <p class="location-address">345 Ne 79Th St, Miami, FL 33130</p>
+      </header>
+
+      <div class="slideshow-container" id="slideshow1">
+        <div class="mySlides slidefade">
+          <div class="numbertext">1 / 3</div>
+          <img src="/images/miami_vape_storefront_clean.webp" alt="Calle Ocho storefront" style="width:100%">
+
+        </div>
+
+        <div class="mySlides slidefade">
+          <div class="numbertext">2 / 3</div>
+          <img src="img2.jpg" alt="Interior photo" style="width:100%">
+
+        </div>
+
+        <div class="mySlides slidefade">
+          <div class="numbertext">3 / 3</div>
+          <img src="img3.jpg" alt="Product display" style="width:100%">
+
+        </div>
+
+        <a class="prev" onclick="changeSlide(-1, 'slideshow1')">&#10094;</a>
+        <a class="next" onclick="changeSlide(1, 'slideshow1')">&#10095;</a>
+      </div>
+    </div>
+
+    <!-- Second Location -->
+    <div class="slideshow-wrapper">
+      <header class="location-header">
+        <h3 class="location-title">Miami Vape Smoke Shop #1</h3>
+        <p class="location-address">6346 Sw 8th St, Miami, FL 33145</p>
+      </header>
+
+      <div class="slideshow-container" id="slideshow2">
+        <div class="mySlides slidefade">
+          <div class="numbertext">1 / 3</div>
+          <img src="/images/calle_ocho.jpg" alt="79th Street storefront" style="width:100%">
+
+        </div>
+
+        <div class="mySlides slidefade">
+          <div class="numbertext">2 / 3</div>
+          <img src="img2.jpg" alt="Interior photo" style="width:100%">
+
+        </div>
+
+        <div class="mySlides slidefade">
+          <div class="numbertext">3 / 3</div>
+          <img src="img3.jpg" alt="Product display" style="width:100%">
+
+        </div>
+
+        <a class="prev" onclick="changeSlide(-1, 'slideshow2')">&#10094;</a>
+        <a class="next" onclick="changeSlide(1, 'slideshow2')">&#10095;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+    <footer class="site-footer">
+  <div class="footer-inner container">
+
+    <!-- Brand -->
+    <div class="footer-col footer-brand">
+      <div class="footer-logo-circle">
+        <span class="footer-logo-top">MIAMI VAPE</span>
+        <span class="footer-logo-bottom">Smoke Shop</span>
+      </div>
+      <p class="footer-tagline">Keeping you high at the lowest price.</p>
+    </div>
+
+    <!-- Locations -->
+    <div class="footer-col">
+      <h4>Locations</h4>
+      <p>Miami Vape Smoke Shop #1<br>6346 SW 8th St, Miami, FL 33145</p>
+      <p>Miami Vape Smoke Shop #2<br>345 NE 79th St, Miami, FL 33130</p>
+      <a href="#locations" class="footer-link">View photos &amp; directions</a>
+    </div>
+
+    <!-- Links / Info -->
+    <div class="footer-col">
+      <h4>Connect</h4>
+      <a href="/shop" class="footer-link">Shop</a>
+      <a href="#" class="footer-link">Instagram</a>
+      <a href="#" class="footer-link">TikTok</a>
+      <a href="#" class="footer-link">Contact</a>
+      <p class="footer-note">21+ only. Valid ID required. Please vape responsibly.</p>
+    </div>
+
+  </div>
+
+  <div class="footer-bottom">
+    <span>© 2025 Miami Vape Smoke Shop. All rights reserved.</span>
+  </div>
+</footer>
+
+
+      
+      
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="/js/main.js" defer></script>
+</body>
+</html>

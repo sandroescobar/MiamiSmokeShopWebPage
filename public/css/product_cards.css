@@ -1,0 +1,81 @@
+/* ---- product_cards.css (component-only styles) ---- */
+:root{
+  --accent:#69CEE9;
+  --ink:#ffffff;
+  --ink-dim:rgba(255,255,255,.85);
+  --glass:rgba(255,255,255,.06);
+  --glass-border:rgba(255,255,255,.14);
+}
+
+/* Card container */
+.product-card{
+  display:flex; flex-direction:column;
+  background:var(--glass);
+  border:1px solid var(--glass-border);
+  border-radius:16px; overflow:hidden;
+  backdrop-filter:blur(6px);
+  box-shadow:0 12px 26px rgba(0,0,0,.25);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.product-card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 16px 36px rgba(0,0,0,.35);
+}
+
+/* Media */
+.product-media{
+  position:relative; width:100%;
+  aspect-ratio:1/1; overflow:hidden;
+  background:linear-gradient(135deg,#1b2437,#0a1222);
+}
+.product-media img{
+  width:100%; height:100%;
+  object-fit:cover; display:block;
+  transform:scale(1.02);
+}
+
+/* If there’s no image_url */
+.img-fallback{
+  position:absolute; inset:0;
+  display:grid; place-items:center;
+  color:var(--ink); opacity:.75;
+  font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+/* Badges / wishlist (optional hooks) */
+.badge-pill{
+  position:absolute; left:.6rem; bottom:.6rem;
+  font-size:.72rem; padding:.25rem .5rem; border-radius:999px;
+  background:rgba(0,0,0,.45); color:#fff;
+  border:1px solid rgba(255,255,255,.25);
+}
+.badge-pill.alt{ background:rgba(105,206,233,.85); color:#08121f; }
+.wishlist{
+  position:absolute; right:.6rem; top:.6rem; width:38px; height:38px;
+  border-radius:12px; border:1px solid rgba(255,255,255,.25);
+  background:rgba(0,0,0,.4); color:#fff; display:grid; place-items:center;
+}
+.wishlist svg{ width:18px; height:18px; }
+
+/* Body */
+.product-info{ padding:.9rem; display:flex; flex-direction:column; gap:.5rem; }
+.product-name{ font-size:1rem; margin:0; color:#fff; line-height:1.25; }
+.meta{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; color:var(--ink-dim); }
+.brand,.rating{ font-size:.85rem; }
+
+/* Buy row */
+.buy-row{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-top:.25rem; }
+.price{ font-weight:600; font-size:1.05rem; }
+.btn-accent{
+  border:0; padding:.5rem .75rem; border-radius:12px; cursor:pointer;
+  background:var(--accent); color:#0a1222; font-weight:600;
+}
+
+/* Sold out style (if you add the class) */
+.product-card.sold-out .btn-accent{ pointer-events:none; opacity:.5; }
+.soldout-overlay{
+  position:absolute; inset:0; background:rgba(8,18,31,.6);
+  display:grid; place-items:center; text-transform:uppercase;
+  letter-spacing:.18em; font-weight:600; color:#fff;
+}

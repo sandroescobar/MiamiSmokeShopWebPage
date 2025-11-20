@@ -1,0 +1,174 @@
+/* ---- Base tweak so chips can actually shrink ---- */
+.hero-chips > *{
+  font-size: clamp(12px, 3.2vw, 14px);
+  padding: .35rem .65rem;
+  border-radius: 9999px;
+  flex: 0 0 auto;          /* don't stretch */
+}
+
+/* =================================================
+   Global mobile polish (≤ 768px)
+================================================= */
+@media (max-width: 768px){
+
+  /* Navbar / brand */
+  .navbar { padding-block: 10px; }
+  .navbar-brand img,
+  .navbar_logo,
+  .brand-logo img{
+    max-height: 40px !important;
+    width: auto;
+  }
+
+  /* Hamburger: white bars, no dark box */
+  .navbar-toggler{
+    border: 1px solid rgba(255,255,255,.35);
+    background: transparent !important;
+    box-shadow: none !important;
+    width: 44px; height: 44px; padding: 8px;
+  }
+  .navbar-toggler:focus{ box-shadow: none !important; }
+  .navbar-toggler-icon{
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.9)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+    filter:none !important;
+  }
+
+  .navbar-nav .nav-link{ padding: 10px 4px; text-align: center; }
+
+  /* ---------- HERO ---------- */
+  .hero-products{ padding: 18px 0 6px; }
+  .hero-inner{
+    display:flex; flex-direction:column; align-items:center;
+    text-align:center; gap:10px; padding: 22px 0 10px;
+  }
+  .hero-title{ font-size: clamp(24px, 6.2vw, 30px); margin:0; }
+  .hero-sub{ font-size:14px; max-width:30ch; opacity:.9; margin-inline:auto; }
+
+  /* Chips: wrap neatly instead of overflowing */
+  .hero-chips{
+    display:flex; flex-wrap:wrap; justify-content:center;
+    gap:8px; padding:4px 6px; margin: 6px 0 2px;
+    overflow: visible;              /* no scroll bar */
+  }
+  .hero-chips > *{ white-space:nowrap; }  /* single-line pills */
+
+  /* ---------- TOOLBAR ---------- */
+  .product-toolbar{ padding-top: 8px; }
+  /* If your toolbar is inside a rounded “card”, keep it compact */
+  .product-toolbar .container,
+  .toolbar-card{
+    padding: 12px; border-radius: 12px;
+  }
+
+  .toolbar-row{
+    display:grid;
+    grid-template-columns: 1fr;   /* stack rows */
+    gap:10px;
+  }
+
+  /* Search row (supports .search or .search-form) */
+  .toolbar-row .search,
+  .search-form{
+    display:grid;
+    grid-template-columns: 1fr auto;   /* input + icon button */
+    gap:8px; margin:0;
+  }
+  .toolbar-row .search input,
+  .search-form .search-input{
+    height:44px; font-size:16px;
+  }
+
+  /* Sort + Apply row */
+  .sort-apply{ display:grid; grid-template-columns: 1fr auto; gap:8px; margin:0; }
+  .sort-apply .sort-select,
+  .toolbar-row .sort-select{ height:44px; width:100%; }
+  .sort-apply .btn-apply,
+  .toolbar-row .apply-btn{ height:44px; padding-inline:18px; }
+
+  /* Results count */
+  .results-count{ text-align:center; margin: 8px 0 12px; opacity:.85; }
+
+  /* ---------- GRID & CARDS ---------- */
+  .products-grid{
+    display:grid;
+    grid-template-columns: 1fr !important;
+    gap:14px;
+  }
+  .product-card{ border-radius:14px; }
+  .product-info{ padding:.75rem; }
+  .product-name{ font-size:1.05rem; }
+
+  /* Keep placeholder inside the card (no page-wide bar) */
+  .product-media{ position:relative; aspect-ratio:1/1; overflow:hidden; }
+  .product-media .img-placeholder{
+    position:absolute; left:8px; right:8px; bottom:8px;
+    padding:6px 10px; border-radius:10px;
+    background:rgba(0,0,0,.55); color:#fff; font-size:12px; text-align:center;
+  }
+
+  /* Hide floating page arrows if they crowd the screen */
+  .pager.prev, .pager.next{ display:none; }
+}
+
+/* Slightly wider phones / small tablets (≤ 992px) */
+@media (max-width: 992px){
+  .products-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+
+/* =========================
+   Mobile dropdown filters
+   ========================= */
+.mobile-filters { display:none; }
+
+.desktop-toolbar { display:block; }
+
+/* Phones */
+@media (max-width:768px){
+  .desktop-toolbar { display:none; }
+  .mobile-filters { display:block; margin-top:8px; }
+
+  .mobile-filters summary{
+    list-style:none;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    padding:12px 14px;
+    border-radius:12px;
+    background: var(--glass);
+    border:1px solid var(--glass-border);
+    cursor:pointer;
+    user-select:none;
+  }
+  .mobile-filters .summary-label{ font-weight:600; }
+  .mobile-filters .chev{ transition: transform .2s ease; opacity:.9; }
+  .mobile-filters[open] .chev{ transform: rotate(180deg); }
+
+  .mobile-filters .panel{
+    margin-top:8px;
+    padding:12px;
+    border-radius:12px;
+    background: var(--glass);
+    border:1px solid var(--glass-border);
+    display:grid; gap:12px;
+  }
+
+  .mobile-filters input,
+  .mobile-filters select,
+  .mobile-filters button{
+    height:46px; border-radius:12px; width:100%;
+  }
+
+  /* simple stacks */
+  .mobile-filters .stack{ display:grid; gap:8px; }
+  .mobile-filters .grid-apply{
+    display:grid; grid-template-columns: 1fr auto; gap:8px;
+  }
+  .mobile-filters .btn{ padding:0 16px; font-weight:600; }
+  .mobile-filters .btn.block{ width:100%; }
+}
+
+/* Keep the products grid tidy on phones */
+@media (max-width:768px){
+  .products-grid{ display:grid; grid-template-columns: 1fr; gap:14px; }
+  .product-info{ padding:.85rem; }
+}
