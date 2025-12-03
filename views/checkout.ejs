@@ -279,35 +279,29 @@
                 </div>
               </div>
               <div class="row-1 payment-body">
-
-                <!-- Apple Pay / Google Pay (Payment Request Button) -->
-                <div id="payment-request-wrapper" class="card" style="margin-bottom:12px; display:none;">
+                <div class="card payment-card">
                   <div class="card-body">
-                    <div id="payment-request-button"></div>
-                  </div>
-                </div>
-
-                <!-- Standard card + Link (Payment Element) -->
-                <form id="payment-form">
-                  <div class="card payment-card">
-                    <div class="card-body">
-                      <div id="payment-element"><!--Stripe injects here--></div>
-                      <div id="payment-message" style="color:#b91c1c; margin-top:8px; display:none;"></div>
+                    <p class="payment-note" style="margin-top:0;">
+                      We confirm every order manually. After you submit your info we’ll text or call to review inventory, send a secure payment link, or run your card when the courier hands off your order. No card is charged on this page.
+                    </p>
+                    <ul style="padding-left:18px; color:#475569; font-size:13px; margin:12px 0;">
+                      <li>Tap-to-pay, chip, Apple Pay, and Google Pay available at pickup or during delivery hand-off.</li>
+                      <li>Prefer to pay ahead? We can text you a secure invoice once your items are packed.</li>
+                      <li>Cash is accepted in-store with valid ID.</li>
+                    </ul>
+                    <div class="actions" style="justify-content:flex-start;">
+                      <a class="btn btn-primary" href="tel:+17862060122">Call Calle 8</a>
+                      <a class="btn btn-secondary" href="tel:+17862064552">Call 79th Street</a>
                     </div>
                   </div>
-                  <div class="policy-links">
-                    <a href="/policy/terms" target="_blank" rel="noopener">Terms of Service</a>
-                    <a href="/policy/privacy" target="_blank" rel="noopener">Privacy Policy</a>
-                    <a href="/policy/delivery" target="_blank" rel="noopener">Delivery Policy</a>
-                    <a href="/policy/refund" target="_blank" rel="noopener">Refund Policy</a>
-                    <a href="/policy/cancellations" target="_blank" rel="noopener">Cancellation Policy</a>
-                  </div>
-                  <div class="actions">
-                    <button id="submit-payment" class="btn btn-primary" type="submit">Complete order</button>
-                    <a class="btn btn-secondary" href="/cart">Back to cart</a>
-                  </div>
-                </form>
-
+                </div>
+                <div class="policy-links">
+                  <a href="/policy/terms" target="_blank" rel="noopener">Terms of Service</a>
+                  <a href="/policy/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+                  <a href="/policy/delivery" target="_blank" rel="noopener">Delivery Policy</a>
+                  <a href="/policy/refund" target="_blank" rel="noopener">Refund Policy</a>
+                  <a href="/policy/cancellations" target="_blank" rel="noopener">Cancellation Policy</a>
+                </div>
               </div>
             </div>
             <!-- END PAYMENT SECTION -->
@@ -332,7 +326,7 @@
             </div>
 
             <div class="actions" style="margin-top:16px">
-              <button id="summary-submit" class="btn btn-primary" type="button" style="width:100%">Complete order</button>
+              <a class="btn btn-primary" href="tel:+17862060122" style="width:100%">Call to confirm</a>
               <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a>
             </div>
           </div>
@@ -349,8 +343,6 @@
     </div>
   </div>
 
-  <script src="https://js.stripe.com/v3/"></script>
-
   <script>
     // Global state
     let allStores = [];
@@ -360,13 +352,6 @@
     let deliveryStoreOptions = [];
     let selectedDeliveryStore = null;
     let userDeliveryLocation = null;
-
-    // Stripe state
-    let stripe;
-    let elements;
-    let paymentElement;
-    let paymentRequest;
-    let paymentIntentClientSecret;
 
     // Render cart items and update totals
     (function(){
@@ -850,176 +835,6 @@
       });
     })();
 
-    // -------- Stripe setup: Apple Pay / Google Pay + card element --------
-
-    async function initializeStripe() {
-      if (!window.Stripe) {
-        console.error('Stripe.js not loaded');
-        return;
-      }
-
-      if (!checkoutTotals.total) {
-        // nothing to pay for
-        return;
-      }
-
-      stripe = Stripe('<%= stripePublishableKey %>');
-
-      let data;
-      try {
-        const res = await fetch('/api/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: Math.round(checkoutTotals.total * 100)
-          })
-        });
-        data = await res.json();
-      } catch (err) {
-        console.error('Error creating PaymentIntent:', err);
-        return;
-      }
-
-      paymentIntentClientSecret = data.clientSecret;
-      if (!paymentIntentClientSecret) {
-        console.error('Missing clientSecret from /api/create-payment-intent');
-        return;
-      }
-
-      elements = stripe.elements({ clientSecret: paymentIntentClientSecret });
-
-      // Payment Element (card + Link)
-      paymentElement = elements.create('payment', {
-        layout: 'tabs'
-      });
-      paymentElement.mount('#payment-element');
-
-      // Payment Request Button (Apple Pay / Google Pay)
-      await setupPaymentRequestButton();
-
-      // Form submit handler
-      const form = document.getElementById('payment-form');
-      if (form) {
-        form.addEventListener('submit', handleSubmit);
-      }
-
-      // Right-hand "Complete order" button forwards to main submit
-      const summaryButton = document.getElementById('summary-submit');
-      if (summaryButton) {
-        summaryButton.addEventListener('click', function () {
-          document.getElementById('submit-payment')?.click();
-        });
-      }
-    }
-
-    async function setupPaymentRequestButton() {
-      const amount = Math.round(checkoutTotals.total * 100);
-
-      paymentRequest = stripe.paymentRequest({
-        country: 'US',
-        currency: 'usd',
-        total: {
-          label: 'Total',
-          amount: amount
-        },
-        requestPayerName: true,
-        requestPayerEmail: true,
-        requestPayerPhone: true
-      });
-
-      const result = await paymentRequest.canMakePayment();
-      if (!result) {
-        // Apple/Google Pay not available on this browser
-        return;
-      }
-
-      const wrapper = document.getElementById('payment-request-wrapper');
-      if (wrapper) wrapper.style.display = 'block';
-
-      const prButton = elements.create('paymentRequestButton', {
-        paymentRequest: paymentRequest
-      });
-
-      prButton.mount('#payment-request-button');
-
-      paymentRequest.on('paymentmethod', async (ev) => {
-        try {
-          const { error: confirmError } = await stripe.confirmCardPayment(
-            paymentIntentClientSecret,
-            { payment_method: ev.paymentMethod.id },
-            { handleActions: false }
-          );
-
-          if (confirmError) {
-            ev.complete('fail');
-            showMessage(confirmError.message);
-            return;
-          }
-
-          ev.complete('success');
-
-          const { error: finalError } = await stripe.confirmCardPayment(
-            paymentIntentClientSecret
-          );
-
-          if (finalError) {
-            showMessage(finalError.message);
-          } else {
-            orderComplete();
-          }
-        } catch (err) {
-          console.error(err);
-          ev.complete('fail');
-          showMessage('There was an error confirming your payment.');
-        }
-      });
-    }
-
-    async function handleSubmit(event) {
-      event.preventDefault();
-      setLoading(true);
-
-      const { error } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: window.location.origin + '/checkout/success'
-        }
-      });
-
-      if (error) {
-        if (error.type === 'card_error' || error.type === 'validation_error') {
-          showMessage(error.message);
-        } else {
-          showMessage('An unexpected error occurred.');
-        }
-        setLoading(false);
-      }
-      // On success Stripe will redirect to return_url
-    }
-
-    function showMessage(messageText) {
-      const messageContainer = document.querySelector('#payment-message');
-      if (!messageContainer) return;
-      if (messageText) {
-        messageContainer.textContent = messageText;
-        messageContainer.style.display = 'block';
-      } else {
-        messageContainer.textContent = '';
-        messageContainer.style.display = 'none';
-      }
-    }
-
-    function setLoading(isLoading) {
-      const submitBtn = document.getElementById('submit-payment');
-      if (!submitBtn) return;
-      submitBtn.disabled = isLoading;
-      submitBtn.textContent = isLoading ? 'Processing…' : 'Complete order';
-    }
-
-    function orderComplete() {
-      window.location.href = '/checkout/success';
-    }
-
     const policyModal = document.getElementById('policy-modal');
     const policyModalContent = document.getElementById('policy-modal-content');
     const policyModalClose = document.getElementById('policy-modal-close');
@@ -1085,7 +900,6 @@
 
     window.addEventListener('load', () => {
       initializeStores();
-      initializeStripe();
       setupPolicyLinks();
     });
   </script>

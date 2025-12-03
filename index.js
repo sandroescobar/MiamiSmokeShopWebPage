@@ -4,14 +4,12 @@ import path from 'path';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
-import Stripe from 'stripe';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /* --------------------  EJS + layouts  -------------------- */
 app.set('view engine', 'ejs');
@@ -72,16 +70,6 @@ console.log(
   { host: cfg.host, port: cfg.port, user: cfg.user, db: cfg.database, ssl: sslMode, pwd_len: (cfg.password || '').length }
 );
 
-const STRIPE_PUBLISHABLE_KEY =
-  process.env.STRIPE_PUBLISHABLE_KEY ||
-  process.env.STRIPE_PUBLIC_KEY ||
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-  '';
-
-if (!STRIPE_PUBLISHABLE_KEY) {
-  console.warn('⚠️ No Stripe publishable key found in env!');
-}
-
 const CONTACT_INFO = {
   email: process.env.SUPPORT_EMAIL || 'support@miamivapesmokeshop.com',
   phone: process.env.SALES_PHONE || '(305) 555-1212',
@@ -129,8 +117,8 @@ const policyPages = {
       {
         heading: 'Payments and Verification',
         body: [
-          'Payments are processed securely through Stripe. Card information never touches our servers. We may request additional identification before releasing an order.',
-          'Submitting an order authorizes us to charge your payment method for the full amount, including applicable delivery fees and taxes.'
+          'Payments are confirmed directly with our team after we verify inventory and ID. We can collect payment over the phone, send a secure text-to-pay link, or run your card at pickup/delivery.',
+          'Submitting an order authorizes us to reserve items, verify your identity, and capture payment (including delivery fees and taxes) once you approve the final total.'
         ],
       }
     ],
@@ -161,14 +149,14 @@ const policyPages = {
       {
         heading: 'Sharing with Third Parties',
         body: [
-          'We share limited data with payment processors (Stripe), on-demand courier partners (such as Uber), fraud-prevention tools, and law-enforcement agencies when legally required.',
+          'We share limited data with our payment facilitators, on-demand courier partners (such as Uber), fraud-prevention tools, and law-enforcement agencies when legally required.',
           'We do not sell customer data. Any vendor we engage must agree to comparable confidentiality and security safeguards.'
         ],
       },
       {
         heading: 'Security and Retention',
         body: [
-          'All checkout traffic is encrypted. Sensitive data is stored with role-based access controls, and payment credentials are tokenized by Stripe.',
+          'All checkout traffic is encrypted. Sensitive data is stored with role-based access controls, and payment credentials are handled by our PCI-compliant payment facilitators.',
           'We retain order records for the minimum period needed to satisfy state and federal regulations governing age-restricted goods.'
         ],
       },
@@ -602,8 +590,7 @@ async function initStoresTable() {
 app.get('/checkout', (_req, res) => {
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
-    description: 'Complete your purchase',
-    stripePublishableKey: STRIPE_PUBLISHABLE_KEY
+    description: 'Complete your purchase'
   });
 });
 
@@ -704,46 +691,6 @@ app.get('/products', async (req, res) => {
     res.status(500).send('Error loading products');
   }
 });
-
-/* --------------------  Stripe Payment Intent  -------------------- */
-/* --------------------  Stripe Payment Intent  -------------------- */
-/* --------------------  Stripe Payment Intent  -------------------- */
-app.post('/api/create-payment-intent', async (req, res) => {
-  try {
-    const rawAmount = req.body?.amount;
-
-    console.log('👉 /api/create-payment-intent called, body =', req.body);
-    console.log('👉 STRIPE_SECRET_KEY present?', !!process.env.STRIPE_SECRET_KEY);
-
-    // Convert to integer cents
-    const amount = Number(rawAmount);
-
-    if (!Number.isInteger(amount) || amount <= 0) {
-      // For now: fall back to $1.00 so the UI can render, and tell us what's wrong
-      console.warn('⚠️ Invalid amount from client. Using fallback 100. Received:', rawAmount);
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: 100,               // $1.00 test
-        currency: 'usd',
-        automatic_payment_methods: { enabled: true },
-      });
-      return res.json({ clientSecret: paymentIntent.client_secret });
-    }
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'usd',
-      automatic_payment_methods: { enabled: true },
-    });
-
-    console.log('✅ PaymentIntent created:', paymentIntent.id);
-    res.json({ clientSecret: paymentIntent.client_secret });
-  } catch (err) {
-    console.error('❌ Error in /api/create-payment-intent:', err);
-    res.status(500).json({ error: err.message || 'Failed to create PaymentIntent' });
-  }
-});
-
-
 
 /* --------------------  Start  -------------------- */
 const PORT = Number(process.env.PORT || 3000);

@@ -11,11 +11,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Checkout – LoveMeNow</title>
-  <meta name="description" content="Secure checkout powered by Stripe. Pick up in-store or get fast Uber Delivery.">
+  <meta name="description" content="Secure checkout with manual confirmation. Pick up in-store or get fast Uber Delivery.">
 
-  <!-- Icons / Stripe -->
+  <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <script src="https://js.stripe.com/v3/" nonce="{{ csp_nonce() }}"></script>
 
   <!-- Base site CSS (kept) -->
   <link rel="stylesheet" href="{{ url_for('static', filename='CSS/styles.css') }}">
@@ -87,8 +86,6 @@
     .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:640px){.form-row{grid-template-columns:1fr}}
 
-    /* Stripe */
-    #stripe-checkout{border:1px solid var(--border);border-radius:10px;background:#fff;padding:14px}
     .trustline{display:flex;gap:10px;align-items:center;margin-top:10px;color:var(--muted);font-size:12px}
     .trustline i{color:#16a34a}
 
@@ -241,14 +238,17 @@
         <!-- Payment -->
         <div class="form-section">
           <h3>Payment</h3>
-
-          <!-- NEW: Apple/Google Pay button mounts here (shown only when available) -->
-          <div id="express-checkout" style="margin-bottom:12px;display:none"></div>
-
-          <!-- Stripe Payment Element -->
-          <div id="stripe-checkout"></div>
-
-          <div class="trustline"><i class="fa-solid fa-lock"></i> All transactions are secure & encrypted. Card data never hits our servers (Stripe).</div>
+          <p class="section-note">We confirm every order manually. After you submit your info we’ll text or call to review inventory, send a secure payment link, or run your card at pickup/delivery.</p>
+          <ul style="padding-left:20px;color:var(--muted);font-size:14px;line-height:1.4">
+            <li>Tap-to-pay, chip, Apple Pay, and Google Pay available during pickup or hand-off.</li>
+            <li>Need to pay ahead? Ask us for a text-to-pay invoice once we confirm stock.</li>
+            <li>Cash accepted in-store with valid ID.</li>
+          </ul>
+          <div class="actions" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
+            <a class="checkout-btn" style="flex:1;text-align:center" href="tel:+17862060122">Call Calle 8</a>
+            <a class="secondary-btn" style="flex:1;text-align:center;border:1px solid var(--border);padding:12px;border-radius:var(--radius-sm);color:var(--ink);text-decoration:none" href="tel:+17862064552">Call 79th St</a>
+          </div>
+          <div class="trustline"><i class="fa-solid fa-lock"></i> Payment is captured by our in-store team—no cards are charged on this page.</div>
         </div>
 
         <div id="error-message" class="error-message" style="display:none;"></div>
@@ -287,13 +287,9 @@
 
         <div id="checkout-status">Select a delivery option to continue</div>
 
-        <button id="checkout-button" class="checkout-btn" disabled>
-          <i class="loading-spinner fas fa-spinner fa-spin" style="display:none"></i>
-          Complete order
-        </button>
-
-        <div id="express-checkout-right" style="margin-top:10px; display:none;"></div>
-
+        <a id="checkout-button" class="checkout-btn" href="tel:+17862060122">
+          Call to confirm
+        </a>
 
         <div class="help-links">
           Need help? <a href="/support" rel="nofollow">Contact support</a> · <a href="/policy/returns" rel="nofollow">Returns</a> · <a href="/policy/privacy" rel="nofollow">Privacy</a>
@@ -308,7 +304,6 @@
   <script id="checkout-bootstrap" type="application/json">
     {
       "cart": {{ cart_data | tojson }},
-      "stripePublishableKey": "{{ config.STRIPE_PUBLISHABLE_KEY }}",
       "defaultDeliveryType": "pickup"
     }
   </script>
