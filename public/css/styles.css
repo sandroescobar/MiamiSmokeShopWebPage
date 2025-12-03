@@ -5,6 +5,183 @@ body {
   font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+.top-info-bar {
+  background: rgba(10, 18, 34, 0.92);
+  color: #e4efff;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 20;
+}
+
+.top-info-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 1.5rem;
+  position: relative;
+}
+
+.top-info-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  white-space: nowrap;
+  position: absolute;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.top-info-link,
+.top-info-link-btn {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.85;
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.top-info-link-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.top-info-link-btn:focus {
+  box-shadow: none;
+}
+
+.top-info-link:hover,
+.top-info-link-btn:hover {
+  opacity: 1;
+}
+
+.top-info-links .dropdown-menu {
+  background: rgba(10, 18, 34, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 16rem;
+  padding: 0.5rem 0;
+}
+
+.top-info-links .dropdown-item,
+.top-info-links .dropdown-item-text {
+  color: #e4efff;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.top-info-links .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #69CEE9;
+}
+
+.info-rotator {
+  flex: 1 1 280px;
+  min-height: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.info-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  opacity: 0;
+  transform: translateY(35%);
+  animation: infoMessageCycle 12s linear infinite;
+}
+
+.info-message:nth-child(2) {
+  animation-delay: 4s;
+}
+
+.info-message:nth-child(3) {
+  animation-delay: 8s;
+}
+
+@keyframes infoMessageCycle {
+  0% { opacity: 0; transform: translateY(35%); }
+  6% { opacity: 1; transform: translateY(0); }
+  28% { opacity: 1; transform: translateY(0); }
+  33% { opacity: 0; transform: translateY(-35%); }
+  100% { opacity: 0; transform: translateY(-35%); }
+}
+
+@media (max-width: 768px) {
+  .top-info-bar {
+    font-size: 0.58rem;
+    letter-spacing: 0.05em;
+    height: 2.2rem;
+    min-height: 2.2rem;
+  }
+  .top-info-inner {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 0.65rem;
+    height: 100%;
+    text-align: center;
+  }
+  .info-rotator {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .info-message {
+    font-size: 0.55rem;
+    letter-spacing: 0.045em;
+    line-height: 1.15;
+    animation: infoMessageCycle 9s linear infinite;
+  }
+  .top-info-links {
+    position: static;
+    transform: none;
+    margin-left: 0;
+    gap: 0.35rem;
+  }
+  .top-info-link,
+  .top-info-link-btn {
+    font-size: 0.58rem;
+    letter-spacing: 0.045em;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-info-inner {
+    padding: 0 0.45rem;
+  }
+  .info-rotator {
+    min-height: 1.2rem;
+  }
+  .info-message {
+    font-size: 0.5rem;
+    letter-spacing: 0.035em;
+  }
+  .top-info-links {
+    gap: 0.25rem;
+  }
+  .top-info-link,
+  .top-info-link-btn {
+    font-size: 0.5rem;
+    letter-spacing: 0.035em;
+  }
+}
+
 /* Navbar text styling */
 .navbar-nav .nav-link {
   font-family: "Poppins", inherit;
@@ -206,7 +383,6 @@ body {
   }
 }
 
-
 @media (max-width: 760px) {
   .main_title{
     padding-top: 9%;
@@ -215,6 +391,17 @@ body {
 
   .sub_title{
     font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .locations_header {
+    font-size: 2.2rem;
+  }
+  .locations_sub_header {
+    font-size: 1rem;
+    line-height: 1.35;
+    padding: 0 1rem;
   }
 }
 
@@ -419,17 +606,7 @@ border-color: #CEE9 !important;
   min-width: 170px;
 }
 
-.footer-logo-circle {
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  border: 3px solid #69CEE9;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.5rem;
-}
+
 
 .footer-logo-top {
   font-weight: 600;
@@ -493,6 +670,12 @@ border-color: #CEE9 !important;
 
 /* Make the summary buttons full-width & centered */
 .order-summary .actions .btn { width:100%; text-align:center; }
+
+
+.footer{
+   background-color: white;
+   border-radius: 10%;
+}
 
 
 

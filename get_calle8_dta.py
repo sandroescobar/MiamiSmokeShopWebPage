@@ -333,6 +333,24 @@ print(f"Cleaned CSV → {cleaned_path}  ({len(out)} rows)")
 # ─────────────────────── End single-CSV cleaner ───────────────────────
 
 
+print("\n📦 Loading data into database...")
+import subprocess
+try:
+    result = subprocess.run(
+        ["python3", os.path.join(BASE_DIR, "clean_data.py"), cleaned_path, "Calle 8"],
+        capture_output=True,
+        text=True,
+        timeout=180
+    )
+    print(result.stdout)
+    if result.stderr:
+        print("⚠️  Warnings:", result.stderr)
+    if result.returncode == 0:
+        print("✅ Database updated with Calle 8 inventory!")
+    else:
+        print(f"❌ Error loading data (exit code {result.returncode})")
+except Exception as e:
+    print(f"❌ Error running loader: {e}")
 
 
 # brew services start mysql run this line to start

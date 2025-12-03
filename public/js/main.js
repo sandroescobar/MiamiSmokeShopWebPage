@@ -19,6 +19,7 @@ function changeSlide(n, slideshowId) {
 // Display the current slide for a specific slideshow
 function showSlides(n, slideshowId) {
   const container = document.getElementById(slideshowId);
+  if (!container) return; // Exit if slideshow doesn't exist on this page
   const slides = container.getElementsByClassName("mySlides");
   
   // Loop around if we go past the end

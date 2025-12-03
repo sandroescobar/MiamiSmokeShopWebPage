@@ -4,12 +4,14 @@ import path from 'path';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
+import Stripe from 'stripe';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /* --------------------  EJS + layouts  -------------------- */
 app.set('view engine', 'ejs');
@@ -69,6 +71,227 @@ console.log(
   'DB cfg →',
   { host: cfg.host, port: cfg.port, user: cfg.user, db: cfg.database, ssl: sslMode, pwd_len: (cfg.password || '').length }
 );
+
+const STRIPE_PUBLISHABLE_KEY =
+  process.env.STRIPE_PUBLISHABLE_KEY ||
+  process.env.STRIPE_PUBLIC_KEY ||
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+  '';
+
+if (!STRIPE_PUBLISHABLE_KEY) {
+  console.warn('⚠️ No Stripe publishable key found in env!');
+}
+
+const CONTACT_INFO = {
+  email: process.env.SUPPORT_EMAIL || 'support@miamivapesmokeshop.com',
+  phone: process.env.SALES_PHONE || '(305) 555-1212',
+  addresses: [
+    'Miami Vape Smoke Shop #1 • 6346 SW 8th St, West Miami, FL 33144',
+    'Miami Vape Smoke Shop #2 • 351 NE 79th St Unit 101, Miami, FL 33138',
+  ],
+};
+
+const policyPages = {
+  terms: {
+    slug: 'terms',
+    title: 'Terms of Service',
+    subtitle: 'Conditions for using the Miami Vape Smoke Shop online storefront.',
+    metaDescription: 'Official terms and conditions for Miami Vape Smoke Shop online orders.',
+    sections: [
+      {
+        heading: 'Overview',
+        body: [
+          'This website is operated by Miami Vape Smoke Shop. By browsing, placing an order, or interacting with our services you agree to these Terms of Service and any supplemental policies referenced below.',
+          'We reserve the right to update these terms at any time. Changes take effect once posted, and continued use of the site constitutes acceptance.'
+        ],
+      },
+      {
+        heading: 'Eligibility and Age Verification',
+        body: [
+          'You must be at least 21 years old and able to present a valid government-issued photo ID that matches the name on your order.',
+          'We may refuse or cancel any transaction that cannot be age-verified or that raises compliance concerns.'
+        ],
+      },
+      {
+        heading: 'Pricing, Availability, and Modifications',
+        body: [
+          'Products, pricing, promotions, and delivery windows are subject to change without notice. Quantities may be limited and certain items may only be available at specific store locations.',
+          'If an item in your order becomes unavailable, we will contact you to suggest an alternative or issue a refund for the unavailable portion.'
+        ],
+      },
+      {
+        heading: 'Acceptable Use',
+        body: [
+          'You agree not to use this site for any unlawful purpose, to solicit others to break the law, to infringe upon intellectual property rights, to transmit malicious code, or to scrape or harvest data without written consent.',
+          'We reserve the right to suspend or terminate access for any behavior that, in our sole discretion, violates these standards.'
+        ],
+      },
+      {
+        heading: 'Payments and Verification',
+        body: [
+          'Payments are processed securely through Stripe. Card information never touches our servers. We may request additional identification before releasing an order.',
+          'Submitting an order authorizes us to charge your payment method for the full amount, including applicable delivery fees and taxes.'
+        ],
+      }
+    ],
+  },
+  privacy: {
+    slug: 'privacy',
+    title: 'Privacy Policy',
+    subtitle: 'How we collect, use, and protect your information.',
+    metaDescription: 'Privacy practices for Miami Vape Smoke Shop online storefront.',
+    sections: [
+      {
+        heading: 'Information We Collect',
+        body: [
+          'We collect contact details, delivery addresses, order history, payment confirmation tokens, device data, and geolocation signals you share for delivery routing.',
+          'When required by law, we also retain copies of identification used to verify age or authorized pickup.'
+        ],
+      },
+      {
+        heading: 'How We Use Information',
+        list: [
+          'Process and fulfill pickup or Uber delivery orders.',
+          'Coordinate age verification and delivery hand-offs.',
+          'Provide customer support and respond to inquiries.',
+          'Improve our product catalog, merchandising, and site performance.',
+        ],
+        body: ['We only retain data for as long as necessary to meet these purposes and any applicable regulatory requirements.'],
+      },
+      {
+        heading: 'Sharing with Third Parties',
+        body: [
+          'We share limited data with payment processors (Stripe), on-demand courier partners (such as Uber), fraud-prevention tools, and law-enforcement agencies when legally required.',
+          'We do not sell customer data. Any vendor we engage must agree to comparable confidentiality and security safeguards.'
+        ],
+      },
+      {
+        heading: 'Security and Retention',
+        body: [
+          'All checkout traffic is encrypted. Sensitive data is stored with role-based access controls, and payment credentials are tokenized by Stripe.',
+          'We retain order records for the minimum period needed to satisfy state and federal regulations governing age-restricted goods.'
+        ],
+      },
+      {
+        heading: 'Your Choices',
+        body: [
+          'Contact us if you need to update account details, request a copy of the information we hold, or ask that we delete non-mandatory records. Certain data must remain on file to satisfy compliance obligations.'
+        ],
+      }
+    ],
+  },
+  refund: {
+    slug: 'refund',
+    title: 'Refund Policy',
+    subtitle: 'How we handle returns, replacements, and store credits.',
+    metaDescription: 'Refund guidelines for Miami Vape Smoke Shop orders.',
+    sections: [
+      {
+        heading: 'All Sales Are Final',
+        body: [
+          'Due to the nature of nicotine, cannabis-adjacent, and consumable products, all sales are final once payment is confirmed.',
+          'We do not accept returns for change-of-mind, flavor preferences, or third-party shipping delays.'
+        ],
+      },
+      {
+        heading: 'Defective or Damaged Items',
+        body: [
+          'If an item arrives broken, leaking, or fails to operate out of the box, contact us within seven (7) calendar days of pickup or delivery so we can evaluate the issue.'
+        ],
+        list: [
+          'Provide your order number, photos or video of the defect, and proof of purchase.',
+          'Return any unused portion of the product and its original packaging when requested.',
+          'Allow up to three business days for our team to review and confirm eligibility.',
+        ],
+      },
+      {
+        heading: 'Ineligible Items',
+        body: [
+          'Products showing signs of use, missing security seals, or damaged due to misuse are not eligible for replacement or refund.',
+          'Promotional gifts and clearance items are final sale without exception.'
+        ],
+      },
+      {
+        heading: 'Resolution',
+        body: [
+          'Approved claims will be satisfied with either an identical replacement, comparable product, or store credit equal to the original purchase price.',
+          'We reserve the right to deny claims we cannot verify or that fall outside the seven-day reporting window.'
+        ],
+      }
+    ],
+  },
+  delivery: {
+    slug: 'delivery',
+    title: 'Delivery Policy',
+    subtitle: 'Same-day Uber delivery across Miami-Dade and Broward Counties.',
+    metaDescription: 'Delivery standards for Miami Vape Smoke Shop orders.',
+    sections: [
+      {
+        heading: 'Service Area',
+        body: [
+          'We currently offer courier delivery through Uber Direct within Miami, Miami-Dade County, and Broward County. Orders outside this footprint may be declined or converted to in-store pickup.'
+        ],
+      },
+      {
+        heading: 'Order Processing',
+        body: [
+          'Orders received during store hours are typically released to a courier within 60 minutes. High-volume periods, severe weather, or inventory issues may extend processing times.'
+        ],
+      },
+      {
+        heading: 'Fees and Timing',
+        body: [
+          'Delivery fees are calculated at checkout based on distance and courier availability. You will see the final fee before confirming payment.',
+          'Estimated arrival windows are provided by Uber and may change in real time. Customers receive SMS or app notifications directly from the courier platform when available.'
+        ],
+      },
+      {
+        heading: 'Verification at Hand-Off',
+        body: [
+          'A 21+ adult must be present with a valid ID that matches the order name. Couriers will not release products to minors or to anyone who cannot present matching identification.',
+          'If verification fails, the order will be returned to the store and may incur an additional restocking or redelivery fee.'
+        ],
+      }
+    ],
+  },
+  cancellations: {
+    slug: 'cancellations',
+    title: 'Cancellation Policy',
+    subtitle: 'How to request order changes or report issues.',
+    metaDescription: 'Cancellation rules for Miami Vape Smoke Shop orders.',
+    sections: [
+      {
+        heading: 'Before Fulfillment',
+        body: [
+          'Contact us immediately after placing an order if you need to cancel or edit it. If the order has not been prepared or assigned to a courier, we can void the payment without penalty.'
+        ],
+      },
+      {
+        heading: 'After Courier Pickup',
+        body: [
+          'Once an order leaves the store, it cannot be cancelled. If you refuse delivery, the order will be treated as a completed sale and no refund will be issued.'
+        ],
+      },
+      {
+        heading: 'Defective or Damaged Items',
+        body: [
+          'All sales are final unless the product arrives damaged or defective. You have seven (7) days from pickup or delivery to report the issue so we can determine if a replacement or credit is warranted.'
+        ],
+      },
+      {
+        heading: 'How to Request Help',
+        list: [
+          'Email or call us with your order number and details.',
+          'Attach photos or videos if the item is damaged.',
+          'Retain all original packaging until we confirm next steps.'
+        ],
+        body: [
+          'We respond to most cancellation or damage inquiries within one business day.'
+        ],
+      }
+    ],
+  },
+};
 
 /* --------------------  MySQL pool  -------------------- */
 const pool = mysql.createPool({
@@ -228,6 +451,19 @@ app.get(
   (_req, res) => res.redirect('/products')
 );
 
+app.get('/policy/:slug', (req, res) => {
+  const page = policyPages[req.params.slug];
+  if (!page) {
+    return res.status(404).send('Policy not found');
+  }
+  res.render('policy', {
+    title: `${page.title} • Miami Vape Smoke Shop`,
+    description: page.metaDescription,
+    page,
+    contact: CONTACT_INFO,
+  });
+});
+
 /* --------------------  Helper: Group products by variant  -------------------- */
 function extractProductVariantKey(name) {
   // Normalize name to uppercase to ensure consistent grouping
@@ -367,6 +603,15 @@ app.get('/checkout', (_req, res) => {
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
+    stripePublishableKey: STRIPE_PUBLISHABLE_KEY
+  });
+});
+
+app.get('/faq', (_req, res) => {
+  res.render('faq', {
+    title: 'FAQ • Miami Vape Smoke Shop',
+    description: 'Delivery, THCa, payments, and policies explained.',
+    contact: CONTACT_INFO,
   });
 });
 
@@ -459,6 +704,46 @@ app.get('/products', async (req, res) => {
     res.status(500).send('Error loading products');
   }
 });
+
+/* --------------------  Stripe Payment Intent  -------------------- */
+/* --------------------  Stripe Payment Intent  -------------------- */
+/* --------------------  Stripe Payment Intent  -------------------- */
+app.post('/api/create-payment-intent', async (req, res) => {
+  try {
+    const rawAmount = req.body?.amount;
+
+    console.log('👉 /api/create-payment-intent called, body =', req.body);
+    console.log('👉 STRIPE_SECRET_KEY present?', !!process.env.STRIPE_SECRET_KEY);
+
+    // Convert to integer cents
+    const amount = Number(rawAmount);
+
+    if (!Number.isInteger(amount) || amount <= 0) {
+      // For now: fall back to $1.00 so the UI can render, and tell us what's wrong
+      console.warn('⚠️ Invalid amount from client. Using fallback 100. Received:', rawAmount);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: 100,               // $1.00 test
+        currency: 'usd',
+        automatic_payment_methods: { enabled: true },
+      });
+      return res.json({ clientSecret: paymentIntent.client_secret });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      automatic_payment_methods: { enabled: true },
+    });
+
+    console.log('✅ PaymentIntent created:', paymentIntent.id);
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (err) {
+    console.error('❌ Error in /api/create-payment-intent:', err);
+    res.status(500).json({ error: err.message || 'Failed to create PaymentIntent' });
+  }
+});
+
+
 
 /* --------------------  Start  -------------------- */
 const PORT = Number(process.env.PORT || 3000);
