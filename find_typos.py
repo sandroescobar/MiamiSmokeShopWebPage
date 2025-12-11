@@ -13,13 +13,21 @@ try:
     )
     cur = conn.cursor()
     
-    # Find all variants of RAZ/RAZZ LTX products
-    cur.execute("SELECT id, name, location, quantity_on_hand FROM products WHERE name LIKE '%RAZ%LTX%25K%' ORDER BY name")
+    cur.execute(
+        """
+        SELECT p.id, p.name, s.name AS store_name, pi.quantity_on_hand
+        FROM products p
+        JOIN product_inventory pi ON pi.product_id = p.id
+        JOIN stores s ON s.id = pi.store_id
+        WHERE p.name LIKE '%RAZ%LTX%25K%'
+        ORDER BY p.name, s.name
+        """
+    )
     
     print("Products found with 'RAZ' and 'LTX' and '25K':")
     print("-" * 80)
-    for pid, name, loc, qty in cur.fetchall():
-        print(f"ID: {pid:4} | Name: {name:30} | Location: {loc:15} | Qty: {qty}")
+    for pid, name, store_name, qty in cur.fetchall():
+        print(f"ID: {pid:4} | Name: {name:30} | Store: {store_name:15} | Qty: {qty}")
     
     cur.close()
     conn.close()

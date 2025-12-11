@@ -329,28 +329,26 @@ app.post('/api/check-inventory', async (req, res) => {
       return res.status(400).json({ error: 'store_name is required' });
     }
 
-    // Check if store exists
     const [stores] = await pool.query('SELECT id FROM stores WHERE name = ?', [store_name]);
     if (stores.length === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    // Get availability for each product at this store
+    const storeId = stores[0].id;
     const placeholders = product_ids.map(() => '?').join(',');
     const [availability] = await pool.query(
-      `SELECT id, name, location, quantity_on_hand 
-       FROM products 
-       WHERE id IN (${placeholders}) AND location = ?`,
-      [...product_ids, store_name]
+      `SELECT product_id, quantity_on_hand 
+       FROM product_inventory 
+       WHERE product_id IN (${placeholders}) AND store_id = ?`,
+      [...product_ids, storeId]
     );
 
-    // Build response: id -> available (boolean)
     const availabilityMap = {};
     product_ids.forEach(id => {
       availabilityMap[id] = false;
     });
-    availability.forEach(product => {
-      availabilityMap[product.id] = product.quantity_on_hand > 0;
+    availability.forEach(row => {
+      availabilityMap[row.product_id] = row.quantity_on_hand > 0;
     });
 
     res.json(availabilityMap);
@@ -453,6 +451,61 @@ app.get('/policy/:slug', (req, res) => {
 });
 
 /* --------------------  Helper: Group products by variant  -------------------- */
+function normalizeProductName(name) {
+  let value = String(name || '').trim();
+  if (!value) return value;
+  if (/^RA[ZX]\s*LTX\b/i.test(value)) {
+    value = value.replace(/^RA[ZX]\s*LTX\b/i, 'RAZ LTX');
+    if (!/\b25K\b/i.test(value)) {
+      value = value.replace(/^RAZ LTX\b/i, 'RAZ LTX 25K');
+    }
+  }
+  if (/^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b/i.test(value)) {
+    value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b/i, 'GEEKBAR X 25K');
+  } else if (/^(?:GEEKBAR|GEEK\s?BAR)\b/i.test(value)) {
+    if (!/\b\d+(?:\.\d+)?K\b/i.test(value)) {
+      value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\b/i, 'GEEKBAR 15K');
+    } else {
+      value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\b/i, 'GEEKBAR');
+    }
+  }
+  if (/^FUME\s*PRO\b/i.test(value)) {
+    value = value.replace(/^FUME\s*PRO\b/i, 'FUME PRO');
+    if (!/\b30K\b/i.test(value)) {
+      value = value.replace(/^FUME PRO\b/i, 'FUME PRO 30K');
+    }
+  }
+  if (/^FUME\s*EXTRA\b/i.test(value)) {
+    value = value.replace(/^FUME\s*EXTRA\b/i, 'FUME EXTRA');
+  }
+  if (/^FUME\s*ULTRA\b/i.test(value)) {
+    value = value.replace(/^FUME\s*ULTRA\b/i, 'FUME ULTRA');
+  }
+  if (/^FUME\s*INFINITY\b/i.test(value)) {
+    value = value.replace(/^FUME\s*INFINITY\b/i, 'FUME INFINITY');
+  }
+  if (/^LOST\s*MARY\s*PRO\b/i.test(value)) {
+    value = value.replace(/^LOST\s*MARY\s*PRO\b/i, 'LOST MARY PRO');
+  }
+  if (/^LOST\s*MARY\s*(?:TUBRO|TURBO)\b/i.test(value)) {
+    value = value.replace(/^LOST\s*MARY\s*(?:TUBRO|TURBO)\b/i, 'LOST MARY TURBO');
+    if (!/\b35K\b/i.test(value)) {
+      value = value.replace(/^LOST MARY TURBO\b/i, 'LOST MARY TURBO 35K');
+    }
+  }
+  if (/^BB\s*CART\b/i.test(value)) {
+    value = value.replace(/^BB\s*CART\b/i, 'BB CART');
+    if (/\b1G\b/i.test(value)) {
+      value = value.replace(/\b1G\b/i, '1GR');
+    }
+    if (!/\b1GR\b/i.test(value)) {
+      value = value.replace(/^BB CART\b/i, 'BB CART 1GR');
+    }
+  }
+  value = value.replace(/\s+/g, ' ').trim();
+  return value;
+}
+
 function extractProductVariantKey(name) {
   // Normalize name to uppercase to ensure consistent grouping
   name = String(name || '').toUpperCase().trim();
@@ -507,27 +560,26 @@ function extractFlavor(name, baseKey) {
 
 function groupProductsByVariant(products) {
   const grouped = {};
-  const keyNormalization = {}; // Maps normalized keys back to display names
   
   products.forEach(product => {
-    const baseKey = extractProductVariantKey(product.name);
-    // Normalize to uppercase for case-insensitive grouping
+    const normalizedName = normalizeProductName(product.name);
+    const baseKey = extractProductVariantKey(normalizedName);
     const normalizedKey = baseKey.toUpperCase();
     
     if (!grouped[normalizedKey]) {
       grouped[normalizedKey] = {
         ...product,
+        name: normalizedName,
         base_name: baseKey,
         variants: []
       };
-      keyNormalization[normalizedKey] = baseKey;
     }
     
-    const flavor = extractFlavor(product.name, baseKey);
+    const flavor = extractFlavor(normalizedName, baseKey);
     grouped[normalizedKey].variants.push({
       id: product.id,
-      name: product.name,
-      flavor: flavor,
+      name: normalizedName,
+      flavor,
       price: product.price,
       total_qty: product.total_qty,
       image_url: product.image_url,
@@ -535,8 +587,6 @@ function groupProductsByVariant(products) {
     });
   });
   
-  // Filter out single-variant products where the flavor is "Original"
-  // (these are orphaned base products without actual flavor variants)
   return Object.values(grouped).filter(group => {
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
       return false;
@@ -625,25 +675,28 @@ app.get('/products', async (req, res) => {
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    // SORT
+    const inventoryJoinSql = `
+      LEFT JOIN (
+        SELECT product_id, SUM(quantity_on_hand) AS total_qty
+        FROM product_inventory
+        GROUP BY product_id
+      ) inv ON inv.product_id = p.id
+    `;
+
     const sortSql =
       sort === 'price_asc'  ? 'ORDER BY p.unit_price ASC' :
       sort === 'price_desc' ? 'ORDER BY p.unit_price DESC' :
       sort === 'newest'     ? 'ORDER BY p.id DESC' :
                               'ORDER BY p.id DESC';
 
-    // COUNT TOTAL (for pagination - this counts RAW products from DB)
     const countSql = `SELECT COUNT(*) AS total FROM products p ${category ? 'LEFT JOIN product_categories pc ON p.id = pc.product_id' : ''} ${whereSql}`;
     const [countRows] = await pool.query(countSql, params);
     const totalRaw = countRows[0]?.total || 0;
 
-    // OPTION 2: Fetch larger batch to capture all variants together
-    // Multiply the page size by 2.5x to reduce risk of variants split across batches
     const fetchMultiplier = 2.5;
     const rawFetchSize = Math.ceil(pageSize * fetchMultiplier);
     const rawOffset = (page - 1) * rawFetchSize;
 
-    // Query with larger fetch size
     const pageSql = `
       SELECT
         p.id,
@@ -652,12 +705,13 @@ app.get('/products', async (req, res) => {
         (p.image_url IS NOT NULL AND p.image_url <> '') AS has_image,
         COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon') AS image_alt,
         p.unit_price AS price,
-        p.quantity_on_hand AS total_qty,
+        COALESCE(inv.total_qty, 0) AS total_qty,
         p.supplier AS brand,
         NULL AS rating,
         NULL AS review_count
       FROM products p
       ${category ? 'LEFT JOIN product_categories pc ON p.id = pc.product_id' : ''}
+      ${inventoryJoinSql}
       ${whereSql}
       ${sortSql}
       LIMIT ? OFFSET ?
@@ -669,6 +723,52 @@ app.get('/products', async (req, res) => {
     
     // Slice to the requested pageSize (from the grouped results)
     const paginatedProducts = groupedProducts.slice(0, pageSize);
+
+    let finalProducts = paginatedProducts;
+
+    if (!q && !category && paginatedProducts.length) {
+      const baseKeys = [...new Set(paginatedProducts.map(p => (p.base_name || '').toUpperCase()).filter(Boolean))];
+      if (baseKeys.length) {
+        const variantConditions = baseKeys.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+        const variantParams = baseKeys.map(key => `${key}%`);
+        const variantSql = `
+          SELECT
+            p.id,
+            p.name,
+            COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp') AS image_url,
+            (p.image_url IS NOT NULL AND p.image_url <> '') AS has_image,
+            COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon') AS image_alt,
+            p.unit_price AS price,
+            COALESCE(inv.total_qty, 0) AS total_qty,
+            p.supplier AS brand,
+            NULL AS rating,
+            NULL AS review_count
+          FROM products p
+          ${inventoryJoinSql}
+          WHERE ${variantConditions}
+        `;
+        const [variantRows] = await pool.query(variantSql, variantParams);
+        const variantGroups = groupProductsByVariant(variantRows);
+        const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
+        finalProducts = paginatedProducts.map(group => {
+          const fullGroup = variantMap.get(group.base_name.toUpperCase());
+          if (!fullGroup) {
+            return group;
+          }
+          const seen = new Set(group.variants.map(v => v.id));
+          const mergedVariants = [...group.variants];
+          fullGroup.variants.forEach(variant => {
+            if (!seen.has(variant.id)) {
+              mergedVariants.push(variant);
+            }
+          });
+          return {
+            ...group,
+            variants: mergedVariants,
+          };
+        });
+      }
+    }
     
     // For pagination display, estimate the total grouped products
     // (Note: this is an approximation since grouping ratio varies by page)
@@ -679,7 +779,7 @@ app.get('/products', async (req, res) => {
     const categories = categoriesRows || [];
 
     res.render('products', {
-      products: paginatedProducts,
+      products: finalProducts,
       page, pageSize, total: estimatedGroupedTotal,
       shop: null, q, sort, category,
       categories,

@@ -1,4 +1,3 @@
-# db_loader.py
 import os
 import sys
 import re
@@ -9,12 +8,59 @@ from mysql.connector import errorcode
 from dotenv import load_dotenv
 from urllib.parse import urlparse, unquote
 
-# Load environment variables from .env file
 load_dotenv()
 
-# ── Parse MYSQL_PUBLIC_URL if available (Railway format) ─────────────────
+PARENT_CATEGORIES = {
+    "NICOTINE VAPES": "nicotine-vapes",
+    "THCA PRODUCTS": "thca-products",
+    "TOBACCO PRODUCTS": "tobacco-products",
+    "EDIBLES": "edibles",
+    "GRINDERS": "grinders",
+    "ROLLING PAPERS & CONES": "rolling-papers-cones",
+    "VAPE JUICES": "vape-juices",
+    "DEVICES: BATTERIES & MODS": "devices-batteries-mods",
+    "HOOKAH RELATED": "hookah-related"
+}
+
+SUBCATEGORY_RULES = [
+    {"name": "RAZ LTX 25K", "slug": "raz-25k", "parent": "NICOTINE VAPES", "tokens": ["RAZ", "LTX", "25K"]},
+    {"name": "GEEKBAR X 25K", "slug": "geekbar-x-25k", "parent": "NICOTINE VAPES", "tokens": ["GEEK", "25K"]},
+    {"name": "FUME PRO 30K", "slug": "fume-pro-30k", "parent": "NICOTINE VAPES", "tokens": ["FUME", "PRO"]},
+    {"name": "LOST MARY TURBO 35K", "slug": "lost-mary-turbo", "parent": "NICOTINE VAPES", "tokens": ["LOST", "MARY", "TURBO"]},
+    {"name": "BB CART 1GR", "slug": "bb-cart-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "CART"]}
+]
+
+PRODUCT_SQL = (
+    """
+    INSERT INTO products
+      (name, upc, stockcode, unit_price, category_id, supplier)
+    VALUES
+      (%s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+      upc = VALUES(upc),
+      stockcode = VALUES(stockcode),
+      unit_price = VALUES(unit_price),
+      category_id = VALUES(category_id),
+      supplier = VALUES(supplier),
+      id = LAST_INSERT_ID(id)
+    """
+)
+
+INVENTORY_SQL = (
+    """
+    INSERT INTO product_inventory
+      (product_id, store_id, quantity_on_hand, unit_price)
+    VALUES
+      (%s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+      quantity_on_hand = VALUES(quantity_on_hand),
+      unit_price = VALUES(unit_price),
+      last_synced_at = CURRENT_TIMESTAMP
+    """
+)
+
+
 def parse_mysql_url(url):
-    """Parse mysql://user:pass@host:port/db URL format (like Railway provides)."""
     try:
         parsed = urlparse(url)
         return {
@@ -27,14 +73,11 @@ def parse_mysql_url(url):
     except Exception:
         return None
 
-# ── DB connection from env ─────────────────────────────────────────────
-# Uses same env vars as index.js: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
-# Also supports MYSQL_PUBLIC_URL (Railway) and SSL configuration
+
 def get_conn():
-    # Try MYSQL_PUBLIC_URL first (Railway format)
     mysql_url = os.getenv("MYSQL_PUBLIC_URL")
     if mysql_url:
-        print(f"🔍 DEBUG: Using MYSQL_PUBLIC_URL")
+        print("🔍 DEBUG: Using MYSQL_PUBLIC_URL")
         url_cfg = parse_mysql_url(mysql_url)
         if url_cfg:
             cfg = {
@@ -49,7 +92,6 @@ def get_conn():
         else:
             raise ValueError(f"Failed to parse MYSQL_PUBLIC_URL: {mysql_url}")
     else:
-        # Fall back to individual env vars
         cfg = {
             "host": os.getenv("DB_HOST") or os.getenv("MYSQLHOST") or "127.0.0.1",
             "port": int(os.getenv("DB_PORT") or os.getenv("MYSQLPORT") or 3306),
@@ -59,24 +101,22 @@ def get_conn():
             "autocommit": False,
             "connection_timeout": 10,
         }
-    
-    # Handle SSL configuration (like index.js does)
     ssl_mode = str(os.getenv("DB_SSL", "")).lower()
     if ssl_mode in ("skip-verify", "true", "require"):
         if ssl_mode == "skip-verify":
-            cfg["ssl_disabled"] = False  # Enable SSL but don't verify cert
+            cfg["ssl_disabled"] = False
             cfg["ssl_verify_cert"] = False
             cfg["ssl_verify_identity"] = False
         else:
-            cfg["ssl_disabled"] = False  # Enable SSL with verification
-    
+            cfg["ssl_disabled"] = False
     return mysql.connector.connect(**cfg)
 
-# ── Helpers ────────────────────────────────────────────────────────────
+
 def as_str(x):
     if x is None or (isinstance(x, float) and math.isnan(x)):
         return ""
     return str(x).strip()
+
 
 def clamp_int(x, minimum=0):
     try:
@@ -85,33 +125,23 @@ def clamp_int(x, minimum=0):
         v = 0
     return max(v, minimum)
 
+
 def clamp_price(x):
     try:
-        # keep 2 decimals
-        return round(float(str(x).replace("$","").replace(",","")), 2)
+        return round(float(str(x).replace("$", "").replace(",", "")), 2)
     except Exception:
         return 0.00
 
-def safe_len(s: str, max_len: int):
+
+def safe_len(s, max_len):
     s = as_str(s)
     return s[:max_len] if len(s) > max_len else s
 
-def normalize_product_name_spacing(name: str) -> str:
-    """
-    Normalize product names by fixing common spacing inconsistencies.
-    Examples:
-      "GEEK BAR X 25K" → "GEEKBAR X 25K"
-      "FUME PRO 25K" → "FUMEPRO 25K"
-    
-    Rules: Brand names that should be one word are consolidated.
-    """
+
+def normalize_product_name_spacing(name):
     if not name:
         return name
-    
     name = str(name).strip()
-    
-    # Known brand consolidation rules: "WORD WORD" → "WORDWORD"
-    # Add more as you find them
     brand_consolidations = {
         "GEEK BAR": "GEEKBAR",
         "FUME PRO": "FUMEPRO",
@@ -120,159 +150,237 @@ def normalize_product_name_spacing(name: str) -> str:
         "BREEZE PRO": "BREEZEPRO",
         "PUFF BAR": "PUFFBAR",
         "BANG KING": "BANGKING",
-        # Add more problematic brand pairs here as needed
     }
-    
-    # Apply consolidations (case-insensitive matching)
     for old_pattern, new_pattern in brand_consolidations.items():
-        # Match at word boundaries (start of string or after space, before space or end)
         pattern = r'(?:^|\s)' + re.escape(old_pattern) + r'(?:\s|$)'
         if re.search(pattern, name, re.IGNORECASE):
             name = re.sub(pattern, ' ' + new_pattern + ' ', name, flags=re.IGNORECASE)
-    
-    # Clean up extra spaces
     name = ' '.join(name.split())
-    
     return name
 
-def clean_upc(upc_raw: str, max_len=20):
+
+def apply_brand_specific_rules(name):
+    text = as_str(name)
+    if not text:
+        return text
+    if re.search(r'^RA[ZX]\s*LTX\b', text, re.IGNORECASE):
+        text = re.sub(r'^RA[ZX]\s*LTX\b', 'RAZ LTX', text, flags=re.IGNORECASE)
+        if not re.search(r'\b25K\b', text, re.IGNORECASE):
+            text = re.sub(r'^RAZ LTX\b', 'RAZ LTX 25K', text, flags=re.IGNORECASE)
+    if re.search(r'^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b', text, re.IGNORECASE):
+        text = re.sub(r'^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b', 'GEEKBAR X 25K', text, flags=re.IGNORECASE)
+    elif re.search(r'^(?:GEEKBAR|GEEK\s?BAR)\b', text, re.IGNORECASE):
+        if not re.search(r'\b\d+(?:\.\d+)?K\b', text, re.IGNORECASE):
+            text = re.sub(r'^(?:GEEKBAR|GEEK\s?BAR)\b', 'GEEKBAR 15K', text, flags=re.IGNORECASE)
+        else:
+            text = re.sub(r'^(?:GEEKBAR|GEEK\s?BAR)\b', 'GEEKBAR', text, flags=re.IGNORECASE)
+    if re.search(r'^FUME\s*PRO\b', text, re.IGNORECASE):
+        text = re.sub(r'^FUME\s*PRO\b', 'FUME PRO', text, flags=re.IGNORECASE)
+        if not re.search(r'\b30K\b', text, re.IGNORECASE):
+            text = re.sub(r'^FUME PRO\b', 'FUME PRO 30K', text, flags=re.IGNORECASE)
+    if re.search(r'^FUME\s*EXTRA\b', text, re.IGNORECASE):
+        text = re.sub(r'^FUME\s*EXTRA\b', 'FUME EXTRA', text, flags=re.IGNORECASE)
+    if re.search(r'^FUME\s*ULTRA\b', text, re.IGNORECASE):
+        text = re.sub(r'^FUME\s*ULTRA\b', 'FUME ULTRA', text, flags=re.IGNORECASE)
+    if re.search(r'^FUME\s*INFINITY\b', text, re.IGNORECASE):
+        text = re.sub(r'^FUME\s*INFINITY\b', 'FUME INFINITY', text, flags=re.IGNORECASE)
+    if re.search(r'^LOST\s*MARY\s*PRO\b', text, re.IGNORECASE):
+        text = re.sub(r'^LOST\s*MARY\s*PRO\b', 'LOST MARY PRO', text, flags=re.IGNORECASE)
+    if re.search(r'^LOST\s*MARY\s*(?:TUBRO|TURBO)\b', text, re.IGNORECASE):
+        text = re.sub(r'^LOST\s*MARY\s*(?:TUBRO|TURBO)\b', 'LOST MARY TURBO', text, flags=re.IGNORECASE)
+        if not re.search(r'\b35K\b', text, re.IGNORECASE):
+            text = re.sub(r'^LOST MARY TURBO\b', 'LOST MARY TURBO 35K', text, flags=re.IGNORECASE)
+    if re.search(r'^BB\s*CART\b', text, re.IGNORECASE):
+        text = re.sub(r'^BB\s*CART\b', 'BB CART', text, flags=re.IGNORECASE)
+        if re.search(r'\b1G\b', text, re.IGNORECASE):
+            text = re.sub(r'\b1G\b', '1GR', text, flags=re.IGNORECASE)
+        if not re.search(r'\b1GR\b', text, re.IGNORECASE):
+            text = re.sub(r'^BB CART\b', 'BB CART 1GR', text, flags=re.IGNORECASE)
+    text = ' '.join(text.split())
+    return text
+
+
+def clean_upc(upc_raw, max_len=20):
     s = as_str(upc_raw)
-    # keep only digits; take first piece if comma separated
     if "," in s:
         s = s.split(",", 1)[0]
     digits = "".join(ch for ch in s if ch.isdigit())
     return safe_len(digits, max_len)
 
-# ── Ensure categories exist and return {name_upper -> id} map ──────────
-def get_or_create_categories(cur, cat_names):
-    # Normalize input set
-    wanted = {as_str(c).strip(): None for c in cat_names if as_str(c).strip()}
-    if not wanted:
-        return {}
 
-    # Fetch existing
-    placeholders = ", ".join(["%s"] * len(wanted))
-    cur.execute(f"SELECT id, name FROM categories WHERE name IN ({placeholders})", list(wanted.keys()))
-    for cid, name in cur.fetchall():
-        wanted[name] = cid
+def slugify(value):
+    value = re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')
+    return value or 'category'
 
-    # Insert missing
-    for name, cid in list(wanted.items()):
-        if cid is None:
-            cur.execute("INSERT INTO categories (name) VALUES (%s)", (name,))
-            wanted[name] = cur.lastrowid
 
-    # Return uppercase map for easy lookups
-    return {k.upper(): v for k, v in wanted.items()}
+def load_category_cache(conn):
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, name, slug, parent_id FROM categories")
+    rows = cur.fetchall()
+    cur.close()
+    cache = {"by_name": {}, "by_slug": {}}
+    for row in rows:
+        key = row["name"].upper()
+        cache["by_name"][key] = {"id": row["id"], "slug": row["slug"], "parent_id": row["parent_id"]}
+        if row["slug"]:
+            cache["by_slug"][row["slug"]] = row["id"]
+    return cache
 
-# ── Upsert products in batch (unique key on products.name) ─────────────
-UPSERT_SQL = """
-INSERT INTO products
-  (name, upc, stockcode, quantity_on_hand, unit_price, category_id, supplier, location)
-VALUES
-  (%s,   %s,  %s,        %s,               %s,         %s,           %s,       %s)
-ON DUPLICATE KEY UPDATE
-  upc = VALUES(upc),
-  stockcode = VALUES(stockcode),
-  quantity_on_hand = VALUES(quantity_on_hand),
-  unit_price = VALUES(unit_price),
-  category_id = VALUES(category_id),
-  supplier = VALUES(supplier),
-  location = VALUES(location);
-"""
 
-def ensure_location_column(cur):
-    """Ensure the location column exists in products table."""
-    try:
-        cur.execute("ALTER TABLE products ADD COLUMN location VARCHAR(100) DEFAULT 'Calle 8' AFTER supplier")
-        print("  ✅ Added 'location' column to products table")
-    except Exception as e:
-        # Column might already exist, that's fine
-        if "Duplicate column" not in str(e) and "already exists" not in str(e):
-            print(f"  ⚠️  Warning adding location column: {e}")
+def ensure_category(cur, cache, name, slug_value=None, parent_id=None):
+    key = name.upper()
+    existing = cache["by_name"].get(key)
+    if existing:
+        if existing["parent_id"] != parent_id:
+            cur.execute("UPDATE categories SET parent_id = %s WHERE id = %s", (parent_id, existing["id"]))
+            existing["parent_id"] = parent_id
+        return existing["id"]
+    slug_candidate = slug_value or slugify(name)
+    base = slug_candidate or 'category'
+    suffix = 1
+    while slug_candidate in cache["by_slug"]:
+        slug_candidate = f"{base}-{suffix}"
+        suffix += 1
+    cur.execute("INSERT INTO categories (name, slug, parent_id) VALUES (%s, %s, %s)", (name, slug_candidate, parent_id))
+    new_id = cur.lastrowid
+    cache["by_name"][key] = {"id": new_id, "slug": slug_candidate, "parent_id": parent_id}
+    cache["by_slug"][slug_candidate] = new_id
+    return new_id
 
-def load_csv_to_db(csv_path: str, supplier_label: str = None, location: str = None):
+
+def ensure_parent_categories(cur, cache):
+    parent_ids = {}
+    for name, slug_value in PARENT_CATEGORIES.items():
+        parent_ids[name] = ensure_category(cur, cache, name, slug_value, None)
+    return parent_ids
+
+
+def infer_subcategory(name, parent_name):
+    upper_name = name.upper()
+    for rule in SUBCATEGORY_RULES:
+        if rule["parent"] != parent_name:
+            continue
+        if all(token in upper_name for token in rule["tokens"]):
+            return rule
+    return None
+
+
+def get_store_id(cur, store_name):
+    cur.execute("SELECT id FROM stores WHERE name = %s LIMIT 1", (store_name,))
+    row = cur.fetchone()
+    if not row:
+        raise ValueError(f"Store '{store_name}' not found. Initialize stores before loading data.")
+    return row[0]
+
+
+def prune_missing_inventory(cur, store_id, current_product_ids):
+    cur.execute("SELECT product_id FROM product_inventory WHERE store_id = %s", (store_id,))
+    existing = {row[0] for row in cur.fetchall()}
+    missing = existing - current_product_ids
+    if not missing:
+        return 0
+    deleted = 0
+    missing_list = list(missing)
+    batch_size = 500
+    for i in range(0, len(missing_list), batch_size):
+        chunk = missing_list[i:i + batch_size]
+        placeholders = ",".join(["%s"] * len(chunk))
+        cur.execute(
+            f"DELETE FROM product_inventory WHERE store_id = %s AND product_id IN ({placeholders})",
+            (store_id, *chunk)
+        )
+        deleted += cur.rowcount or 0
+    return deleted
+
+
+def upsert_product(cur, payload):
+    cur.execute(PRODUCT_SQL, payload)
+    product_id = cur.lastrowid
+    if not product_id:
+        cur.execute("SELECT id FROM products WHERE name = %s LIMIT 1", (payload[0],))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError(f"Unable to resolve product id for {payload[0]}")
+        product_id = row[0]
+    return product_id
+
+
+def upsert_inventory(cur, product_id, store_id, qty, price):
+    cur.execute(INVENTORY_SQL, (product_id, store_id, qty, price))
+
+
+def load_csv_to_db(csv_path, supplier_label=None, location=None):
     supplier_label = supplier_label or os.getenv("SUPPLIER", "CigarPOS")
     location = location or os.getenv("LOCATION", "Calle 8")
-
     df = pd.read_csv(csv_path, dtype=str).fillna("")
-    # Expecting columns from your cleaner: Name, StockCode, UPC, QtyOnHand, UnitPrice, Category
-    # If any are missing, create empties to avoid KeyErrors.
     for col in ["Name", "StockCode", "UPC", "QtyOnHand", "UnitPrice", "Category"]:
         if col not in df.columns:
             df[col] = ""
-
-    # Pre-clean frame to match schema constraints
-    # First normalize spacing issues (e.g., "GEEK BAR" → "GEEKBAR"), then uppercase
-    df["Name"]       = df["Name"].apply(lambda s: safe_len(normalize_product_name_spacing(s).upper() if s else '', 200))
-    df["StockCode"]  = df["StockCode"].apply(lambda s: safe_len(s, 64))
-    df["UPC"]        = df["UPC"].apply(clean_upc)  # trims to varchar(20)
-    df["QtyOnHand"]  = df["QtyOnHand"].apply(clamp_int)
-    df["UnitPrice"]  = df["UnitPrice"].apply(clamp_price)
-    df["Category"]   = df["Category"].apply(as_str)
-
-    # Remove empty names (cannot insert without the unique key)
+    df["Name"] = df["Name"].apply(lambda s: safe_len(apply_brand_specific_rules(normalize_product_name_spacing(s)).upper() if s else '', 200))
+    df["StockCode"] = df["StockCode"].apply(lambda s: safe_len(s, 64))
+    df["UPC"] = df["UPC"].apply(clean_upc)
+    df["QtyOnHand"] = df["QtyOnHand"].apply(clamp_int)
+    df["UnitPrice"] = df["UnitPrice"].apply(clamp_price)
+    df["Category"] = df["Category"].apply(as_str)
     df = df[df["Name"].str.len() > 0].copy()
     rows = len(df)
-
     if rows == 0:
         print("No rows to load.")
         return
-
+    supplier_value = safe_len(supplier_label, 120)
+    store_label = safe_len(location, 100)
     conn = get_conn()
     cur = conn.cursor()
-
     try:
         host = os.getenv("DB_HOST") or os.getenv("MYSQLHOST") or "127.0.0.1"
         print(f"📦 Connected to database ({host})...")
-        
-        # 0) Ensure location column exists
-        print(f"  Checking database schema...")
-        ensure_location_column(cur)
-        conn.commit()  # Commit the schema change if it happened
-        
-        # 1) Ensure categories exist
-        cats = sorted({c for c in df["Category"].tolist() if c})
-        print(f"  Found {len(cats)} unique categories, ensuring they exist...")
-        cat_map = get_or_create_categories(cur, cats)
-
-        # 2) Build batches for executemany
-        payload = []
-        for _, r in df.iterrows():
-            cat_id = cat_map.get(as_str(r["Category"]).upper())
-            if not cat_id:
-                # fallback: create on the fly (should be rare)
-                cur.execute("INSERT INTO categories (name) VALUES (%s)", (as_str(r["Category"]),))
-                cat_id = cur.lastrowid
-                cat_map[as_str(r["Category"]).upper()] = cat_id
-
-            payload.append((
-                as_str(r["Name"]),
-                as_str(r["UPC"]),
-                as_str(r["StockCode"]),
-                clamp_int(r["QtyOnHand"]),
-                clamp_price(r["UnitPrice"]),
-                int(cat_id),
-                safe_len(supplier_label, 120),
-                safe_len(location, 100),
-            ))
-
-        # 3) Upsert in batches (improves performance and shows progress)
-        batch_size = 100
-        for i in range(0, len(payload), batch_size):
-            batch = payload[i:i+batch_size]
-            print(f"  Upserting batch {i//batch_size + 1}... ({i + len(batch)}/{len(payload)})")
-            cur.executemany(UPSERT_SQL, batch)
-        
+        store_id = get_store_id(cur, store_label)
+        cache = load_category_cache(conn)
+        print("  Ensuring categories...")
+        parent_ids = ensure_parent_categories(cur, cache)
         conn.commit()
-        print(f"✅ Upserted {len(payload)} products into 'products'.")
-
+        print("  Loading products...")
+        current_product_ids = set()
+        processed = 0
+        for _, record in df.iterrows():
+            parent_name = as_str(record["Category"]).upper()
+            if parent_name not in parent_ids:
+                continue
+            parent_id = parent_ids[parent_name]
+            sub_rule = infer_subcategory(record["Name"], parent_name)
+            if sub_rule:
+                category_id = ensure_category(cur, cache, sub_rule["name"], sub_rule["slug"], parent_id)
+            else:
+                category_id = parent_id
+            product_id = upsert_product(
+                cur,
+                (
+                    as_str(record["Name"]),
+                    as_str(record["UPC"]),
+                    as_str(record["StockCode"]),
+                    clamp_price(record["UnitPrice"]),
+                    int(category_id),
+                    supplier_value,
+                )
+            )
+            current_product_ids.add(product_id)
+            upsert_inventory(cur, product_id, store_id, clamp_int(record["QtyOnHand"]), clamp_price(record["UnitPrice"]))
+            processed += 1
+            if processed % 100 == 0:
+                print(f"    Processed {processed}/{rows}")
+        removed = prune_missing_inventory(cur, store_id, current_product_ids)
+        if removed:
+            print(f"  🧹 Removed {removed} inventory rows for {store_label}.")
+        else:
+            print("  🧹 No obsolete inventory to prune.")
+        conn.commit()
+        print(f"✅ Upserted {processed} inventory rows for {store_label}.")
     except mysql.connector.Error as e:
         conn.rollback()
         if e.errno == errorcode.ER_NO_SUCH_TABLE:
-            print("Error: One of the tables does not exist. Check that 'products' and 'categories' are created.")
+            print("Error: Required tables do not exist.")
         elif e.errno == errorcode.ER_BAD_FIELD_ERROR:
-            print("Error: Column mismatch. Confirm your table columns: name, upc, stockcode, quantity_on_hand, unit_price, category_id, supplier.")
+            print("Error: Column mismatch between CSV and database schema.")
         else:
             print("MySQL Error:", e)
         raise
@@ -280,11 +388,8 @@ def load_csv_to_db(csv_path: str, supplier_label: str = None, location: str = No
         cur.close()
         conn.close()
 
+
 if __name__ == "__main__":
-    # Usage:
-    #   python clean_data.py downloads/inventory_clean.csv
-    #   python clean_data.py downloads/inventory_clean.csv "Calle 8"
-    #   python clean_data.py downloads/inventory_clean.csv "79th Street"
     csv = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "downloads", "inventory_clean.csv")
     location = sys.argv[2] if len(sys.argv) > 2 else "Calle 8"
     load_csv_to_db(csv, location=location)
