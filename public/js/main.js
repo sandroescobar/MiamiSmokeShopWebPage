@@ -4,39 +4,68 @@ const slideIndices = {
   slideshow2: 1
 };
 
-// Initialize slideshows on page load
-document.addEventListener('DOMContentLoaded', function() {
-  showSlides(slideIndices.slideshow1, 'slideshow1');
-  showSlides(slideIndices.slideshow2, 'slideshow2');
+document.addEventListener('DOMContentLoaded', () => {
+  initSlideshows();
+  initNavbarToggle();
 });
 
-// Change slide for a specific slideshow
+function initSlideshows() {
+  showSlides(slideIndices.slideshow1, 'slideshow1');
+  showSlides(slideIndices.slideshow2, 'slideshow2');
+}
+
 function changeSlide(n, slideshowId) {
   slideIndices[slideshowId] += n;
   showSlides(slideIndices[slideshowId], slideshowId);
 }
 
-// Display the current slide for a specific slideshow
 function showSlides(n, slideshowId) {
   const container = document.getElementById(slideshowId);
-  if (!container) return; // Exit if slideshow doesn't exist on this page
-  const slides = container.getElementsByClassName("mySlides");
-  
-  // Loop around if we go past the end
+  if (!container) return;
+  const slides = container.getElementsByClassName('mySlides');
+
   if (n > slides.length) {
     slideIndices[slideshowId] = 1;
   }
-  
-  // Loop around if we go before the start
   if (n < 1) {
     slideIndices[slideshowId] = slides.length;
   }
-  
-  // Hide all slides in this slideshow
-  for (let i = 0; i < slides.length; i++) {
-    slides[i].style.display = "none";
+
+  for (let i = 0; i < slides.length; i += 1) {
+    slides[i].style.display = 'none';
   }
-  
-  // Show the current slide
-  slides[slideIndices[slideshowId] - 1].style.display = "block";
+
+  slides[slideIndices[slideshowId] - 1].style.display = 'block';
+}
+
+function initNavbarToggle() {
+  const togglers = document.querySelectorAll('.navbar-toggler');
+  togglers.forEach((btn) => {
+    const targetSelector = btn.getAttribute('data-bs-target') || btn.getAttribute('data-target');
+    if (!targetSelector) return;
+    const target = document.querySelector(targetSelector);
+    if (!target) return;
+
+    const hasBootstrap = !!(window.bootstrap && window.bootstrap.Collapse);
+
+    if (!hasBootstrap) {
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        target.classList.toggle('show');
+        btn.setAttribute('aria-expanded', target.classList.contains('show'));
+      });
+    }
+
+    target.querySelectorAll('.nav-link').forEach((link) => {
+      link.addEventListener('click', () => {
+        if (hasBootstrap) {
+          const instance = bootstrap.Collapse.getOrCreateInstance(target, { toggle: false });
+          instance.hide();
+        } else {
+          target.classList.remove('show');
+        }
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  });
 }
