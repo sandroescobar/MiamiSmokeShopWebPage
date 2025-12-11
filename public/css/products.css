@@ -104,6 +104,18 @@ body{
 
 /* Controls */
 .toolbar-controls{ display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.toolbar-actions{
+  display:flex;
+  gap:.4rem;
+}
+
+.toolbar-actions .btn-outline-light{
+  border:1px solid rgba(255,255,255,.35);
+  background:transparent;
+  color:#fff;
+  padding:.5rem .9rem;
+}
+
 .toolbar-controls select{
   appearance:none; -webkit-appearance:none;
   background: rgba(255,255,255,.10);

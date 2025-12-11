@@ -100,7 +100,12 @@
       <% }) %>
     </select>
 
-    <button class="btn btn-sm btn-light" type="submit">Apply</button>
+    <div class="toolbar-actions">
+      <button class="btn btn-sm btn-light" type="submit">Apply</button>
+      <% if (q || category || sort !== 'newest') { %>
+        <a class="btn btn-sm btn-outline-light" href="/products">Clear</a>
+      <% } %>
+    </div>
   </form>
 
   <!-- MOBILE toolbar (collapsible) -->
@@ -121,9 +126,12 @@
             <option value="<%= cat.id %>" <%= category == cat.id ? 'selected' : '' %>><%= cat.name %></option>
           <% }) %>
         </select>
-        <form id="mobile-filters" method="get">
+        <form id="mobile-filters" method="get" style="display:grid;gap:8px;">
           <!-- inputs/select above submit with this form via form="" attribute -->
           <button class="btn btn-light w-100" type="submit">Apply</button>
+          <% if (q || category || sort !== 'newest') { %>
+            <a class="btn btn-outline-light w-100" href="/products">Clear</a>
+          <% } %>
         </form>
       </div>
     </details>
