@@ -431,6 +431,8 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/shop', (_req, res) => res.redirect('/products'));
+
 /* Safety redirects if old links exist */
 app.get(
   ['/views/products.ejs', '/views/layouts/products.ejs', '/public/products.html', '/products.html'],
@@ -670,7 +672,7 @@ app.get('/products', async (req, res) => {
       params.push(`%${q}%`, `%${q}%`);
     }
     if (category) {
-      where.push('pc.category_id = ?');
+      where.push('p.category_id = ?');
       params.push(category);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -689,7 +691,7 @@ app.get('/products', async (req, res) => {
       sort === 'newest'     ? 'ORDER BY p.id DESC' :
                               'ORDER BY p.id DESC';
 
-    const countSql = `SELECT COUNT(*) AS total FROM products p ${category ? 'LEFT JOIN product_categories pc ON p.id = pc.product_id' : ''} ${whereSql}`;
+    const countSql = `SELECT COUNT(*) AS total FROM products p ${whereSql}`;
     const [countRows] = await pool.query(countSql, params);
     const totalRaw = countRows[0]?.total || 0;
 
@@ -710,7 +712,6 @@ app.get('/products', async (req, res) => {
         NULL AS rating,
         NULL AS review_count
       FROM products p
-      ${category ? 'LEFT JOIN product_categories pc ON p.id = pc.product_id' : ''}
       ${inventoryJoinSql}
       ${whereSql}
       ${sortSql}
