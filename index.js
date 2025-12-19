@@ -79,6 +79,513 @@ const CONTACT_INFO = {
   ],
 };
 
+const FEATURED_BASE_PRODUCTS = [
+  'LOST MARY TURBO 35K',
+  'GEEKBAR X 25K',
+  'GEEKBAR',
+  'CUVIE PLUS',
+  'FUME EXTRA',
+  'DESTINO PRE ROLL 1GR',
+  'BB CART 1GR',
+  'BB PEN 1GR',
+  'BB MOONROCK PRE ROLL 2GR'
+];
+const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
+const FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+const FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => `${name.toUpperCase()}%`);
+
+const VARIANT_IMAGE_MAPPINGS = [
+  {
+    match: 'LOST MARY TURBO 35K BLACKBERRY BLUEBERRY',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/BLACKBERRYBLUEBERRY.jpeg',
+    imageAlt: 'Lost Mary Turbo 35K • Blackberry Blueberry'
+  },
+  {
+    match: 'LOST MARY TURBO 35K TOASTED BANANA',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/TOASTEDBANANA.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Toasted Banana'
+  },
+  {
+    match: 'LOST MARY TURBO 35K MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/MIAMIMINT.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Miami Mint'
+  },
+  {
+    match: 'LOST MARY TURBO 35K BLUE RAZZ ICE',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/BLUERAZZICE.jpeg',
+    imageAlt: 'Lost Mary Turbo 35K • Blue Razz Ice'
+  },
+  {
+    match: 'LOST MARY TURBO 35K STRAWBERRY KIWI',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/STRAWBERRYKIWI.jpeg',
+    imageAlt: 'Lost Mary Turbo 35K • Strawberry Kiwi'
+  },
+  {
+    match: 'LOST MARY TURBO 35K STRAWMELON PEACH',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/STRAWMELONPEACH.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Strawmelon Peach'
+  },
+  {
+    match: 'LOST MARY TURBO 35K SUMMER GRAPE',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/SUMMERGRAPE.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Summer Grape'
+  },
+  {
+    match: 'LOST MARY TURBO 35K WATERMELON ICE',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/WATERMELONICE.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Watermelon Ice'
+  },
+  {
+    match: 'LOST MARY TURBO 35K SCARY BERRY',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/SCARYBERRY.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Scary Berry'
+  },
+  {
+    match: 'GEEKBAR X 25K BANANA TAFFY FREEZE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BANANATAFFYFREEZE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Banana Taffy Freeze'
+  },
+  {
+    match: 'GEEKBAR X 25K ATL MINT',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ATLMINT.jpeg',
+    imageAlt: 'GEEKBAR X 25K • ATL Mint'
+  },
+  {
+    match: 'GEEKBAR X 25K BLACKBERRY B-BURST',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLACKBERRYBBURST.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blackberry B-Burst'
+  },
+  {
+    match: 'GEEKBAR X 25K BLACKBERRY BLUEBERRY',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLACKBERRYBLUEBERRY.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blackberry Blueberry'
+  },
+  {
+    match: 'GEEKBAR X 25K BLUE RANCHER',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLUERANCHER.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blue Rancher'
+  },
+  {
+    match: 'GEEKBAR X 25K BLUE RAZZ ICE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLUERAZZICE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blue Razz Ice'
+  },
+  {
+    match: 'GEEKBAR X 25K COOL MINT',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/COOLMINT.jpg',
+    imageAlt: 'GEEKBAR X 25K • Cool Mint'
+  },
+  {
+    match: 'GEEKBAR X 25K GRAPE SLUSH',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/GRAPESLUSH.jpg',
+    imageAlt: 'GEEKBAR X 25K • Grape Slush'
+  },
+  {
+    match: 'GEEKBAR X 25K LEMON HEADS',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/LEMONHEADS.jpg',
+    imageAlt: 'GEEKBAR X 25K • Lemon Heads'
+  },
+  {
+    match: 'GEEKBAR X 25K MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/MIAMIMINT.jpg',
+    imageAlt: 'GEEKBAR X 25K • Miami Mint'
+  },
+  {
+    match: 'GEEKBAR X 25K ORANGE FCUKING FAB',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ORANGEFCUKINGFAB.jpg',
+    imageAlt: 'GEEKBAR X 25K • Orange Fcuking Fab'
+  },
+  {
+    match: 'GEEKBAR X 25K SOUR FCUKING FAB',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpeg',
+    imageAlt: 'GEEKBAR X 25K • Sour Fcuking Fab'
+  },
+  {
+    match: 'GEEKBAR X 25K ORANGE JAM',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ORANGEJAM.jpg',
+    imageAlt: 'GEEKBAR X 25K • Orange Jam'
+  },
+  {
+    match: 'GEEKBAR X 25K PEACH JAM',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/PEACHJAM.jpg',
+    imageAlt: 'GEEKBAR X 25K • Peach Jam'
+  },
+  {
+    match: 'GEEKBAR X 25K RASPBERRY JAM',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/RASPBERRYJAM.jpg',
+    imageAlt: 'GEEKBAR X 25K • Raspberry Jam'
+  },
+  {
+    match: 'GEEKBAR X 25K RASPBERRY PEACH LIME',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/RASBERRYPEACHLIME.jpg',
+    imageAlt: 'GEEKBAR X 25K • Raspberry Peach Lime'
+  },
+  {
+    match: 'GEEKBAR X 25K SOUR STRAWS',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURSTRAWS.jpg',
+    imageAlt: 'GEEKBAR X 25K • Sour Straws'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY B-BURST',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STAWBERRYBBURST.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry B-Burst'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY B-POP',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYBPOP.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry B-Pop'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY COLADA',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYCOLADA.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry Colada'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYWATERMELON.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry Watermelon'
+  },
+  {
+    match: 'GEEKBAR X 25K WHITE PEACH RASPBERRY',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/WHITEPEACHRASBERRY.jpg',
+    imageAlt: 'GEEKBAR X 25K • White Peach Raspberry'
+  },
+  {
+    match: 'GEEKBAR X 25K WATERMELON ICE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/WATERMELONICE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Watermelon Ice'
+  },
+  {
+    match: 'CUVIE PLUS BLUEBERRY',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLUEBERRY.jpg',
+    imageAlt: 'Cuvie Plus • Blueberry'
+  },
+  {
+    match: 'CUVIE PLUS BLUEBERRY LEMONADE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLUEBERRYLEMONADE.jpg',
+    imageAlt: 'Cuvie Plus • Blueberry Lemonade'
+  },
+  {
+    match: 'CUVIE PLUS BLUEBERRY RASPBERRY',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLUEBERRYRASBERRY.jpg',
+    imageAlt: 'Cuvie Plus • Blueberry Raspberry'
+  },
+  {
+    match: 'CUVIE PLUS BLUEBERRY RASBERRY',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLUEBERRYRASBERRY.jpg',
+    imageAlt: 'Cuvie Plus • Blueberry Raspberry'
+  },
+  {
+    match: 'CUVIE PLUS LUSH ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/LUSHICE.jpg',
+    imageAlt: 'Cuvie Plus • Lush Ice'
+  },
+  {
+    match: 'CUVIE PLUS LUXURY MINT',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/LUXURYMINT.jpg',
+    imageAlt: 'Cuvie Plus • Luxury Mint'
+  },
+  {
+    match: 'CUVIE PLUS SKY MINT',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/SKYMINT.jpg',
+    imageAlt: 'Cuvie Plus • Sky Mint'
+  },
+  {
+    match: 'CUVIE PLUS APPLE PEACH',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/APPLEPEACH.jpeg',
+    imageAlt: 'Cuvie Plus • Apple Peach'
+  },
+  {
+    match: 'CUVIE PLUS BLACK ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLACKICE.jpg',
+    imageAlt: 'Cuvie Plus • Black Ice'
+  },
+  {
+    match: 'CUVIE PLUS ENERGY DRINK',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/ENERGYDRINK.jpg',
+    imageAlt: 'Cuvie Plus • Energy Drink'
+  },
+  {
+    match: 'CUVIE PLUS GRAPEY',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/GRAPEY.jpg',
+    imageAlt: 'Cuvie Plus • Grapey'
+  },
+  {
+    match: 'CUVIE PLUS ICE MINT',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/ICEMINT.jpg',
+    imageAlt: 'Cuvie Plus • Ice Mint'
+  },
+  {
+    match: 'CUVIE PLUS MEXICAN MANGO',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/MEXICANMANGO.jpg',
+    imageAlt: 'Cuvie Plus • Mexican Mango'
+  },
+  {
+    match: 'CUVIE PLUS LYCHEE ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/LYCHEEICE.jpg',
+    imageAlt: 'Cuvie Plus • Lychee Ice'
+  },
+  {
+    match: 'CUVIE PLUS NUTS TOBACCO',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/NUTSTOBACCO.jpg',
+    imageAlt: 'Cuvie Plus • Nuts Tobacco'
+  },
+  {
+    match: 'CUVIE PLUS STRAWBERRY',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/STRAWBERRY.jpg',
+    imageAlt: 'Cuvie Plus • Strawberry'
+  },
+  {
+    match: 'CUVIE PLUS STRAWBERRY BANANA',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/STRAWBERRYBANANA.jpg',
+    imageAlt: 'Cuvie Plus • Strawberry Banana'
+  },
+  {
+    match: 'CUVIE PLUS STRAWBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/STRAWBERRYWATERMELON.jpg',
+    imageAlt: 'Cuvie Plus • Strawberry Watermelon'
+  },
+  {
+    match: 'CUVIE PLUS TOBACCO',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/TOBACCO.jpeg',
+    imageAlt: 'Cuvie Plus • Tobacco'
+  },
+  {
+    match: 'FUME EXTRA APPLE SKITTLES',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/APPLESKITTLES.jpg',
+    imageAlt: 'Fume Extra • Apple Skittles'
+  },
+  {
+    match: 'FUME EXTRA BANANA ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BANANAICE.jpg',
+    imageAlt: 'Fume Extra • Banana Ice'
+  },
+  {
+    match: 'FUME EXTRA APPLE SKITTLES',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/APPLESKITTLES.jpg',
+    imageAlt: 'Fume Extra • Apple Skittles'
+  },
+  {
+    match: 'FUME EXTRA BANANA ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BANANAICE.jpg',
+    imageAlt: 'Fume Extra • Banana Ice'
+  },
+  {
+    match: 'FUME EXTRA BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BLACKICE.jpg',
+    imageAlt: 'Fume Extra • Black Ice'
+  },
+  {
+    match: 'FUME EXTRA BLUEBERRY GUAVA',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BLUEBERRYGUAVA.jpg',
+    imageAlt: 'Fume Extra • Blueberry Guava'
+  },
+  {
+    match: 'FUME EXTRA BLUE RAZZ',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BLUERAZZ.jpg',
+    imageAlt: 'Fume Extra • Blue Razz'
+  },
+  {
+    match: 'FUME EXTRA CUBAN TOBACCO',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/CUBANTOBACCO.jpg',
+    imageAlt: 'Fume Extra • Cuban Tobacco'
+  },
+  {
+    match: 'FUME EXTRA GRAPE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/GRAPE.jpg',
+    imageAlt: 'Fume Extra • Grape'
+  },
+  {
+    match: 'FUME EXTRA MELON ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MELONICE.jpg',
+    imageAlt: 'Fume Extra • Melon Ice'
+  },
+  {
+    match: 'FUME EXTRA MIAMI MIX',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MIAMIMIX.jpg',
+    imageAlt: 'Fume Extra • Miami Mix'
+  },
+  {
+    match: 'FUME EXTRA MIAMI TROPICANA',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MIAMITROPICANA.jpg',
+    imageAlt: 'Fume Extra • Miami Tropicana'
+  },
+  {
+    match: 'FUME EXTRA MINT ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MINTICE.jpg',
+    imageAlt: 'Fume Extra • Mint Ice'
+  },
+  {
+    match: 'FUME EXTRA PINA COLADA',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PINACOLADA.jpg',
+    imageAlt: 'Fume Extra • Pina Colada'
+  },
+  {
+    match: 'FUME EXTRA PARADISE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PARADISE.jpg',
+    imageAlt: 'Fume Extra • Paradise'
+  },
+  {
+    match: 'FUME EXTRA STRAWBERRY BANANA',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/STRAWBERRYBANANA.jpg',
+    imageAlt: 'Fume Extra • Strawberry Banana'
+  },
+  {
+    match: 'CUVIE PLUS MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/MIAMIMINT.jpg',
+    imageAlt: 'Cuvie Plus • Miami Mint'
+  },
+  {
+    match: 'CUVIE PLUS PEACH ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/PEACHICE.jpg',
+    imageAlt: 'Cuvie Plus • Peach Ice'
+  },
+  {
+    match: 'CUVIE PLUS SOUR APPLE ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/SOURAPPLEICE.jpg',
+    imageAlt: 'Cuvie Plus • Sour Apple Ice'
+  },
+  {
+    match: 'FUME EXTRA BLUEBERRY MINT',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BLUEBERRYMINT.jpg',
+    imageAlt: 'Fume Extra • Blueberry Mint'
+  },
+  {
+    match: 'FUME EXTRA CLEAR',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/CLEAR.jpg',
+    imageAlt: 'Fume Extra • Clear'
+  },
+  {
+    match: 'FUME EXTRA COFFEE TOBACCO',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/COFFEETOBACCO.jpg',
+    imageAlt: 'Fume Extra • Coffee Tobacco'
+  },
+  {
+    match: 'FUME EXTRA COTTON CANDY',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/COTTONCANDY.jpg',
+    imageAlt: 'Fume Extra • Cotton Candy'
+  },
+  {
+    match: 'FUME EXTRA FRESH LYCHEE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/FRESHLYCHEE.jpg',
+    imageAlt: 'Fume Extra • Fresh Lychee'
+  },
+  {
+    match: 'FUME EXTRA HAWAII JUICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/HAWAIIJUICE.jpg',
+    imageAlt: 'Fume Extra • Hawaii Juice'
+  },
+  {
+    match: 'FUME EXTRA LUSH ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/LUSHICE.jpg',
+    imageAlt: 'Fume Extra • Lush Ice'
+  },
+  {
+    match: 'FUME EXTRA MANGO',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MANGO.jpg',
+    imageAlt: 'Fume Extra • Mango'
+  },
+  {
+    match: 'FUME EXTRA BUBBLEGUM',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/BUBBLEGUM.jpg',
+    imageAlt: 'Fume Extra • Bubblegum'
+  },
+  {
+    match: 'FUME EXTRA DRAGON PAPAYA',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/DRAGONPAPAYA.jpg',
+    imageAlt: 'Fume Extra • Dragon Papaya'
+  },
+  {
+    match: 'FUME EXTRA MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/MIAMIMINT.jpg',
+    imageAlt: 'Fume Extra • Miami Mint'
+  },
+  {
+    match: 'FUME EXTRA PEACH ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PEACHICE.jpg',
+    imageAlt: 'Fume Extra • Peach Ice'
+  },
+  {
+    match: 'FUME EXTRA PINEAPPLE ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PINEAPPLEICE.jpg',
+    imageAlt: 'Fume Extra • Pineapple Ice'
+  },
+  {
+    match: 'FUME EXTRA TANGERINE ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/TANGERINEICE.jpg',
+    imageAlt: 'Fume Extra • Tangerine Ice'
+  },
+  {
+    match: 'FUME EXTRA PINK LEMONADE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PINKLEMONADE.jpg',
+    imageAlt: 'Fume Extra • Pink Lemonade'
+  },
+  {
+    match: 'FUME EXTRA PURPLE RAIN',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/PURPLERAIN.jpg',
+    imageAlt: 'Fume Extra • Purple Rain'
+  },
+  {
+    match: 'FUME EXTRA RAINBOW CANDY',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/RAINBOWCANDY.jpg',
+    imageAlt: 'Fume Extra • Rainbow Candy'
+  },
+  {
+    match: 'FUME EXTRA TROPICAL FRUIT',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/TROPICALFRUIT.jpg',
+    imageAlt: 'Fume Extra • Tropical Fruit'
+  },
+  {
+    match: 'FUME EXTRA STRAWBERRY',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/STRAWBERRY.jpg',
+    imageAlt: 'Fume Extra • Strawberry'
+  },
+  {
+    match: 'FUME EXTRA STRAWBERRY MANGO',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/STRAWBERRYMANGO.jpg',
+    imageAlt: 'Fume Extra • Strawberry Mango'
+  },
+  {
+    match: 'FUME EXTRA STRAWBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/STRAWBERRYWATERMELON.jpg',
+    imageAlt: 'Fume Extra • Strawberry Watermelon'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR HYBRID BLUE ZUSHI',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/HYBRIDBLUEZUSHI.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Hybrid Blue Zushi'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR HYBRID GRENADINE',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/HYBRIDGRENADINE.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Hybrid Grenadine'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR INDICA BLUE CHEESE',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/INDICABLUECHEESE.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Indica Blue Cheese'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR INDICA TROPICANA COOKIES',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/INDICATROPICANACOOKIES.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Indica Tropicana Cookies'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR SATIVA DESERT SKUNK',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/SATIVADESERTSKUNK.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Sativa Desert Skunk'
+  },
+  {
+    match: 'BB MOONROCK PRE ROLL 2GR SATIVA MAUI WOWIE',
+    imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/SATIVAMAUIWOWIE.jpg',
+    imageAlt: 'BB Moonrock Pre Roll 2GR • Sativa Maui Wowie'
+  }
+];
+
+const DISCONTINUED_VARIANTS = new Map([
+  ['BB CART 1GR', new Set(['PARTY PACK'])]
+]);
+
 const policyPages = {
   terms: {
     slug: 'terms',
@@ -293,10 +800,25 @@ const pool = mysql.createPool({
   ssl,
 });
 
+const RETRYABLE_DB_ERRORS = new Set(['ECONNRESET', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT', 'ECONNREFUSED']);
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function queryWithRetry(sql, params = [], attempt = 0) {
+  try {
+    return await pool.query(sql, params);
+  } catch (err) {
+    if (RETRYABLE_DB_ERRORS.has(err.code) && attempt < 2) {
+      await wait(200 * (attempt + 1));
+      return queryWithRetry(sql, params, attempt + 1);
+    }
+    throw err;
+  }
+}
+
 /* --------------------  Health  -------------------- */
 app.get('/health', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT 1 AS ok');
+    const [rows] = await queryWithRetry('SELECT 1 AS ok');
     res.json({ status: 'ok', db: rows[0].ok === 1 });
   } catch (e) {
     res.status(500).json({ status: 'error', error: String(e?.message || e) });
@@ -306,7 +828,7 @@ app.get('/health', async (_req, res) => {
 /* --------------------  API: Get all stores  -------------------- */
 app.get('/api/stores', async (_req, res) => {
   try {
-    const [stores] = await pool.query(
+    const [stores] = await queryWithRetry(
       'SELECT id, name, address, latitude, longitude FROM stores WHERE is_active = true ORDER BY id'
     );
     res.json(stores);
@@ -329,14 +851,14 @@ app.post('/api/check-inventory', async (req, res) => {
       return res.status(400).json({ error: 'store_name is required' });
     }
 
-    const [stores] = await pool.query('SELECT id FROM stores WHERE name = ?', [store_name]);
+    const [stores] = await queryWithRetry('SELECT id FROM stores WHERE name = ?', [store_name]);
     if (stores.length === 0) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
     const storeId = stores[0].id;
     const placeholders = product_ids.map(() => '?').join(',');
-    const [availability] = await pool.query(
+    const [availability] = await queryWithRetry(
       `SELECT product_id, quantity_on_hand 
        FROM product_inventory 
        WHERE product_id IN (${placeholders}) AND store_id = ?`,
@@ -375,7 +897,7 @@ app.get('/api/closest-store', async (req, res) => {
     }
 
     // Get all stores
-    const [stores] = await pool.query(
+    const [stores] = await queryWithRetry(
       'SELECT id, name, address, latitude, longitude FROM stores WHERE is_active = true'
     );
 
@@ -504,6 +1026,15 @@ function normalizeProductName(name) {
       value = value.replace(/^BB CART\b/i, 'BB CART 1GR');
     }
   }
+  if (/^BB\s*PEN\b/i.test(value)) {
+    value = value.replace(/^BB\s*PEN\b/i, 'BB PEN');
+    if (/\b1G\b/i.test(value)) {
+      value = value.replace(/\b1G\b/i, '1GR');
+    }
+    if (!/\b1GR\b/i.test(value)) {
+      value = value.replace(/^BB PEN\b/i, 'BB PEN 1GR');
+    }
+  }
   value = value.replace(/\s+/g, ' ').trim();
   return value;
 }
@@ -578,6 +1109,10 @@ function groupProductsByVariant(products) {
     }
     
     const flavor = extractFlavor(normalizedName, baseKey);
+    const blockSet = DISCONTINUED_VARIANTS.get(normalizedKey);
+    if (blockSet && blockSet.has(flavor.toUpperCase())) {
+      return;
+    }
     grouped[normalizedKey].variants.push({
       id: product.id,
       name: normalizedName,
@@ -585,7 +1120,17 @@ function groupProductsByVariant(products) {
       price: product.price,
       total_qty: product.total_qty,
       image_url: product.image_url,
-      image_alt: product.image_alt
+      image_alt: product.image_alt,
+      has_image: !!product.has_image
+    });
+  });
+  
+  Object.values(grouped).forEach(group => {
+    group.variants.sort((a, b) => {
+      if (!!a.has_image === !!b.has_image) {
+        return a.flavor.localeCompare(b.flavor);
+      }
+      return a.has_image ? -1 : 1;
     });
   });
   
@@ -609,7 +1154,7 @@ app.get('/cart', (_req, res) => {
 async function initStoresTable() {
   try {
     // Create stores table
-    await pool.query(`
+    await queryWithRetry(`
       CREATE TABLE IF NOT EXISTS stores (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(100) NOT NULL UNIQUE,
@@ -622,11 +1167,11 @@ async function initStoresTable() {
     `);
 
     // Check if stores exist
-    const [stores] = await pool.query('SELECT COUNT(*) AS count FROM stores');
+    const [stores] = await queryWithRetry('SELECT COUNT(*) AS count FROM stores');
     
     if (stores[0].count === 0) {
       // Insert stores
-      await pool.query(`
+      await queryWithRetry(`
         INSERT INTO stores (name, address, latitude, longitude, is_active) VALUES
         ('Calle 8', '6346 SW 8th St, West Miami, FL 33144', 25.7635, -80.3103, true),
         ('79th Street', '351 NE 79th St Unit 101, Miami, FL 33138', 25.8389, -80.1893, true)
@@ -635,6 +1180,50 @@ async function initStoresTable() {
     }
   } catch (err) {
     console.error('Error initializing stores table:', err.message);
+  }
+}
+
+async function ensureProductImagesTable() {
+  try {
+    await queryWithRetry(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id INT NOT NULL AUTO_INCREMENT,
+        product_id INT NOT NULL,
+        image_url VARCHAR(255) NOT NULL,
+        image_alt VARCHAR(255) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_product_image (product_id),
+        CONSTRAINT fk_product_images_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE
+      )
+    `);
+  } catch (err) {
+    console.error('Error ensuring product_images table:', err.message);
+  }
+}
+
+async function seedVariantImages() {
+  if (!VARIANT_IMAGE_MAPPINGS.length) return;
+  try {
+    const insertSql = `
+      INSERT INTO product_images (product_id, image_url, image_alt)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        image_url = VALUES(image_url),
+        image_alt = VALUES(image_alt),
+        updated_at = CURRENT_TIMESTAMP
+    `;
+
+    for (const mapping of VARIANT_IMAGE_MAPPINGS) {
+      const [products] = await queryWithRetry('SELECT id FROM products WHERE UPPER(name) = ?', [mapping.match.toUpperCase()]);
+      if (!products.length) continue;
+      for (const product of products) {
+        await queryWithRetry(insertSql, [product.id, mapping.imageUrl, mapping.imageAlt]);
+      }
+    }
+  } catch (err) {
+    console.error('Error seeding variant images:', err.message);
   }
 }
 
@@ -663,6 +1252,7 @@ app.get('/products', async (req, res) => {
     const q = (req.query.q || '').trim();
     const sort = (req.query.sort || 'newest').toLowerCase();
     const category = (req.query.category || '').trim();
+    const categoryId = category && !Number.isNaN(Number(category)) ? Number(category) : null;
 
     // WHERE
     const where = [];
@@ -671,9 +1261,24 @@ app.get('/products', async (req, res) => {
       where.push('(p.name LIKE ? OR p.upc LIKE ?)');
       params.push(`%${q}%`, `%${q}%`);
     }
-    if (category) {
-      where.push('p.category_id = ?');
-      params.push(category);
+    if (categoryId !== null) {
+      const [categoryRows] = await queryWithRetry(
+        'SELECT id FROM categories WHERE id = ? OR parent_id = ? ORDER BY parent_id IS NULL DESC, id ASC',
+        [categoryId, categoryId]
+      );
+      let categoryFilterIds = categoryRows.map((row) => row.id);
+      if (!categoryFilterIds.length) {
+        categoryFilterIds = [categoryId];
+      } else if (!categoryFilterIds.includes(categoryId)) {
+        categoryFilterIds.unshift(categoryId);
+      }
+      const placeholders = categoryFilterIds.map(() => '?').join(',');
+      where.push(`p.category_id IN (${placeholders})`);
+      params.push(...categoryFilterIds);
+    }
+    if (FEATURED_NAME_CLAUSE) {
+      where.push(`(${FEATURED_NAME_CLAUSE})`);
+      params.push(...FEATURED_NAME_PARAMS);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -683,6 +1288,7 @@ app.get('/products', async (req, res) => {
         FROM product_inventory
         GROUP BY product_id
       ) inv ON inv.product_id = p.id
+      LEFT JOIN product_images pi ON pi.product_id = p.id
     `;
 
     const sortSql =
@@ -691,21 +1297,13 @@ app.get('/products', async (req, res) => {
       sort === 'newest'     ? 'ORDER BY p.id DESC' :
                               'ORDER BY p.id DESC';
 
-    const countSql = `SELECT COUNT(*) AS total FROM products p ${whereSql}`;
-    const [countRows] = await pool.query(countSql, params);
-    const totalRaw = countRows[0]?.total || 0;
-
-    const fetchMultiplier = 2.5;
-    const rawFetchSize = Math.ceil(pageSize * fetchMultiplier);
-    const rawOffset = (page - 1) * rawFetchSize;
-
     const pageSql = `
       SELECT
         p.id,
         p.name,
-        COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp') AS image_url,
-        (p.image_url IS NOT NULL AND p.image_url <> '') AS has_image,
-        COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon') AS image_alt,
+        COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
+        ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
+        COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
         p.unit_price AS price,
         COALESCE(inv.total_qty, 0) AS total_qty,
         p.supplier AS brand,
@@ -715,19 +1313,20 @@ app.get('/products', async (req, res) => {
       ${inventoryJoinSql}
       ${whereSql}
       ${sortSql}
-      LIMIT ? OFFSET ?
     `;
-    const [rows] = await pool.query(pageSql, params.concat([rawFetchSize, rawOffset]));
+    const [rows] = await queryWithRetry(pageSql, params);
 
     // Group the fetched products by variant
-    const groupedProducts = groupProductsByVariant(rows);
-    
-    // Slice to the requested pageSize (from the grouped results)
-    const paginatedProducts = groupedProducts.slice(0, pageSize);
+    const groupedProducts = groupProductsByVariant(rows).filter(group =>
+      FEATURED_BASE_SET.has((group.base_name || group.name || '').toUpperCase())
+    );
+    const totalGrouped = groupedProducts.length;
+    const startIndex = (page - 1) * pageSize;
+    const paginatedProducts = groupedProducts.slice(startIndex, startIndex + pageSize);
 
     let finalProducts = paginatedProducts;
 
-    if (!q && !category && paginatedProducts.length) {
+    if (paginatedProducts.length) {
       const baseKeys = [...new Set(paginatedProducts.map(p => (p.base_name || '').toUpperCase()).filter(Boolean))];
       if (baseKeys.length) {
         const variantConditions = baseKeys.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
@@ -736,9 +1335,9 @@ app.get('/products', async (req, res) => {
           SELECT
             p.id,
             p.name,
-            COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp') AS image_url,
-            (p.image_url IS NOT NULL AND p.image_url <> '') AS has_image,
-            COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon') AS image_alt,
+            COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
+            ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
+            COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
             p.unit_price AS price,
             COALESCE(inv.total_qty, 0) AS total_qty,
             p.supplier AS brand,
@@ -748,7 +1347,7 @@ app.get('/products', async (req, res) => {
           ${inventoryJoinSql}
           WHERE ${variantConditions}
         `;
-        const [variantRows] = await pool.query(variantSql, variantParams);
+        const [variantRows] = await queryWithRetry(variantSql, variantParams);
         const variantGroups = groupProductsByVariant(variantRows);
         const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
         finalProducts = paginatedProducts.map(group => {
@@ -771,12 +1370,10 @@ app.get('/products', async (req, res) => {
       }
     }
     
-    // For pagination display, estimate the total grouped products
-    // (Note: this is an approximation since grouping ratio varies by page)
-    const estimatedGroupedTotal = Math.ceil(totalRaw / (rows.length > 0 ? rows.length / groupedProducts.length : 1));
+    const estimatedGroupedTotal = totalGrouped;
 
     // Get all categories
-    const [categoriesRows] = await pool.query('SELECT id, name, slug FROM categories ORDER BY id ASC');
+    const [categoriesRows] = await queryWithRetry('SELECT id, name, slug FROM categories ORDER BY id ASC');
     const categories = categoriesRows || [];
 
     res.render('products', {
@@ -798,4 +1395,6 @@ const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, async () => {
   console.log(`Server running → http://localhost:${PORT}`);
   await initStoresTable();
+  await ensureProductImagesTable();
+  await seedVariantImages();
 });

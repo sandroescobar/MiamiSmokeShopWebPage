@@ -27,7 +27,8 @@ SUBCATEGORY_RULES = [
     {"name": "GEEKBAR X 25K", "slug": "geekbar-x-25k", "parent": "NICOTINE VAPES", "tokens": ["GEEK", "25K"]},
     {"name": "FUME PRO 30K", "slug": "fume-pro-30k", "parent": "NICOTINE VAPES", "tokens": ["FUME", "PRO"]},
     {"name": "LOST MARY TURBO 35K", "slug": "lost-mary-turbo", "parent": "NICOTINE VAPES", "tokens": ["LOST", "MARY", "TURBO"]},
-    {"name": "BB CART 1GR", "slug": "bb-cart-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "CART"]}
+    {"name": "BB CART 1GR", "slug": "bb-cart-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "CART"]},
+    {"name": "BB PEN 1GR", "slug": "bb-pen-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "PEN"]}
 ]
 
 PRODUCT_SQL = (

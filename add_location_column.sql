@@ -23,6 +23,18 @@ CREATE TABLE IF NOT EXISTS product_inventory (
   CONSTRAINT fk_inventory_store FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS product_images (
+  id INT NOT NULL AUTO_INCREMENT,
+  product_id INT NOT NULL,
+  image_url VARCHAR(255) NOT NULL,
+  image_alt VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_product_image (product_id),
+  CONSTRAINT fk_product_images_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 INSERT INTO product_inventory (product_id, store_id, quantity_on_hand, unit_price, last_synced_at)
 SELECT p.id, s.id, p.quantity_on_hand, p.unit_price, NOW()
 FROM products p

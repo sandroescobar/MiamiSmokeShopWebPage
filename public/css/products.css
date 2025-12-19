@@ -138,8 +138,8 @@ body{
 
 /* Grid (layout only, no card styles) */
 .product-grid{
-  display:grid; gap:1rem; padding:1.25rem 1rem 2rem;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  display:grid; gap:.75rem; padding:1rem .75rem 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
 }
 
 /* Pagination */
