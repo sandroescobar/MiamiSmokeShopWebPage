@@ -84,6 +84,7 @@ const FEATURED_BASE_PRODUCTS = [
   'GEEKBAR X 25K',
   'GEEKBAR',
   'CUVIE PLUS',
+  'HQD CUVIE PLUS',
   'FUME EXTRA',
   'DESTINO PRE ROLL 1GR',
   'BB CART 1GR',
@@ -579,12 +580,45 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'BB MOONROCK PRE ROLL 2GR SATIVA MAUI WOWIE',
     imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/SATIVAMAUIWOWIE.jpg',
     imageAlt: 'BB Moonrock Pre Roll 2GR • Sativa Maui Wowie'
+  },
+  {
+    match: 'BB PEN 1GR HYBRID CINDERELLA 99',
+    imageUrl: '/images/imagesForProducts/BB%20PEN%201GR/HYBRIDCINDERLLA99.jpg',
+    imageAlt: 'BB Pen 1GR • Hybrid Cinderella 99'
+  },
+  {
+    match: 'BB PEN 1GR INDICA HINDU KUSH',
+    imageUrl: '/images/imagesForProducts/BB%20PEN%201GR/INDICAHINDUKUSH.jpg',
+    imageAlt: 'BB Pen 1GR • Indica Hindu Kush'
+  },
+  {
+    match: 'BB PEN 1GR INDICA KOSHER KUSH',
+    imageUrl: '/images/imagesForProducts/BB%20PEN%201GR/INDICAKOSHERKUSH.jpg',
+    imageAlt: 'BB Pen 1GR • Indica Kosher Kush'
+  },
+  {
+    match: 'BB PEN 1GR SATIVA MIAMI HAZE',
+    imageUrl: '/images/imagesForProducts/BB%20PEN%201GR/SATIVAMIAMIHAZE.jpg',
+    imageAlt: 'BB Pen 1GR • Sativa Miami Haze'
+  },
+  {
+    match: 'BB PEN 1GR SATIVA PINEAPPLE EXPRESS',
+    imageUrl: '/images/imagesForProducts/BB%20PEN%201GR/PINEAPPLEEXPRESS.jpg',
+    imageAlt: 'BB Pen 1GR • Sativa Pineapple Express'
+  },
+  {
+    match: 'BB CART 1GR PARTY PACK INDICA',
+    imageUrl: '/images/imagesForProducts/BB%20CART%201GR/PARTYPACKINDICA.jpg',
+    imageAlt: 'BB Cart 1GR • Party Pack Indica'
+  },
+  {
+    match: 'BB CART 1GR PARTY PACK SATIVA',
+    imageUrl: '/images/imagesForProducts/BB%20CART%201GR/PARTYPACKSATIVA.jpg',
+    imageAlt: 'BB Cart 1GR • Party Pack Sativa'
   }
 ];
 
-const DISCONTINUED_VARIANTS = new Map([
-  ['BB CART 1GR', new Set(['PARTY PACK'])]
-]);
+const DISCONTINUED_VARIANTS = new Map();
 
 const policyPages = {
   terms: {
@@ -1017,6 +1051,9 @@ function normalizeProductName(name) {
       value = value.replace(/^LOST MARY TURBO\b/i, 'LOST MARY TURBO 35K');
     }
   }
+  if (/^HQD\s+CUVIE\b/i.test(value)) {
+    value = value.replace(/^HQD\s+/, '');
+  }
   if (/^BB\s*CART\b/i.test(value)) {
     value = value.replace(/^BB\s*CART\b/i, 'BB CART');
     if (/\b1G\b/i.test(value)) {
@@ -1215,11 +1252,23 @@ async function seedVariantImages() {
         updated_at = CURRENT_TIMESTAMP
     `;
 
+    const [products] = await queryWithRetry('SELECT id, name FROM products');
+    const normalizedMap = new Map();
+    for (const product of products) {
+      const normalized = normalizeProductName(product.name).toUpperCase();
+      if (!normalized) continue;
+      if (!normalizedMap.has(normalized)) {
+        normalizedMap.set(normalized, []);
+      }
+      normalizedMap.get(normalized).push(product.id);
+    }
+
     for (const mapping of VARIANT_IMAGE_MAPPINGS) {
-      const [products] = await queryWithRetry('SELECT id FROM products WHERE UPPER(name) = ?', [mapping.match.toUpperCase()]);
-      if (!products.length) continue;
-      for (const product of products) {
-        await queryWithRetry(insertSql, [product.id, mapping.imageUrl, mapping.imageAlt]);
+      const normalizedMatch = normalizeProductName(mapping.match).toUpperCase();
+      const productIds = normalizedMap.get(normalizedMatch);
+      if (!productIds) continue;
+      for (const productId of productIds) {
+        await queryWithRetry(insertSql, [productId, mapping.imageUrl, mapping.imageAlt]);
       }
     }
   } catch (err) {

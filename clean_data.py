@@ -31,6 +31,25 @@ SUBCATEGORY_RULES = [
     {"name": "BB PEN 1GR", "slug": "bb-pen-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "PEN"]}
 ]
 
+FEATURED_BASE_PRODUCTS = [
+    "LOST MARY TURBO 35K",
+    "GEEKBAR X 25K",
+    "GEEKBAR",
+    "CUVIE PLUS",
+    "HQD CUVIE PLUS",
+    "FUME EXTRA",
+    "DESTINO PRE ROLL 1GR",
+    "BB CART 1GR",
+    "BB PEN 1GR",
+    "BB MOONROCK PRE ROLL 2GR"
+]
+FEATURED_BASE_SET = {name.upper() for name in FEATURED_BASE_PRODUCTS}
+
+STORE_SNAPSHOT_TABLES = {
+    "CALLE 8": "inventory_calle8",
+    "79TH STREET": "inventory_79th"
+}
+
 PRODUCT_SQL = (
     """
     INSERT INTO products
@@ -59,6 +78,50 @@ INVENTORY_SQL = (
       last_synced_at = CURRENT_TIMESTAMP
     """
 )
+
+
+def ensure_store_snapshot_table(cur, table_name):
+    cur.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(200) NOT NULL,
+            upc VARCHAR(32) NOT NULL,
+            quantity INT NOT NULL DEFAULT 0
+        )
+        """
+    )
+
+
+def refresh_store_snapshot_table(cur, table_name, rows):
+    cur.execute(f"TRUNCATE TABLE `{table_name}`")
+    if not rows:
+        return
+    insert_sql = f"INSERT INTO `{table_name}` (name, upc, quantity) VALUES (%s, %s, %s)"
+    data = [(name, upc, qty) for (name, upc), qty in rows.items()]
+    cur.executemany(insert_sql, data)
+
+
+def collect_featured_snapshot_rows(cur, store_id):
+    if not FEATURED_BASE_PRODUCTS:
+        return {}
+    like_clause = " OR ".join(["UPPER(p.name) LIKE %s" for _ in FEATURED_BASE_PRODUCTS])
+    params = [store_id] + [f"{name.upper()}%" for name in FEATURED_BASE_PRODUCTS]
+    cur.execute(
+        f"""
+        SELECT p.name, p.upc, SUM(pi.quantity_on_hand) AS qty
+        FROM products p
+        JOIN product_inventory pi ON pi.product_id = p.id
+        WHERE pi.store_id = %s AND ({like_clause})
+        GROUP BY p.id, p.name, p.upc
+        HAVING qty IS NOT NULL
+        """,
+        params
+    )
+    rows = {}
+    for name, upc, qty in cur.fetchall():
+        rows[(as_str(name), as_str(upc))] = int(qty or 0)
+    return rows
 
 
 def parse_mysql_url(url):
@@ -330,6 +393,8 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
         return
     supplier_value = safe_len(supplier_label, 120)
     store_label = safe_len(location, 100)
+    store_key = store_label.upper()
+    snapshot_table = STORE_SNAPSHOT_TABLES.get(store_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -339,6 +404,8 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
         cache = load_category_cache(conn)
         print("  Ensuring categories...")
         parent_ids = ensure_parent_categories(cur, cache)
+        if snapshot_table:
+            ensure_store_snapshot_table(cur, snapshot_table)
         conn.commit()
         print("  Loading products...")
         current_product_ids = set()
@@ -353,19 +420,24 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
                 category_id = ensure_category(cur, cache, sub_rule["name"], sub_rule["slug"], parent_id)
             else:
                 category_id = parent_id
+            name_value = as_str(record["Name"])
+            upc_value = as_str(record["UPC"])
+            stockcode_value = as_str(record["StockCode"])
+            price_value = clamp_price(record["UnitPrice"])
+            qty_value = clamp_int(record["QtyOnHand"])
             product_id = upsert_product(
                 cur,
                 (
-                    as_str(record["Name"]),
-                    as_str(record["UPC"]),
-                    as_str(record["StockCode"]),
-                    clamp_price(record["UnitPrice"]),
+                    name_value,
+                    upc_value,
+                    stockcode_value,
+                    price_value,
                     int(category_id),
                     supplier_value,
                 )
             )
             current_product_ids.add(product_id)
-            upsert_inventory(cur, product_id, store_id, clamp_int(record["QtyOnHand"]), clamp_price(record["UnitPrice"]))
+            upsert_inventory(cur, product_id, store_id, qty_value, price_value)
             processed += 1
             if processed % 100 == 0:
                 print(f"    Processed {processed}/{rows}")
@@ -374,6 +446,9 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
             print(f"  🧹 Removed {removed} inventory rows for {store_label}.")
         else:
             print("  🧹 No obsolete inventory to prune.")
+        if snapshot_table:
+            featured_rows = collect_featured_snapshot_rows(cur, store_id)
+            refresh_store_snapshot_table(cur, snapshot_table, featured_rows)
         conn.commit()
         print(f"✅ Upserted {processed} inventory rows for {store_label}.")
     except mysql.connector.Error as e:

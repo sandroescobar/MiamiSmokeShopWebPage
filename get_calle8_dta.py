@@ -254,9 +254,15 @@ def clean_upc(val: str) -> str:
 
 
 def to_int_series(s):
-   s = s.astype(str).str.replace(",", "", regex=False)
-   s = s.str.extract(r"(-?\d+\.?\d*)")[0]
-   return pd.to_numeric(s, errors="coerce").fillna(0).round().astype(int)
+   def parse_cell(val):
+       if pd.isna(val):
+           return 0
+       numbers = re.findall(r"-?\d+(?:\.\d+)?", str(val))
+       if not numbers:
+           return 0
+       total = sum(float(num) for num in numbers)
+       return int(round(total))
+   return s.apply(parse_cell)
 
 
 def to_price_series(s):
@@ -310,6 +316,7 @@ else:
 allowed = {
    "NICOTINE VAPES",
    "THCA PRODUCTS",
+   "THCA RELATED: FLOWER, CARTS & VAPES",
    "TOBACCO PRODUCTS",
    "EDIBLES",
    "GRINDERS",
