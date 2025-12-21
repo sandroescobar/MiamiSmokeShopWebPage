@@ -56,16 +56,23 @@ function initNavbarToggle() {
       });
     }
 
+    const closeCollapse = () => {
+      if (hasBootstrap) {
+        const instance = bootstrap.Collapse.getOrCreateInstance(target, { toggle: false });
+        instance.hide();
+      } else {
+        target.classList.remove('show');
+      }
+      btn.setAttribute('aria-expanded', 'false');
+    };
+
     target.querySelectorAll('.nav-link').forEach((link) => {
-      link.addEventListener('click', () => {
-        if (hasBootstrap) {
-          const instance = bootstrap.Collapse.getOrCreateInstance(target, { toggle: false });
-          instance.hide();
-        } else {
-          target.classList.remove('show');
-        }
-        btn.setAttribute('aria-expanded', 'false');
-      });
+      if (link.classList.contains('dropdown-toggle')) return;
+      link.addEventListener('click', closeCollapse);
+    });
+
+    target.querySelectorAll('.dropdown-menu .dropdown-item').forEach((item) => {
+      item.addEventListener('click', closeCollapse);
     });
   });
 }

@@ -242,11 +242,16 @@ body {
         padding-left: 1rem;
         padding-right: 1rem;
     }
+    .navbar-top-actions{
+        flex-direction: row-reverse;
+    }
     .navbar-collapse{
         position: absolute;
         top: calc(100% + 8px);
+        left: 1rem;
         right: 1rem;
-        width: min(320px, calc(100vw - 2rem));
+        width: auto;
+        max-width: calc(100vw - 2rem);
         background: rgba(4,9,22,.97);
         border: 1px solid rgba(255,255,255,.12);
         border-radius: 18px;
@@ -270,10 +275,16 @@ body {
         width: 100%;
         gap: 12px !important;
     }
+    .navbar-nav.ms-auto{
+        margin-left: 0 !important;
+    }
     .navbar-nav .nav-link{
         width: 100%;
         text-align: left;
         padding: 10px 0;
+        color: #ffffff !important;
+        opacity: 1 !important;
+        font-size: 0.95rem;
     }
     .navbar-nav .dropdown-menu{
         position: static;
@@ -288,9 +299,10 @@ body {
     }
 }
 
-*, ::after, ::before{
-    gap: 60px !important;
-}
+background: rgba(4, 9, 22, 0.97);
+border: 1px solid rgba(255, 255, 255, 0.12);
+box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+
 
 /* end of navbar changes */
 
@@ -733,6 +745,126 @@ border-color: #CEE9 !important;
    background-color: white;
    border-radius: 10%;
 }
+
+
+/* Right-side actions: cart + hamburger */
+.navbar-top-actions{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Make the top cart icon feel like an icon button */
+.cart-icon--top{
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 6px !important;
+  line-height: 1;
+}
+
+.navbar .cart-icon{
+  color: #0a1222 !important; /* makes SVG stroke visible because it uses currentColor */
+}
+
+
+/* Make hamburger visible on white navbar */
+.navbar .navbar-toggler{
+  border-color: rgba(10, 18, 34, 0.25) !important;
+}
+
+.navbar .navbar-toggler-icon{
+  filter: invert(1) grayscale(1) brightness(0.15) !important;
+}
+
+
+
+.navbar-top-actions{
+  display: flex;
+  align-items: center;
+  gap: 20px; /* was ~10px — bump it */
+}
+
+
+/* --- Mobile header icon buttons (cart + hamburger) --- */
+.navbar-top-actions{
+  display: flex;
+  align-items: center;
+  gap: 18px; /* space between cart + hamburger */
+}
+
+/* hamburger button */
+.navbar-top-actions .navbar-toggler{
+  width: 46px;
+  height: 46px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid rgba(10,18,34,0.22) !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,0.92) !important;
+}
+
+.navbar-top-actions .navbar-toggler:focus{
+  box-shadow: 0 0 0 0.18rem rgba(130, 198, 247, 0.35) !important;
+}
+
+/* custom hamburger bars */
+.hamburger-bars{
+  width: 22px;
+  height: 2px;
+  background: #0a1222;
+  border-radius: 2px;
+  position: relative;
+  display: inline-block;
+}
+
+.hamburger-bars::before,
+.hamburger-bars::after{
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 2px;
+  background: #0a1222;
+  border-radius: 2px;
+}
+
+.hamburger-bars::before{ top: -7px; }
+.hamburger-bars::after{ top: 7px; }
+
+@media (max-width: 991.98px){
+  /* keep navbar + dropdown above hero content */
+  .navbar{
+    position: sticky;
+    top: 0;
+    z-index: 5000;
+  }
+
+  .navbar-collapse{
+    z-index: 6000;
+  }
+
+  /* make sure the links pop */
+  .navbar-collapse .nav-link{
+    color: #ffffff !important;
+    opacity: 1 !important;
+    font-size: 0.92rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+@media (max-width: 991.98px){
+  .navbar-collapse{
+    background: rgba(4,9,22,0.985) !important;
+  }
+}
+
+
+
 
 
 
