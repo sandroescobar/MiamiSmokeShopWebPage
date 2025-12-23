@@ -390,6 +390,7 @@ box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    gap: 0.3rem;
     z-index: 2;
 }
 
@@ -410,8 +411,11 @@ box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
     font-size: 4rem;
     font-weight: bold;
     text-align: center;
-    margin: 0;
     padding: 0;
+}
+
+h1.main_title {
+  margin-bottom: 2.5rem;
 }
 
 .sub_title{
@@ -419,8 +423,7 @@ box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
     text-align: center;
     margin: 0;
     padding: 0;
-    position:relative;
-    bottom: 3rem;
+    margin-top: -1rem;
 }
 
 .locations_sub_header{

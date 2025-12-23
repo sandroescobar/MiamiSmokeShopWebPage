@@ -229,6 +229,28 @@ body{
     height: 110px !important;
 }
 
+/* Desktop navbar links can be dark if your navbar is white */
+@media (min-width: 992px){
+  .navbar-nav .nav-link{
+    color: #0a1222 !important;
+  }
+}
+
+/* Mobile collapsed dropdown menu links must be light */
+@media (max-width: 991.98px){
+  .navbar-collapse,
+  .navbar-collapse.show{
+    background: rgba(4,9,22,0.985) !important;
+  }
+
+  .navbar-collapse .nav-link,
+  .navbar-collapse .dropdown-item{
+    color: #ffffff !important;
+    opacity: 1 !important;
+  }
+}
+
+
 
 .flavor-label{
     font-size: 0.9rem !important;

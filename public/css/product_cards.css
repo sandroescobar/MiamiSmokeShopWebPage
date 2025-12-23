@@ -60,7 +60,7 @@
 
 /* Body */
 .product-info{ padding:.9rem; display:flex; flex-direction:column; gap:.5rem; }
-.product-name{ font-size:1rem; margin:0; color:#fff; line-height:1.25; }
+.product-name{ font-size:1rem; margin:0; color:#fff; line-height:1.25; padding-bottom: 0.5rem }
 .meta{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; color:var(--ink-dim); }
 .brand,.rating{ font-size:.85rem; }
 
@@ -80,3 +80,46 @@
   display:grid; place-items:center; text-transform:uppercase;
   letter-spacing:.18em; font-weight:600; color:#fff;
 }
+
+/* Give card content more breathing room (works for desktop + mobile) */
+.product-info{
+  padding: 1.05rem !important;
+  gap: 0.75rem !important;
+}
+
+.product-title{
+  margin: 0 !important;
+  line-height: 1.15 !important;
+}
+
+.product-subtitle{
+  margin-top: -0.2rem !important;
+  margin-bottom: 0.15rem !important;
+  line-height: 1.1 !important;
+  opacity: 0.9;
+}
+
+/* Flavor row spacing */
+.flavor-row{
+  padding: 0.55rem 0.7rem !important;
+}
+
+.flavor-select{
+  line-height: 1.2 !important;
+}
+
+/* Price + button row spacing */
+.buy-row{
+  gap: 0.6rem !important;
+  margin-top: 0.35rem !important;
+}
+
+.price{
+  line-height: 1.1 !important;
+}
+
+/* Button feels less cramped */
+.add-to-cart{
+  padding: 0.75rem 0.9rem !important;
+}
+
