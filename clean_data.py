@@ -38,10 +38,7 @@ FEATURED_BASE_PRODUCTS = [
     "CUVIE PLUS",
     "HQD CUVIE PLUS",
     "FUME EXTRA",
-    "DESTINO PRE ROLL 1GR",
-    "BB CART 1GR",
-    "BB PEN 1GR",
-    "BB MOONROCK PRE ROLL 2GR"
+    "DESTINO PRE ROLL 1GR"
 ]
 FEATURED_BASE_SET = {name.upper() for name in FEATURED_BASE_PRODUCTS}
 
@@ -87,18 +84,35 @@ def ensure_store_snapshot_table(cur, table_name):
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(200) NOT NULL,
             upc VARCHAR(32) NOT NULL,
-            quantity INT NOT NULL DEFAULT 0
+            quantity INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1
         )
         """
     )
+    cur.execute(f"SHOW COLUMNS FROM `{table_name}` LIKE 'is_active'")
+    if not cur.fetchone():
+        cur.execute(
+            f"""
+            ALTER TABLE `{table_name}`
+            ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER quantity
+            """
+        )
 
 
 def refresh_store_snapshot_table(cur, table_name, rows):
+    cur.execute(f"SELECT name, upc, is_active FROM `{table_name}`")
+    existing_flags = {}
+    for name, upc, is_active in cur.fetchall():
+        existing_flags[(as_str(name), as_str(upc))] = 1 if is_active is None else int(is_active)
     cur.execute(f"TRUNCATE TABLE `{table_name}`")
     if not rows:
         return
-    insert_sql = f"INSERT INTO `{table_name}` (name, upc, quantity) VALUES (%s, %s, %s)"
-    data = [(name, upc, qty) for (name, upc), qty in rows.items()]
+    insert_sql = f"INSERT INTO `{table_name}` (name, upc, quantity, is_active) VALUES (%s, %s, %s, %s)"
+    data = []
+    for (name, upc), qty in rows.items():
+        key = (name, upc)
+        active_flag = existing_flags.get(key, 1)
+        data.append((name, upc, qty, active_flag))
     cur.executemany(insert_sql, data)
 
 

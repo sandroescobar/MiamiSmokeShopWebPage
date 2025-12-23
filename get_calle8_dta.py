@@ -347,7 +347,7 @@ try:
         ["python3", os.path.join(BASE_DIR, "clean_data.py"), cleaned_path, "Calle 8"],
         capture_output=True,
         text=True,
-        timeout=180
+        timeout=480
     )
     print(result.stdout)
     if result.stderr:

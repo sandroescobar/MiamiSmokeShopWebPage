@@ -86,14 +86,32 @@ const FEATURED_BASE_PRODUCTS = [
   'CUVIE PLUS',
   'HQD CUVIE PLUS',
   'FUME EXTRA',
-  'DESTINO PRE ROLL 1GR',
-  'BB CART 1GR',
-  'BB PEN 1GR',
-  'BB MOONROCK PRE ROLL 2GR'
+  'DESTINO PRE ROLL 1GR'
 ];
 const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
 const FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
 const FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => `${name.toUpperCase()}%`);
+const HIDDEN_CATEGORY_NAMES = new Set([
+  'THCA PRODUCTS',
+  'EDIBLES',
+  'DEVICES: BATTERIES & MODS',
+  'BB CART 1GR',
+  'BB PEN 1GR'
+]);
+const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th'];
+const SNAPSHOT_ROWS_SQL = SNAPSHOT_TABLES
+  .map((table) => `SELECT name, quantity, is_active FROM \`${table}\``)
+  .join('\n    UNION ALL\n    ');
+const SNAPSHOT_AGG_SQL = `
+  SELECT
+    UPPER(name) AS name_key,
+    SUM(CASE WHEN COALESCE(is_active, 1) = 1 THEN quantity ELSE 0 END) AS total_qty,
+    MAX(CASE WHEN COALESCE(is_active, 1) = 1 THEN 1 ELSE 0 END) AS any_active
+  FROM (
+    ${SNAPSHOT_ROWS_SQL}
+  ) snapshot_rows
+  GROUP BY UPPER(name)
+`;
 
 const VARIANT_IMAGE_MAPPINGS = [
   {
@@ -1240,6 +1258,31 @@ async function ensureProductImagesTable() {
   }
 }
 
+async function ensureSnapshotTables() {
+  try {
+    for (const table of SNAPSHOT_TABLES) {
+      await queryWithRetry(`
+        CREATE TABLE IF NOT EXISTS \`${table}\` (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(200) NOT NULL,
+          upc VARCHAR(32) NOT NULL,
+          quantity INT NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1
+        )
+      `);
+      const [cols] = await queryWithRetry(`SHOW COLUMNS FROM \`${table}\` LIKE 'is_active'`);
+      if (!cols.length) {
+        await queryWithRetry(`
+          ALTER TABLE \`${table}\`
+          ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER quantity
+        `);
+      }
+    }
+  } catch (err) {
+    console.error('Error ensuring snapshot tables:', err.message);
+  }
+}
+
 async function seedVariantImages() {
   if (!VARIANT_IMAGE_MAPPINGS.length) return;
   try {
@@ -1332,11 +1375,9 @@ app.get('/products', async (req, res) => {
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const inventoryJoinSql = `
-      LEFT JOIN (
-        SELECT product_id, SUM(quantity_on_hand) AS total_qty
-        FROM product_inventory
-        GROUP BY product_id
-      ) inv ON inv.product_id = p.id
+      INNER JOIN (
+        ${SNAPSHOT_AGG_SQL}
+      ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
       LEFT JOIN product_images pi ON pi.product_id = p.id
     `;
 
@@ -1354,7 +1395,7 @@ app.get('/products', async (req, res) => {
         ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
         COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
         p.unit_price AS price,
-        COALESCE(inv.total_qty, 0) AS total_qty,
+        COALESCE(snap.total_qty, 0) AS total_qty,
         p.supplier AS brand,
         NULL AS rating,
         NULL AS review_count
@@ -1388,7 +1429,7 @@ app.get('/products', async (req, res) => {
             ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
             COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
             p.unit_price AS price,
-            COALESCE(inv.total_qty, 0) AS total_qty,
+            COALESCE(snap.total_qty, 0) AS total_qty,
             p.supplier AS brand,
             NULL AS rating,
             NULL AS review_count
@@ -1423,7 +1464,7 @@ app.get('/products', async (req, res) => {
 
     // Get all categories
     const [categoriesRows] = await queryWithRetry('SELECT id, name, slug FROM categories ORDER BY id ASC');
-    const categories = categoriesRows || [];
+    const categories = (categoriesRows || []).filter((cat) => !HIDDEN_CATEGORY_NAMES.has((cat.name || '').toUpperCase()));
 
     res.render('products', {
       products: finalProducts,
@@ -1445,5 +1486,6 @@ app.listen(PORT, async () => {
   console.log(`Server running → http://localhost:${PORT}`);
   await initStoresTable();
   await ensureProductImagesTable();
+  await ensureSnapshotTables();
   await seedVariantImages();
 });

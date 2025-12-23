@@ -348,7 +348,7 @@ try:
         ["python3", os.path.join(BASE_DIR, "clean_data.py"), cleaned_path, "79th Street"],
         capture_output=True,
         text=True,
-        timeout=180  # 3 minutes for CSV cleaning + DB load
+        timeout=480
     )
     print(result.stdout)
     if result.stderr:
