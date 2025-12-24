@@ -178,7 +178,7 @@ const VARIANT_IMAGE_MAPPINGS = [
   },
   {
     match: 'GEEKBAR X 25K ATL MINT',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ATLMINT.jpeg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ATLMINT.jpg',
     imageAlt: 'GEEKBAR X 25K • ATL Mint'
   },
   {
@@ -192,6 +192,16 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Blackberry Blueberry'
   },
   {
+    match: 'GEEKBAR X 25K BLACKBERRY B-POP',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLACKBERRYBPOP.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blackberry B-Pop'
+  },
+  {
+    match: 'GEEKBAR X 25K BLUEBERRY JAM',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLUEBERRYJAM.jpg',
+    imageAlt: 'GEEKBAR X 25K • Blueberry Jam'
+  },
+  {
     match: 'GEEKBAR X 25K BLUE RANCHER',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLUERANCHER.jpg',
     imageAlt: 'GEEKBAR X 25K • Blue Rancher'
@@ -200,6 +210,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'GEEKBAR X 25K BLUE RAZZ ICE',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BLUERAZZICE.jpg',
     imageAlt: 'GEEKBAR X 25K • Blue Razz Ice'
+  },
+  {
+    match: 'GEEKBAR X 25K COLA SLUSH',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/COLASLUSH.jpg',
+    imageAlt: 'GEEKBAR X 25K • Cola Slush'
   },
   {
     match: 'GEEKBAR X 25K COOL MINT',
@@ -228,7 +243,7 @@ const VARIANT_IMAGE_MAPPINGS = [
   },
   {
     match: 'GEEKBAR X 25K SOUR FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpeg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Fcuking Fab'
   },
   {
@@ -237,9 +252,24 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Orange Jam'
   },
   {
+    match: 'GEEKBAR X 25K ORANGE SLUSH',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ORANGESLUSH.jpg',
+    imageAlt: 'GEEKBAR X 25K • Orange Slush'
+  },
+  {
     match: 'GEEKBAR X 25K PEACH JAM',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/PEACHJAM.jpg',
     imageAlt: 'GEEKBAR X 25K • Peach Jam'
+  },
+  {
+    match: 'GEEKBAR X 25K PEACH PERFECT SLUSH',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/PEACHPERFECTSLUSH.jpg',
+    imageAlt: 'GEEKBAR X 25K • Peach Perfect Slush'
+  },
+  {
+    match: 'GEEKBAR X 25K PEPPERMINTZ',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/PEPPERMINTZ.jpg',
+    imageAlt: 'GEEKBAR X 25K • Peppermintz'
   },
   {
     match: 'GEEKBAR X 25K RASPBERRY JAM',
@@ -248,13 +278,23 @@ const VARIANT_IMAGE_MAPPINGS = [
   },
   {
     match: 'GEEKBAR X 25K RASPBERRY PEACH LIME',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/RASBERRYPEACHLIME.jpg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/RASPBERRYPEACHLIME.jpg',
     imageAlt: 'GEEKBAR X 25K • Raspberry Peach Lime'
+  },
+  {
+    match: 'GEEKBAR X 25K SOUR APPLE ICE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURAPPLEICE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Sour Apple Ice'
   },
   {
     match: 'GEEKBAR X 25K SOUR STRAWS',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURSTRAWS.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Straws'
+  },
+  {
+    match: 'GEEKBAR X 25K SOUR MANGO PINEAPPLE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURMANGOPINEAPPLE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Sour Mango Pineapple'
   },
   {
     match: 'GEEKBAR X 25K STRAWBERRY B-BURST',
@@ -270,6 +310,16 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'GEEKBAR X 25K STRAWBERRY COLADA',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYCOLADA.jpg',
     imageAlt: 'GEEKBAR X 25K • Strawberry Colada'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY JAM',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYJAM.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry Jam'
+  },
+  {
+    match: 'GEEKBAR X 25K STRAWBERRY KIWI ICE',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/STRAWBERRYKIWIICE.jpg',
+    imageAlt: 'GEEKBAR X 25K • Strawberry Kiwi Ice'
   },
   {
     match: 'GEEKBAR X 25K STRAWBERRY WATERMELON',
