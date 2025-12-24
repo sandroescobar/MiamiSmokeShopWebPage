@@ -597,6 +597,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Ultra • Blue Razz Ice'
   },
   {
+    match: 'FUME ULTRA BLUEBERRY MINT',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/BLUEBERRYMINT.jpeg',
+    imageAlt: 'Fume Ultra • Blueberry Mint'
+  },
+  {
     match: 'FUME ULTRA BUBBLEGUM',
     imageUrl: '/images/imagesForProducts/FUMEULTRA/BUBBLEGUM.jpg',
     imageAlt: 'Fume Ultra • Bubblegum'
