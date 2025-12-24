@@ -697,6 +697,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Pro 30K • Black Ice'
   },
   {
+    match: 'FUME PRO 30K DUBAI CHOCOLATE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/DUBAICHOCOLATE.jpg',
+    imageAlt: 'Fume Pro 30K • Dubai Chocolate'
+  },
+  {
     match: 'FUME PRO 30K FLORIDA TROPICAL BREEZE',
     imageUrl: '/images/imagesForProducts/FUMEPRO30K/FLORIDATROPICALBREEZE.jpg',
     imageAlt: 'Fume Pro 30K • Florida Tropical Breeze'
