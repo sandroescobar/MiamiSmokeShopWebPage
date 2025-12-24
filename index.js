@@ -582,6 +582,111 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Extra • Strawberry Watermelon'
   },
   {
+    match: 'FUME ULTRA BANANA ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/BANANAICE.jpg',
+    imageAlt: 'Fume Ultra • Banana Ice'
+  },
+  {
+    match: 'FUME ULTRA BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/BLACKICE.jpg',
+    imageAlt: 'Fume Ultra • Black Ice'
+  },
+  {
+    match: 'FUME ULTRA BLUE RAZZ ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/BLUERAZZICE.jpg',
+    imageAlt: 'Fume Ultra • Blue Razz Ice'
+  },
+  {
+    match: 'FUME ULTRA BUBBLEGUM',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/BUBBLEGUM.jpg',
+    imageAlt: 'Fume Ultra • Bubblegum'
+  },
+  {
+    match: 'FUME ULTRA CLEAR',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/CLEAR.jpg',
+    imageAlt: 'Fume Ultra • Clear'
+  },
+  {
+    match: 'FUME ULTRA HAWAII JUICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/HAWAIIJUICE.jpg',
+    imageAlt: 'Fume Ultra • Hawaii Juice'
+  },
+  {
+    match: 'FUME ULTRA LUSH ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/LUSHICE.jpg',
+    imageAlt: 'Fume Ultra • Lush Ice'
+  },
+  {
+    match: 'FUME ULTRA MANGO',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/MANGO.jpg',
+    imageAlt: 'Fume Ultra • Mango'
+  },
+  {
+    match: 'FUME ULTRA MIAMI MIX',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/MIAMIMIX.jpg',
+    imageAlt: 'Fume Ultra • Miami Mix'
+  },
+  {
+    match: 'FUME ULTRA MINT ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/MINTICE.jpg',
+    imageAlt: 'Fume Ultra • Mint Ice'
+  },
+  {
+    match: 'FUME ULTRA PARADISE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/PARADISE.jpg',
+    imageAlt: 'Fume Ultra • Paradise'
+  },
+  {
+    match: 'FUME ULTRA PEACH ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/PEACHICE.jpg',
+    imageAlt: 'Fume Ultra • Peach Ice'
+  },
+  {
+    match: 'FUME ULTRA PINA COLADA',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/PINACOLADA.jpg',
+    imageAlt: 'Fume Ultra • Pina Colada'
+  },
+  {
+    match: 'FUME ULTRA POLAR ICE',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/POLARICE.jpg',
+    imageAlt: 'Fume Ultra • Polar Ice'
+  },
+  {
+    match: 'FUME ULTRA PURPLE RAIN',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/PURPLERAIN.jpg',
+    imageAlt: 'Fume Ultra • Purple Rain'
+  },
+  {
+    match: 'FUME ULTRA RASPBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/RASPBERRYWATERMELON.jpg',
+    imageAlt: 'Fume Ultra • Raspberry Watermelon'
+  },
+  {
+    match: 'FUME ULTRA STRAWBERRY',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/STRAWBERRY.jpg',
+    imageAlt: 'Fume Ultra • Strawberry'
+  },
+  {
+    match: 'FUME ULTRA STRAWBERRY BANANA',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/STRAWBERRYBANANA.jpg',
+    imageAlt: 'Fume Ultra • Strawberry Banana'
+  },
+  {
+    match: 'FUME ULTRA STRAWBERRY MANGO',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/STRAWBERRYMANGO.jpg',
+    imageAlt: 'Fume Ultra • Strawberry Mango'
+  },
+  {
+    match: 'FUME ULTRA STRAWBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/STRAWBERRYWATERMELON.jpg',
+    imageAlt: 'Fume Ultra • Strawberry Watermelon'
+  },
+  {
+    match: 'FUME ULTRA TROPICAL FRUIT',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/TROPICALFRUIT.jpg',
+    imageAlt: 'Fume Ultra • Tropical Fruit'
+  },
+  {
     match: 'BB MOONROCK PRE ROLL 2GR HYBRID BLUE ZUSHI',
     imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/HYBRIDBLUEZUSHI.jpg',
     imageAlt: 'BB Moonrock Pre Roll 2GR • Hybrid Blue Zushi'
