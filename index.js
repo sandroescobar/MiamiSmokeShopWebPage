@@ -692,6 +692,56 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Ultra • Tropical Fruit'
   },
   {
+    match: 'FUME PRO 30K BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/BLACKICE.jpg',
+    imageAlt: 'Fume Pro 30K • Black Ice'
+  },
+  {
+    match: 'FUME PRO 30K FLORIDA TROPICAL BREEZE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/FLORIDATROPICALBREEZE.jpg',
+    imageAlt: 'Fume Pro 30K • Florida Tropical Breeze'
+  },
+  {
+    match: 'FUME PRO 30K FREEZER ICE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/FREEZERICE.jpg',
+    imageAlt: 'Fume Pro 30K • Freezer Ice'
+  },
+  {
+    match: 'FUME PRO 30K MANGO TANGO',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/MANGOTANGO.jpg',
+    imageAlt: 'Fume Pro 30K • Mango Tango'
+  },
+  {
+    match: 'FUME PRO 30K MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/MIAMIMINT.jpg',
+    imageAlt: 'Fume Pro 30K • Miami Mint'
+  },
+  {
+    match: 'FUME PRO 30K PEACH ICE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/PEACHICE.jpg',
+    imageAlt: 'Fume Pro 30K • Peach Ice'
+  },
+  {
+    match: 'FUME PRO 30K POLAR ICE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/POLARICE.jpg',
+    imageAlt: 'Fume Pro 30K • Polar Ice'
+  },
+  {
+    match: 'FUME PRO 30K STRAWBERRY BANANA',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/STRAWBERRYBANANA.jpg',
+    imageAlt: 'Fume Pro 30K • Strawberry Banana'
+  },
+  {
+    match: 'FUME PRO 30K STRAWBERRY WIND',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/STRAWBERRYWIND.jpg',
+    imageAlt: 'Fume Pro 30K • Strawberry Wind'
+  },
+  {
+    match: 'FUME PRO 30K TRIPLE BERRY ICE',
+    imageUrl: '/images/imagesForProducts/FUMEPRO30K/TRIPLEBERRYICE.jpg',
+    imageAlt: 'Fume Pro 30K • Triple Berry Ice'
+  },
+  {
     match: 'BB MOONROCK PRE ROLL 2GR HYBRID BLUE ZUSHI',
     imageUrl: '/images/imagesForProducts/BB%20MOONROCK%20PRE%20ROLL%202GR/HYBRIDBLUEZUSHI.jpg',
     imageAlt: 'BB Moonrock Pre Roll 2GR • Hybrid Blue Zushi'
