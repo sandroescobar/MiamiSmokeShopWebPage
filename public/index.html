@@ -15,6 +15,16 @@
     <title>Document</title>
 </head>
 <body id="home_body">
+  <div id="age-gate" class="age-gate-overlay" role="dialog" aria-modal="true" aria-label="Age Verification">
+    <div class="age-gate-modal">
+      <h2>Age Verification</h2>
+      <p>By entering our site you confirm you are at least 21 years old and agree to the terms for purchasing tobacco and vaping products.</p>
+      <div class="age-gate-actions">
+        <button type="button" class="primary" data-age-accept>I am 21+</button>
+        <button type="button" class="secondary" data-age-exit>Exit</button>
+      </div>
+    </div>
+  </div>
 
     <div class="top-info-bar">
       <div class="top-info-inner">
@@ -26,7 +36,7 @@
             <span class="d-inline-flex align-items-center gap-2">
               <span>GeekBars</span>
               <span style="opacity:0.5;">/</span>
-              <span>PreRolls</span>
+              <span>Pod Systems</span>
               <span style="opacity:0.5;">/</span>
               <span>Disposable Carts</span>
             </span>
@@ -71,7 +81,7 @@
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   Locations
                 </a>
-                <ul class="dropdown-menu">
+                <ul class="dropdown-menu dropdown-menu-lg-end">
                   <li><a class="dropdown-item" href="#">
                     <div style="font-weight: 600;">Miami Vape Smoke Shop</div>
                     <div style="font-size: 0.85rem; opacity: 0.8;">6346 SW 8th St, West Miami, FL 33144</div>
@@ -210,6 +220,7 @@
       <a href="#" class="footer-link">TikTok</a>
       <a href="#" class="footer-link">Contact</a>
       <p class="footer-note">21+ only. Valid ID required. Please vape responsibly.</p>
+      <p class="footer-warning">WARNING: This product contains nicotine. Nicotine is an addictive chemical.</p>
     </div>
 
   </div>
@@ -223,6 +234,7 @@
       
       
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="/js/age_gate.js"></script>
     <script src="/js/main.js" defer></script>
 </body>
 </html>

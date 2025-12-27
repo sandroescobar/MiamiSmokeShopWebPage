@@ -12,9 +12,18 @@
   <link rel="stylesheet" href="/css/products.css">
   <link rel="stylesheet" href="/css/product_cards.css">
   <link rel="stylesheet" href="/css/mobile.css">
-
 </head>
 <body id="products_body">
+  <div id="age-gate" class="age-gate-overlay" role="dialog" aria-modal="true" aria-label="Age Verification">
+    <div class="age-gate-modal">
+      <h2>Age Verification</h2>
+      <p>By entering our site you confirm you are at least 21 years old and agree to the terms for purchasing tobacco and vaping products.</p>
+      <div class="age-gate-actions">
+        <button type="button" class="primary" data-age-accept>I am 21+</button>
+        <button type="button" class="secondary" data-age-exit>Exit</button>
+      </div>
+    </div>
+  </div>
   <%- include('../partials/navbar2') %>
   <%- include('../partials/navbar') %>
 
@@ -24,6 +33,7 @@
 
   <%- include('../partials/footer') %>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/age_gate.js"></script>
   <script src="/js/main.js"></script>
   <script src="/js/search_bar.js"></script>
   <script src="/js/cart.js"></script>
