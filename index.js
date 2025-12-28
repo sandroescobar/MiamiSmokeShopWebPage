@@ -83,21 +83,18 @@ const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
   'LOST MARY ULTRASONIC',
   'GEEKBAR X 25K',
-  'GEEKBAR',
   'CUVIE PLUS',
   'HQD CUVIE PLUS',
   'FUME EXTRA',
   'FUME ULTRA',
   'FUME INFINITY',
   'FUME PRO 30K',
-  'DESTINO PRE ROLL 1GR'
+  'DESTINO PRE ROLL 1GR',
+  'GEEKBAR 15K'
 ];
-const IMAGE_READY_FEATURED_PRODUCTS = [
-  'CUVIE PLUS',
-  'FUME EXTRA',
-  'LOST MARY TURBO 35K',
-  'GEEKBAR X 25K'
-];
+
+const FEATURED_IMAGE_GAPS = new Set(['GEEKBAR 15K']);
+const IMAGE_READY_FEATURED_PRODUCTS = FEATURED_FULL_PRODUCTS.filter((name) => !FEATURED_IMAGE_GAPS.has(name));
 const FEATURED_LIMIT_ENV = String(process.env.IMAGE_READY_ONLY || '').toLowerCase() === 'true';
 const FEATURED_BASE_PRODUCTS = FEATURED_LIMIT_ENV ? IMAGE_READY_FEATURED_PRODUCTS : FEATURED_FULL_PRODUCTS;
 const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
@@ -110,6 +107,15 @@ const HIDDEN_CATEGORY_NAMES = new Set([
   'BB CART 1GR',
   'BB PEN 1GR'
 ]);
+const PRODUCT_EXCLUSION_KEYWORDS = [
+  'THC',
+  'THCA',
+  'DELTA',
+  'HHC',
+  'PRE ROLL',
+  'PREROLL',
+  'PRE-ROLL'
+];
 const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th'];
 const SNAPSHOT_ROWS_SQL = SNAPSHOT_TABLES
   .map((table) => `SELECT name, quantity, is_active FROM \`${table}\``)
@@ -124,6 +130,11 @@ const SNAPSHOT_AGG_SQL = `
   ) snapshot_rows
   GROUP BY UPPER(name)
 `;
+
+function containsExcludedKeyword(value = '') {
+  const upperValue = value.toUpperCase();
+  return PRODUCT_EXCLUSION_KEYWORDS.some((keyword) => upperValue.includes(keyword));
+}
 
 const VARIANT_IMAGE_MAPPINGS = [
   {
@@ -172,13 +183,33 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Lost Mary Turbo 35K • Scary Berry'
   },
   {
+    match: 'LOST MARY TURBO 35K BAJA SPLASH',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/BAJASPLASH.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Baja Splash'
+  },
+  {
+    match: 'LOST MARY TURBO 35K GOLDEN BERRY',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/GOLDENBERRY.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Golden Berry'
+  },
+  {
+    match: 'LOST MARY TURBO 35K ORANGE PASSION MANGO',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/ORANGEPASSIONMANGO.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Orange Passion Mango'
+  },
+  {
+    match: 'LOST MARY TURBO 35K WINTER MINT',
+    imageUrl: '/images/imagesForProducts/LOST%20MARY%20TURBO%2035K/WINTERMINT.jpg',
+    imageAlt: 'Lost Mary Turbo 35K • Winter Mint'
+  },
+  {
     match: 'GEEKBAR X 25K BANANA TAFFY FREEZE',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/BANANATAFFYFREEZE.jpg',
     imageAlt: 'GEEKBAR X 25K • Banana Taffy Freeze'
   },
   {
     match: 'GEEKBAR X 25K ATL MINT',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ATLMINT.jpg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ATLMINT.jpeg',
     imageAlt: 'GEEKBAR X 25K • ATL Mint'
   },
   {
@@ -243,7 +274,7 @@ const VARIANT_IMAGE_MAPPINGS = [
   },
   {
     match: 'GEEKBAR X 25K SOUR FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpeg',
     imageAlt: 'GEEKBAR X 25K • Sour Fcuking Fab'
   },
   {
@@ -282,6 +313,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Raspberry Peach Lime'
   },
   {
+    match: 'GEEKBAR X 25K RASBERRY PEACH LIME',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/RASBERRYPEACHLIME.jpg',
+    imageAlt: 'GEEKBAR X 25K • Rasberry Peach Lime'
+  },
+  {
     match: 'GEEKBAR X 25K SOUR APPLE ICE',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURAPPLEICE.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Apple Ice'
@@ -290,6 +326,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'GEEKBAR X 25K SOUR STRAWS',
     imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURSTRAWS.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Straws'
+  },
+  {
+    match: 'GEEKBAR X 25K WILD CHERRY SLUSH',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/WILDCHERRYSLUSH.jpg',
+    imageAlt: 'GEEKBAR X 25K • Wild Cherry Slush'
   },
   {
     match: 'GEEKBAR X 25K SOUR MANGO PINEAPPLE',
@@ -632,6 +673,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Extra • Strawberry Watermelon'
   },
   {
+    match: 'FUME EXTRA SUMMER BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUME%20EXTRA/SUMMERBLACKICE.jpg',
+    imageAlt: 'Fume Extra • Summer Black Ice'
+  },
+  {
     match: 'FUME ULTRA BANANA ICE',
     imageUrl: '/images/imagesForProducts/FUMEULTRA/BANANAICE.jpg',
     imageAlt: 'Fume Ultra • Banana Ice'
@@ -665,6 +711,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'FUME ULTRA HAWAII JUICE',
     imageUrl: '/images/imagesForProducts/FUMEULTRA/HAWAIIJUICE.jpg',
     imageAlt: 'Fume Ultra • Hawaii Juice'
+  },
+  {
+    match: 'FUME ULTRA KIWI STRAWBERRY',
+    imageUrl: '/images/imagesForProducts/FUMEULTRA/KIWISTRAWBERRY.jpg',
+    imageAlt: 'Fume Ultra • Kiwi Strawberry'
   },
   {
     match: 'FUME ULTRA LUSH ICE',
@@ -740,6 +791,91 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'FUME ULTRA TROPICAL FRUIT',
     imageUrl: '/images/imagesForProducts/FUMEULTRA/TROPICALFRUIT.jpg',
     imageAlt: 'Fume Ultra • Tropical Fruit'
+  },
+  {
+    match: 'FUME INFINITY APPLE SKITTLE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/APPLESKITTLE.jpg',
+    imageAlt: 'Fume Infinity • Apple Skittle'
+  },
+  {
+    match: 'FUME INFINITY BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/BLACKICE.jpg',
+    imageAlt: 'Fume Infinity • Black Ice'
+  },
+  {
+    match: 'FUME INFINITY BLUEBERRY GUAVA',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/BLUEBERRYGUAVA.jpg',
+    imageAlt: 'Fume Infinity • Blueberry Guava'
+  },
+  {
+    match: 'FUME INFINITY BLUEBERRY MINT',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/BLUEBERRYMINT.jpg',
+    imageAlt: 'Fume Infinity • Blueberry Mint'
+  },
+  {
+    match: 'FUME INFINITY DOUBLE APPLE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/DOUBLEAPPLE.jpg',
+    imageAlt: 'Fume Infinity • Double Apple'
+  },
+  {
+    match: 'FUME INFINITY DRAGON FRUIT',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/DRAGONFRUIT.jpg',
+    imageAlt: 'Fume Infinity • Dragon Fruit'
+  },
+  {
+    match: 'FUME INFINITY LUSH ICE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/LUSHICE.jpg',
+    imageAlt: 'Fume Infinity • Lush Ice'
+  },
+  {
+    match: 'FUME INFINITY MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/MIAMIMINT.jpg',
+    imageAlt: 'Fume Infinity • Miami Mint'
+  },
+  {
+    match: 'FUME INFINITY MIAMI MIX',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/MIAMIMIX.jpg',
+    imageAlt: 'Fume Infinity • Miami Mix'
+  },
+  {
+    match: 'FUME INFINITY MINT ICE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/MINTICE.jpg',
+    imageAlt: 'Fume Infinity • Mint Ice'
+  },
+  {
+    match: 'FUME INFINITY PEACH ICE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/PEACHICE.jpg',
+    imageAlt: 'Fume Infinity • Peach Ice'
+  },
+  {
+    match: 'FUME INFINITY PINA COLADA',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/PINACOLADA.jpg',
+    imageAlt: 'Fume Infinity • Pina Colada'
+  },
+  {
+    match: 'FUME INFINITY PURPLE RAIN',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/PURPLERAIN.jpg',
+    imageAlt: 'Fume Infinity • Purple Rain'
+  },
+  {
+    match: 'FUME INFINITY STRAWBERRY KIWI',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/STRAWBERRYKIWI.jpg',
+    imageAlt: 'Fume Infinity • Strawberry Kiwi'
+  },
+  {
+    match: 'FUME INFINITY SUMMER BLACK ICE',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/SUMMERBLACKICE.jpg',
+    imageAlt: 'Fume Infinity • Summer Black Ice'
+  },
+  {
+    match: 'FUME INFINITY TROPICAL FRUIT',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
+    imageAlt: 'Fume Infinity • Tropical Fruit'
+  },
+  {
+    match: 'FUME INFINITY TROPICAL PUNCH',
+    imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
+    imageAlt: 'Fume Infinity • Tropical Punch'
   },
   {
     match: 'FUME PRO 30K BLACK ICE',
@@ -1254,6 +1390,13 @@ app.get('/policy/:slug', (req, res) => {
 });
 
 /* --------------------  Helper: Group products by variant  -------------------- */
+function isRestrictedProduct(normalizedName = '', normalizedKey = '') {
+  if ((normalizedKey || '').toUpperCase() === 'FUME PRO 30K' && normalizedName.toUpperCase().includes('NO NICOTINE')) {
+    return true;
+  }
+  return containsExcludedKeyword(normalizedName);
+}
+
 function normalizeProductName(name) {
   let value = String(name || '').trim();
   if (!value) return value;
@@ -1377,9 +1520,12 @@ function groupProductsByVariant(products) {
   const grouped = {};
   
   products.forEach(product => {
-    const normalizedName = normalizeProductName(product.name);
+    const normalizedName = normalizeProductName(product.name) || '';
     const baseKey = extractProductVariantKey(normalizedName);
-    const normalizedKey = baseKey.toUpperCase();
+    const normalizedKey = (baseKey || '').toUpperCase();
+    if (isRestrictedProduct(normalizedName, normalizedKey)) {
+      return;
+    }
     
     if (!grouped[normalizedKey]) {
       grouped[normalizedKey] = {
@@ -1599,6 +1745,10 @@ app.get('/products', async (req, res) => {
       where.push(`(${FEATURED_NAME_CLAUSE})`);
       params.push(...FEATURED_NAME_PARAMS);
     }
+    PRODUCT_EXCLUSION_KEYWORDS.forEach((keyword) => {
+      where.push('UPPER(p.name) NOT LIKE ?');
+      params.push(`%${keyword}%`);
+    });
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const inventoryJoinSql = `
