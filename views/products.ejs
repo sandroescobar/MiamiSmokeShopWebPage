@@ -29,26 +29,7 @@
     right: 10%;
     height: 120%;
   }
-  .product-media img[src*="GEEKBAR%20X%2025K"][src*="GRAPESLUSH"]{
-    object-fit:contain;
-    width:143%;
-    height:143%;
-    max-width:none;
-    max-height:none;
-    transform:scale(.88);
-    transform-origin:center;
-    object-position:50% 54%;
-  }
-  .product-media img[src*="GEEKBAR%20X%2025K"][src*="STRAWBERRYWATERMELON"]{
-    object-fit:fill;
-    width:200%;
-    height:140%;
-    max-width:none;
-    max-height:none;
-    transform:scale(.8);
-    transform-origin:center;
-    object-position:50% 52%;
-  }
+
   .product-media img[src*="CUVIE%20PLUS"]{
     object-fit:contain;
     width:auto;
@@ -127,8 +108,8 @@
   
   /* Flavor carousel */
   .product-name-section{display:flex;flex-direction:column;gap:.12rem}
-  .flavor-label{font-size:.62rem;letter-spacing:.05em;text-transform:uppercase;opacity:.65}
-  .flavor-carousel{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:0;min-height:26px;gap:.2rem;margin-top:.05rem}
+  .flavor-label{font-size:.62rem;letter-spacing:.05em;text-transform:lowercase;opacity:.65; padding-top: 0.5rem;}
+  .flavor-carousel{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:0;min-height:26px;gap:.2rem;margin-top:.05rem margin-bottom:1.2rem}
   .flavor-nav-btn{background:transparent;border:none;color:var(--ink);padding:0 .3rem;cursor:pointer;font-size:.7rem;transition:opacity .15s;flex-shrink:0;height:100%;display:grid;place-items:center;min-width:20px}
   .flavor-nav-btn:hover{opacity:.8}
   .flavor-nav-btn:disabled{opacity:.4;pointer-events:none}

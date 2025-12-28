@@ -1,6 +1,7 @@
 // index.js (ESM)
 import 'dotenv/config';
 import path from 'path';
+import fs from 'fs';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
 
 const app = express();
 
@@ -93,13 +95,8 @@ const FEATURED_FULL_PRODUCTS = [
   'GEEKBAR 15K'
 ];
 
-const FEATURED_IMAGE_GAPS = new Set(['GEEKBAR 15K']);
-const IMAGE_READY_FEATURED_PRODUCTS = FEATURED_FULL_PRODUCTS.filter((name) => !FEATURED_IMAGE_GAPS.has(name));
-const FEATURED_LIMIT_ENV = String(process.env.IMAGE_READY_ONLY || '').toLowerCase() === 'true';
-const FEATURED_BASE_PRODUCTS = FEATURED_LIMIT_ENV ? IMAGE_READY_FEATURED_PRODUCTS : FEATURED_FULL_PRODUCTS;
-const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
-const FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
-const FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => `${name.toUpperCase()}%`);
+const FEATURED_IMAGE_GAPS = new Set(['GEEKBAR 15K'].map((name) => name.toUpperCase()));
+const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
 const HIDDEN_CATEGORY_NAMES = new Set([
   'THCA PRODUCTS',
   'EDIBLES',
@@ -134,6 +131,77 @@ const SNAPSHOT_AGG_SQL = `
 function containsExcludedKeyword(value = '') {
   const upperValue = value.toUpperCase();
   return PRODUCT_EXCLUSION_KEYWORDS.some((keyword) => upperValue.includes(keyword));
+}
+
+function buildStaticVariantImageMappings() {
+  const entries = [];
+  try {
+    const brandDirs = fs.readdirSync(STATIC_IMAGE_ROOT, { withFileTypes: true });
+    for (const dir of brandDirs) {
+      if (!dir.isDirectory()) continue;
+      const brandName = dir.name.trim();
+      const dirPath = path.join(STATIC_IMAGE_ROOT, dir.name);
+      const files = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const file of files) {
+        if (!file.isFile() || !VALID_IMAGE_EXT.test(file.name)) continue;
+        const flavorLabel = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        const match = `${brandName} ${flavorLabel}`.trim();
+        const encodedBrand = encodeURIComponent(dir.name).replace(/%2F/gi, '/');
+        const encodedFile = encodeURIComponent(file.name).replace(/%2F/gi, '/');
+        entries.push({
+          match,
+          imageUrl: `/images/imagesForProducts/${encodedBrand}/${encodedFile}`,
+          imageAlt: `${brandName} • ${flavorLabel || brandName}`
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error loading static variant images:', err.message);
+  }
+  return entries;
+}
+
+function buildVariantImageLookup(entries = []) {
+  const map = new Map();
+  for (const entry of entries) {
+    const key = normalizeVariantKey(entry.match);
+    if (!key) continue;
+    map.set(key, entry);
+  }
+  return map;
+}
+
+function normalizeVariantKey(value = '') {
+  const normalized = normalizeProductName(value);
+  if (!normalized) return '';
+  return normalized.replace(/[^0-9A-Z]/gi, '').toUpperCase();
+}
+
+function buildImageReadyBaseSet(map = new Map()) {
+  const bases = new Set();
+  for (const entry of map.values()) {
+    const base = extractProductVariantKey(normalizeProductName(entry.match));
+    if (!base) continue;
+    bases.add(base.toUpperCase());
+  }
+  return bases;
+}
+
+function isImageReadyBase(name) {
+  const normalizedBase = extractProductVariantKey(normalizeProductName(name));
+  if (!normalizedBase) return false;
+  const upperBase = normalizedBase.toUpperCase();
+  if (FEATURED_IMAGE_GAPS.has(upperBase)) {
+    return false;
+  }
+  return IMAGE_READY_BASES.has(upperBase);
+}
+
+function getVariantImage(baseName, flavor) {
+  const variantName = `${baseName} ${flavor}`.trim();
+  const key = normalizeVariantKey(variantName);
+  if (!key) return null;
+  return VARIANT_IMAGE_LOOKUP.get(key) || null;
 }
 
 const VARIANT_IMAGE_MAPPINGS = [
@@ -1203,6 +1271,19 @@ const policyPages = {
   },
 };
 
+const STATIC_VARIANT_IMAGE_MAPPINGS = buildStaticVariantImageMappings();
+const VARIANT_IMAGE_LOOKUP = buildVariantImageLookup([
+  ...STATIC_VARIANT_IMAGE_MAPPINGS,
+  ...VARIANT_IMAGE_MAPPINGS
+]);
+const IMAGE_READY_BASES = buildImageReadyBaseSet(VARIANT_IMAGE_LOOKUP);
+const IMAGE_READY_FEATURED_PRODUCTS = FEATURED_FULL_PRODUCTS.filter((name) => isImageReadyBase(name));
+const FEATURED_LIMIT_ENV = String(process.env.IMAGE_READY_ONLY || '').toLowerCase() === 'true';
+const FEATURED_BASE_PRODUCTS = FEATURED_LIMIT_ENV ? IMAGE_READY_FEATURED_PRODUCTS : FEATURED_FULL_PRODUCTS;
+const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
+const FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+const FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => `${name.toUpperCase()}%`);
+
 /* --------------------  MySQL pool  -------------------- */
 const pool = mysql.createPool({
   host: cfg.host,
@@ -1541,15 +1622,29 @@ function groupProductsByVariant(products) {
     if (blockSet && blockSet.has(flavor.toUpperCase())) {
       return;
     }
+    const variantImage = getVariantImage(baseKey, flavor);
+    let variantImageUrl = product.image_url;
+    let variantImageAlt = product.image_alt;
+    let variantHasImage = !!product.has_image;
+    if (!variantHasImage && variantImage) {
+      variantImageUrl = variantImage.imageUrl;
+      variantImageAlt = variantImage.imageAlt;
+      variantHasImage = true;
+    }
+    if (!grouped[normalizedKey].has_image && variantHasImage) {
+      grouped[normalizedKey].image_url = variantImageUrl;
+      grouped[normalizedKey].image_alt = variantImageAlt;
+      grouped[normalizedKey].has_image = true;
+    }
     grouped[normalizedKey].variants.push({
       id: product.id,
       name: normalizedName,
       flavor,
       price: product.price,
       total_qty: product.total_qty,
-      image_url: product.image_url,
-      image_alt: product.image_alt,
-      has_image: !!product.has_image
+      image_url: variantImageUrl,
+      image_alt: variantImageAlt,
+      has_image: variantHasImage
     });
   });
   
@@ -1657,7 +1752,7 @@ async function ensureSnapshotTables() {
 }
 
 async function seedVariantImages() {
-  if (!VARIANT_IMAGE_MAPPINGS.length) return;
+  if (!VARIANT_IMAGE_LOOKUP.size) return;
   try {
     const insertSql = `
       INSERT INTO product_images (product_id, image_url, image_alt)
@@ -1679,7 +1774,7 @@ async function seedVariantImages() {
       normalizedMap.get(normalized).push(product.id);
     }
 
-    for (const mapping of VARIANT_IMAGE_MAPPINGS) {
+    for (const mapping of VARIANT_IMAGE_LOOKUP.values()) {
       const normalizedMatch = normalizeProductName(mapping.match).toUpperCase();
       const productIds = normalizedMap.get(normalizedMatch);
       if (!productIds) continue;

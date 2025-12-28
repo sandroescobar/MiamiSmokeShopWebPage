@@ -33,11 +33,15 @@ SUBCATEGORY_RULES = [
 
 FEATURED_BASE_PRODUCTS = [
     "LOST MARY TURBO 35K",
+    "LOST MARY ULTRASONIC",
     "GEEKBAR X 25K",
     "GEEKBAR",
     "CUVIE PLUS",
     "HQD CUVIE PLUS",
     "FUME EXTRA",
+    "FUME ULTRA",
+    "FUME INFINITY",
+    "FUME PRO 30K",
     "DESTINO PRE ROLL 1GR"
 ]
 FEATURED_BASE_SET = {name.upper() for name in FEATURED_BASE_PRODUCTS}
@@ -268,6 +272,10 @@ def apply_brand_specific_rules(name):
         text = re.sub(r'^LOST\s*MARY\s*(?:TUBRO|TURBO)\b', 'LOST MARY TURBO', text, flags=re.IGNORECASE)
         if not re.search(r'\b35K\b', text, re.IGNORECASE):
             text = re.sub(r'^LOST MARY TURBO\b', 'LOST MARY TURBO 35K', text, flags=re.IGNORECASE)
+    if re.search(r'^LOST\s*MARY\s*ULTRASONIC\b', text, re.IGNORECASE):
+        text = re.sub(r'^LOST\s*MARY\s*ULTRASONIC\b', 'LOST MARY ULTRASONIC', text, flags=re.IGNORECASE)
+        if not re.search(r'\b25K\b', text, re.IGNORECASE):
+            text = re.sub(r'^LOST MARY ULTRASONIC\b', 'LOST MARY ULTRASONIC 25K', text, flags=re.IGNORECASE)
     if re.search(r'^BB\s*CART\b', text, re.IGNORECASE):
         text = re.sub(r'^BB\s*CART\b', 'BB CART', text, flags=re.IGNORECASE)
         if re.search(r'\b1G\b', text, re.IGNORECASE):
