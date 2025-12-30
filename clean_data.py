@@ -50,6 +50,17 @@ FEATURED_BASE_PRODUCTS = [
 ]
 FEATURED_BASE_SET = {name.upper() for name in FEATURED_BASE_PRODUCTS}
 
+
+def build_featured_pattern(name):
+    tokens = as_str(name).upper().split()
+    if not tokens:
+        return "%"
+    pattern = tokens[0]
+    for token in tokens[1:]:
+        pattern += f"%{token}"
+    return f"{pattern}%"
+
+
 STORE_SNAPSHOT_TABLES = {
     "CALLE 8": "inventory_calle8",
     "79TH STREET": "inventory_79th"
@@ -128,7 +139,7 @@ def collect_featured_snapshot_rows(cur, store_id):
     if not FEATURED_BASE_PRODUCTS:
         return {}
     like_clause = " OR ".join(["UPPER(p.name) LIKE %s" for _ in FEATURED_BASE_PRODUCTS])
-    params = [store_id] + [f"{name.upper()}%" for name in FEATURED_BASE_PRODUCTS]
+    params = [store_id] + [build_featured_pattern(name) for name in FEATURED_BASE_PRODUCTS]
     cur.execute(
         f"""
         SELECT p.name, p.upc, SUM(pi.quantity_on_hand) AS qty
