@@ -87,6 +87,10 @@ const FEATURED_FULL_PRODUCTS = [
   'GEEKBAR X 25K',
   'CUVIE PLUS',
   'HQD CUVIE PLUS',
+  'CUVIE GLAZE',
+  'HQD CUVIE GLAZE',
+  'CUVIE GO 35K',
+  'HQD CUVIE GO 35K',
   'FUME EXTRA',
   'FUME ULTRA',
   'FUME INFINITY',
@@ -95,7 +99,8 @@ const FEATURED_FULL_PRODUCTS = [
   'GEEKBAR 15K'
 ];
 
-const FEATURED_IMAGE_GAPS = new Set(['GEEKBAR 15K'].map((name) => name.toUpperCase()));
+const FEATURED_IMAGE_GAPS = new Set([]);
+const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
 const HIDDEN_CATEGORY_NAMES = new Set([
   'THCA PRODUCTS',
@@ -185,6 +190,16 @@ function buildImageReadyBaseSet(map = new Map()) {
     bases.add(base.toUpperCase());
   }
   return bases;
+}
+
+function applyLocalQtyOverride(items = []) {
+  if (!SHOW_ALL_LOCAL) return items;
+  for (const item of items) {
+    if (Number(item.total_qty || 0) <= 0) {
+      item.total_qty = 999;
+    }
+  }
+  return items;
 }
 
 function isImageReadyBase(name) {
@@ -534,6 +549,11 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'CUVIE PLUS STRAWBERRY WATERMELON',
     imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/STRAWBERRYWATERMELON.jpg',
     imageAlt: 'Cuvie Plus • Strawberry Watermelon'
+  },
+  {
+    match: 'CUVIE GO 35K FRESH AF',
+    imageUrl: '/images/imagesForProducts/CUVIE%20GO%2035K/FRESHAF.jpg',
+    imageAlt: 'Cuvie Go 35K • Fresh AF'
   },
   {
     match: 'CUVIE PLUS TOBACCO',
@@ -1271,18 +1291,77 @@ const policyPages = {
   },
 };
 
-const STATIC_VARIANT_IMAGE_MAPPINGS = buildStaticVariantImageMappings();
-const VARIANT_IMAGE_LOOKUP = buildVariantImageLookup([
-  ...STATIC_VARIANT_IMAGE_MAPPINGS,
-  ...VARIANT_IMAGE_MAPPINGS
-]);
-const IMAGE_READY_BASES = buildImageReadyBaseSet(VARIANT_IMAGE_LOOKUP);
-const IMAGE_READY_FEATURED_PRODUCTS = FEATURED_FULL_PRODUCTS.filter((name) => isImageReadyBase(name));
+let STATIC_VARIANT_IMAGE_MAPPINGS = [];
+let VARIANT_IMAGE_LOOKUP = new Map();
+let IMAGE_READY_BASES = new Set();
 const FEATURED_LIMIT_ENV = String(process.env.IMAGE_READY_ONLY || '').toLowerCase() === 'true';
-const FEATURED_BASE_PRODUCTS = FEATURED_LIMIT_ENV ? IMAGE_READY_FEATURED_PRODUCTS : FEATURED_FULL_PRODUCTS;
-const FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
-const FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
-const FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => `${name.toUpperCase()}%`);
+const VARIANT_IMAGE_REFRESH_INTERVAL_MS = Number(process.env.STATIC_IMAGE_REFRESH_INTERVAL_MS || 15000);
+const VARIANT_IMAGE_REFRESH_DEBOUNCE_MS = 250;
+const variantImageWatchers = [];
+let FEATURED_BASE_PRODUCTS = [...FEATURED_FULL_PRODUCTS];
+let FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
+let FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+let FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => buildFeaturedNamePattern(name));
+let variantImageRefreshTimer;
+
+function buildFeaturedNamePattern(name = '') {
+  const tokens = String(name || '').toUpperCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return '%';
+  const [first, ...rest] = tokens;
+  let pattern = first;
+  rest.forEach((token) => {
+    pattern += `%${token}`;
+  });
+  return `${pattern}%`;
+}
+
+function rebuildFeaturedBaseFilters() {
+  const sources = FEATURED_LIMIT_ENV ? FEATURED_FULL_PRODUCTS.filter((name) => isImageReadyBase(name)) : FEATURED_FULL_PRODUCTS;
+  FEATURED_BASE_PRODUCTS = sources;
+  FEATURED_BASE_SET = new Set(sources.map((name) => name.toUpperCase()));
+  FEATURED_NAME_CLAUSE = sources.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+  FEATURED_NAME_PARAMS = sources.map((name) => buildFeaturedNamePattern(name));
+}
+
+function refreshVariantImageData() {
+  try {
+    STATIC_VARIANT_IMAGE_MAPPINGS = buildStaticVariantImageMappings();
+    VARIANT_IMAGE_LOOKUP = buildVariantImageLookup([
+      ...STATIC_VARIANT_IMAGE_MAPPINGS,
+      ...VARIANT_IMAGE_MAPPINGS
+    ]);
+    IMAGE_READY_BASES = buildImageReadyBaseSet(VARIANT_IMAGE_LOOKUP);
+    rebuildFeaturedBaseFilters();
+  } catch (err) {
+    console.error('Error refreshing static variant images:', err.message);
+  }
+}
+
+function queueVariantImageRefresh() {
+  clearTimeout(variantImageRefreshTimer);
+  variantImageRefreshTimer = setTimeout(() => refreshVariantImageData(), VARIANT_IMAGE_REFRESH_DEBOUNCE_MS);
+}
+
+function startVariantImageWatcher() {
+  if (process.env.DISABLE_STATIC_IMAGE_WATCH === 'true') {
+    return;
+  }
+  try {
+    const watcher = fs.watch(STATIC_IMAGE_ROOT, { recursive: true }, () => queueVariantImageRefresh());
+    watcher.on('error', (err) => {
+      console.warn('Static variant image watcher error:', err.message);
+    });
+    variantImageWatchers.push(watcher);
+  } catch (err) {
+    console.warn('Static variant image watcher unavailable:', err.message);
+  }
+}
+
+refreshVariantImageData();
+startVariantImageWatcher();
+if (VARIANT_IMAGE_REFRESH_INTERVAL_MS > 0) {
+  setInterval(refreshVariantImageData, VARIANT_IMAGE_REFRESH_INTERVAL_MS);
+}
 
 /* --------------------  MySQL pool  -------------------- */
 const pool = mysql.createPool({
@@ -1523,6 +1602,7 @@ function normalizeProductName(name) {
   if (/^HQD\s+CUVIE\b/i.test(value)) {
     value = value.replace(/^HQD\s+/, '');
   }
+  value = value.replace(/\b\d+(?:\.\d+)?%\s*/g, '');
   if (/^BB\s*CART\b/i.test(value)) {
     value = value.replace(/^BB\s*CART\b/i, 'BB CART');
     if (/\b1G\b/i.test(value)) {
@@ -1613,7 +1693,8 @@ function groupProductsByVariant(products) {
         ...product,
         name: normalizedName,
         base_name: baseKey,
-        variants: []
+        variants: [],
+        variantMap: new Map()
       };
     }
     
@@ -1636,16 +1717,31 @@ function groupProductsByVariant(products) {
       grouped[normalizedKey].image_alt = variantImageAlt;
       grouped[normalizedKey].has_image = true;
     }
-    grouped[normalizedKey].variants.push({
-      id: product.id,
-      name: normalizedName,
-      flavor,
-      price: product.price,
-      total_qty: product.total_qty,
-      image_url: variantImageUrl,
-      image_alt: variantImageAlt,
-      has_image: variantHasImage
-    });
+
+    const group = grouped[normalizedKey];
+    const variantKey = flavor.toUpperCase() || 'ORIGINAL';
+    const existingVariant = group.variantMap.get(variantKey);
+    if (existingVariant) {
+      existingVariant.total_qty = Number(existingVariant.total_qty || 0) + Number(product.total_qty || 0);
+      if (!existingVariant.has_image && variantHasImage) {
+        existingVariant.image_url = variantImageUrl;
+        existingVariant.image_alt = variantImageAlt;
+        existingVariant.has_image = true;
+      }
+    } else {
+      const variantPayload = {
+        id: product.id,
+        name: normalizedName,
+        flavor,
+        price: product.price,
+        total_qty: product.total_qty,
+        image_url: variantImageUrl,
+        image_alt: variantImageAlt,
+        has_image: variantHasImage
+      };
+      group.variantMap.set(variantKey, variantPayload);
+      group.variants.push(variantPayload);
+    }
   });
   
   Object.values(grouped).forEach(group => {
@@ -1655,6 +1751,7 @@ function groupProductsByVariant(products) {
       }
       return a.has_image ? -1 : 1;
     });
+    delete group.variantMap;
   });
   
   return Object.values(grouped).filter(group => {
@@ -1846,12 +1943,19 @@ app.get('/products', async (req, res) => {
     });
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const inventoryJoinSql = `
-      INNER JOIN (
-        ${SNAPSHOT_AGG_SQL}
-      ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
-      LEFT JOIN product_images pi ON pi.product_id = p.id
-    `;
+    const inventoryJoinSql = SHOW_ALL_LOCAL
+      ? `
+        LEFT JOIN (
+          ${SNAPSHOT_AGG_SQL}
+        ) snap ON snap.name_key = UPPER(p.name)
+        LEFT JOIN product_images pi ON pi.product_id = p.id
+      `
+      : `
+        INNER JOIN (
+          ${SNAPSHOT_AGG_SQL}
+        ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
+        LEFT JOIN product_images pi ON pi.product_id = p.id
+      `;
 
     const sortSql =
       sort === 'price_asc'  ? 'ORDER BY p.unit_price ASC' :
@@ -1877,6 +1981,7 @@ app.get('/products', async (req, res) => {
       ${sortSql}
     `;
     const [rows] = await queryWithRetry(pageSql, params);
+    applyLocalQtyOverride(rows);
 
     // Group the fetched products by variant
     const groupedProducts = groupProductsByVariant(rows).filter(group =>
@@ -1910,6 +2015,7 @@ app.get('/products', async (req, res) => {
           WHERE ${variantConditions}
         `;
         const [variantRows] = await queryWithRetry(variantSql, variantParams);
+        applyLocalQtyOverride(variantRows);
         const variantGroups = groupProductsByVariant(variantRows);
         const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
         finalProducts = paginatedProducts.map(group => {
