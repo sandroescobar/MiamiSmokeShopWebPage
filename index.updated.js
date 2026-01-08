@@ -380,13 +380,8 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Miami Mint'
   },
   {
-    match: 'GEEKBAR X 25K ORANGE FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ORANGEFCUKINGFAB.jpg',
-    imageAlt: 'GEEKBAR X 25K • Orange Fcuking Fab'
-  },
-  {
     match: 'GEEKBAR X 25K SOUR FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpeg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Fcuking Fab'
   },
   {
@@ -985,11 +980,6 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Infinity • Summer Black Ice'
   },
   {
-    match: 'FUME INFINITY TROPICAL FRUIT',
-    imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
-    imageAlt: 'Fume Infinity • Tropical Fruit'
-  },
-  {
     match: 'FUME INFINITY TROPICAL PUNCH',
     imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
     imageAlt: 'Fume Infinity • Tropical Punch'
@@ -1116,7 +1106,11 @@ const VARIANT_IMAGE_MAPPINGS = [
   }
 ];
 
-const DISCONTINUED_VARIANTS = new Map();
+const DISCONTINUED_VARIANTS = new Map(
+  [
+    ['GEEKBAR X 25K', ['ORANGE FCUKING FAB', 'ORANGE FUCKING FAB']]
+  ].map(([base, flavors]) => [base.toUpperCase(), new Set(flavors.map((name) => name.toUpperCase()))])
+);
 
 const policyPages = {
   terms: {
@@ -1451,11 +1445,11 @@ app.get('/api/stores', async (_req, res) => {
 app.post('/api/check-inventory', async (req, res) => {
   try {
     const { product_ids, store_name } = req.body;
-    
+
     if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
       return res.status(400).json({ error: 'product_ids must be a non-empty array' });
     }
-    
+
     if (!store_name) {
       return res.status(400).json({ error: 'store_name is required' });
     }
@@ -1468,8 +1462,8 @@ app.post('/api/check-inventory', async (req, res) => {
     const storeId = stores[0].id;
     const placeholders = product_ids.map(() => '?').join(',');
     const [availability] = await queryWithRetry(
-      `SELECT product_id, quantity_on_hand 
-       FROM product_inventory 
+      `SELECT product_id, quantity_on_hand
+       FROM product_inventory
        WHERE product_id IN (${placeholders}) AND store_id = ?`,
       [...product_ids, storeId]
     );
@@ -1493,7 +1487,7 @@ app.post('/api/check-inventory', async (req, res) => {
 app.get('/api/closest-store', async (req, res) => {
   try {
     const { lat, lng } = req.query;
-    
+
     if (!lat || !lng) {
       return res.status(400).json({ error: 'lat and lng are required' });
     }
@@ -1584,11 +1578,23 @@ app.get('/policy/:slug', (req, res) => {
 });
 
 /* --------------------  Helper: Group products by variant  -------------------- */
-function isRestrictedProduct(normalizedName = '', normalizedKey = '') {
-  if ((normalizedKey || '').toUpperCase() === 'FUME PRO 30K' && normalizedName.toUpperCase().includes('NO NICOTINE')) {
+function isRestrictedProduct(normalizedName = '', normalizedKey = '', rawName = '') {
+  const upperKey = (normalizedKey || '').toUpperCase();
+  const nameCandidates = [(normalizedName || '').toUpperCase(), (rawName || '').toUpperCase()];
+  const includesPhrase = (phrase) => nameCandidates.some((value) => value && value.includes(phrase));
+  const hasZeroNic = includesPhrase('ZERO NIC') || includesPhrase('ZERO-NIC');
+  const hasNoNicotine = includesPhrase('NO NICOTINE');
+
+  if (upperKey === 'FUME PRO 30K' && (hasNoNicotine || hasZeroNic)) {
     return true;
   }
-  return containsExcludedKeyword(normalizedName);
+  if (upperKey === 'RAZ LTX 25K' && hasZeroNic) {
+    return true;
+  }
+  if (containsExcludedKeyword(normalizedName) || containsExcludedKeyword(rawName)) {
+    return true;
+  }
+  return false;
 }
 
 function normalizeProductName(name) {
@@ -1608,6 +1614,12 @@ function normalizeProductName(name) {
     } else {
       value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\b/i, 'GEEKBAR');
     }
+  }
+  if (/^GEEKBAR\s*X\s*25K\b/i.test(value) && /STRAWBERRY\s+PI(?:N|Ñ)A\s+COLADA/i.test(value)) {
+    value = value.replace(/STRAWBERRY\s+PI(?:N|Ñ)A\s+COLADA/gi, 'STRAWBERRY COLADA');
+  }
+  if (/^FUME\s*INFINITY\b/i.test(value) && /TROPICAL\s+FRUIT/i.test(value)) {
+    value = value.replace(/TROPICAL\s+FRUIT/gi, 'TROPICAL PUNCH');
   }
   if (/^FUME\s*PRO\b/i.test(value)) {
     value = value.replace(/^FUME\s*PRO\b/i, 'FUME PRO');
@@ -1665,7 +1677,7 @@ function normalizeProductName(name) {
 function extractProductVariantKey(name) {
   // Normalize name to uppercase to ensure consistent grouping
   name = String(name || '').toUpperCase().trim();
-  
+
   // Smart extraction that finds size specifications (like 25K, 3GR, 2PK, 50MG, etc.)
   // and uses them as the grouping boundary.
   // Everything UP TO and INCLUDING the size spec = product base
@@ -1676,14 +1688,14 @@ function extractProductVariantKey(name) {
   //   "DESTINO JAR 3.5GR INDICA PURPLE RUNTZ" → "DESTINO JAR 3.5GR"
   //   "SWISHER SWEETS 2PK BANANA SMASH" → "SWISHER SWEETS 2PK"
   //   "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" → "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" (no size, use fallback)
-  
+
   // Size spec pattern: number (with optional decimal) + unit
-  // Units: K, KMG (puff counts), GR (grams), MG (milligrams), ML (milliliters), 
+  // Units: K, KMG (puff counts), GR (grams), MG (milligrams), ML (milliliters),
   //        OZ (ounces), PK (pack count), CT (count), G (grams)
   const sizePattern = /\d+(?:\.\d+)?(?:K|KMG|GR|MG|ML|OZ|PK|CT|G)\b/;
-  
+
   const words = name.split(/\s+/);
-  
+
   // Find the position of the first size spec
   for (let i = 0; i < words.length; i++) {
     if (sizePattern.test(words[i])) {
@@ -1692,19 +1704,19 @@ function extractProductVariantKey(name) {
       return words.slice(0, i + 1).join(' ');
     }
   }
-  
+
   // No size spec found - fall back to original logic (first 2-3 words)
   if (words.length < 2) return name;
-  
+
   let baseWords = words.slice(0, 2);
-  
+
   // If there's a 3rd word and it looks like a descriptor/quantity, include it
   // (e.g., "SINGLE", "ORIGINAL", "KINGS", "SLIM", etc.)
-  if (words.length > 2 && 
+  if (words.length > 2 &&
       /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL)$/.test(words[2])) {
     baseWords.push(words[2]);
   }
-  
+
   return baseWords.join(' ');
 }
 
@@ -1716,15 +1728,15 @@ function extractFlavor(name, baseKey) {
 
 function groupProductsByVariant(products) {
   const grouped = {};
-  
+
   products.forEach(product => {
     const normalizedName = normalizeProductName(product.name) || '';
     const baseKey = extractProductVariantKey(normalizedName);
     const normalizedKey = (baseKey || '').toUpperCase();
-    if (isRestrictedProduct(normalizedName, normalizedKey)) {
+    if (isRestrictedProduct(normalizedName, normalizedKey, product.name)) {
       return;
     }
-    
+
     if (!grouped[normalizedKey]) {
       grouped[normalizedKey] = {
         ...product,
@@ -1734,7 +1746,7 @@ function groupProductsByVariant(products) {
         variantMap: new Map()
       };
     }
-    
+
     const flavor = extractFlavor(normalizedName, baseKey);
     const blockSet = DISCONTINUED_VARIANTS.get(normalizedKey);
     if (blockSet && blockSet.has(flavor.toUpperCase())) {
@@ -1780,7 +1792,7 @@ function groupProductsByVariant(products) {
       group.variants.push(variantPayload);
     }
   });
-  
+
   Object.values(grouped).forEach(group => {
     group.variants.sort((a, b) => {
       if (!!a.has_image === !!b.has_image) {
@@ -1790,7 +1802,7 @@ function groupProductsByVariant(products) {
     });
     delete group.variantMap;
   });
-  
+
   return Object.values(grouped).filter(group => {
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
       const baseKey = (group.base_name || group.name || '').toUpperCase();
@@ -1826,7 +1838,7 @@ async function initStoresTable() {
 
     // Check if stores exist
     const [stores] = await queryWithRetry('SELECT COUNT(*) AS count FROM stores');
-    
+
     if (stores[0].count === 0) {
       // Insert stores
       await queryWithRetry(`
@@ -1957,13 +1969,11 @@ app.post('/api/zen/hosted-fields/token', async (req, res) => {
 
     const terminalId = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
     if (!terminalId) {
-      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server (often the terminal number like 7000, not the internal record id).' });
+      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server.' });
     }
 
     // ZenPayments expects a domain value that matches the site where Hosted Fields will be embedded.
     const domain = ZENPAYMENTS_DOMAIN || (req.headers.host || '').replace(/^https?:\/\//, '');
-
-    console.log('[ZenPayments] Requesting Hosted Fields token', { terminalId, domain, base: ZENPAYMENTS_API_BASE });
 
     const zenResp = await _fetch(`${ZENPAYMENTS_API_BASE}/api/hosted-fields/token`, {
       method: 'POST',
@@ -2011,7 +2021,7 @@ app.get('/products', async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = PRODUCTS_PAGE_SIZE;
-    
+
     const q = (req.query.q || '').trim();
     const sort = (req.query.sort || 'newest').toLowerCase();
     const category = (req.query.category || '').trim();
@@ -2131,13 +2141,30 @@ app.get('/products', async (req, res) => {
           if (!fullGroup) {
             return group;
           }
-          const seen = new Set(group.variants.map(v => v.id));
-          const mergedVariants = [...group.variants];
-          fullGroup.variants.forEach(variant => {
-            if (!seen.has(variant.id)) {
-              mergedVariants.push(variant);
+          const normalizeFlavorKey = (value) => {
+            const trimmed = (value || 'Original').trim();
+            return (trimmed || 'Original').toUpperCase();
+          };
+          const flavorMap = new Map();
+          const mergedVariants = [];
+          const registerVariant = (variant) => {
+            const key = normalizeFlavorKey(variant.flavor);
+            const existing = flavorMap.get(key);
+            if (existing) {
+              existing.total_qty = Number(existing.total_qty || 0) + Number(variant.total_qty || 0);
+              if (!existing.has_image && variant.has_image) {
+                existing.image_url = variant.image_url;
+                existing.image_alt = variant.image_alt;
+                existing.has_image = true;
+              }
+              return;
             }
-          });
+            const payload = { ...variant };
+            flavorMap.set(key, payload);
+            mergedVariants.push(payload);
+          };
+          group.variants.forEach(registerVariant);
+          fullGroup.variants.forEach(registerVariant);
           return {
             ...group,
             variants: mergedVariants,
@@ -2145,7 +2172,7 @@ app.get('/products', async (req, res) => {
         });
       }
     }
-    
+
     const estimatedGroupedTotal = totalGrouped;
 
     // Get all categories
@@ -2178,3 +2205,18 @@ app.listen(PORT, async () => {
   await ensureSnapshotTables();
   await seedVariantImages();
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

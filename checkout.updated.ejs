@@ -1051,7 +1051,6 @@ async function zpInitHostedFields() {
     zpSetHint('Enter your card details to complete the order.');
   } catch (err) {
     zpSetError(err?.message || 'Payment initialization failed.');
-    zpSetHint('If this stays stuck, check that /api/zen/hosted-fields/token returns 200 and that ZENPAYMENTS_TERMINAL_ID is the *terminal number* (often like 7000) and is Active.');
     zpSetHint('Payment unavailable right now.');
     btn.disabled = true;
   }

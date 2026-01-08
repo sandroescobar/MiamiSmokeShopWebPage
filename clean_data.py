@@ -28,39 +28,9 @@ SUBCATEGORY_RULES = [
     {"name": "FUME PRO 30K", "slug": "fume-pro-30k", "parent": "NICOTINE VAPES", "tokens": ["FUME", "PRO"]},
     {"name": "LOST MARY TURBO 35K", "slug": "lost-mary-turbo", "parent": "NICOTINE VAPES", "tokens": ["LOST", "MARY", "TURBO"]},
     {"name": "BB CART 1GR", "slug": "bb-cart-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "CART"]},
-    {"name": "BB PEN 1GR", "slug": "bb-pen-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "PEN"]}
+    {"name": "BB PEN 1GR", "slug": "bb-pen-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "PEN"]},
+    {"name": "GRABBA LEAF SMALL", "slug": "grabba-leaf-small", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "SMALL"]}
 ]
-
-FEATURED_BASE_PRODUCTS = [
-    "LOST MARY TURBO 35K",
-    "LOST MARY ULTRASONIC",
-    "GEEKBAR X 25K",
-    "RAZ LTX 25K",
-    "RAZ 9K",
-    "CUVIE PLUS",
-    "HQD CUVIE PLUS",
-    "CUVIE GLAZE",
-    "HQD CUVIE GLAZE",
-    "CUVIE GO 35K",
-    "HQD CUVIE GO 35K",
-    "FUME EXTRA",
-    "FUME ULTRA",
-    "FUME INFINITY",
-    "FUME PRO 30K",
-    "DESTINO PRE ROLL 1GR",
-    "GEEKBAR 15K"
-]
-FEATURED_BASE_SET = {name.upper() for name in FEATURED_BASE_PRODUCTS}
-
-
-def build_featured_pattern(name):
-    tokens = as_str(name).upper().split()
-    if not tokens:
-        return "%"
-    pattern = tokens[0]
-    for token in tokens[1:]:
-        pattern += f"%{token}"
-    return f"{pattern}%"
 
 
 STORE_SNAPSHOT_TABLES = {
@@ -137,21 +107,16 @@ def refresh_store_snapshot_table(cur, table_name, rows):
     cur.executemany(insert_sql, data)
 
 
-def collect_featured_snapshot_rows(cur, store_id):
-    if not FEATURED_BASE_PRODUCTS:
-        return {}
-    like_clause = " OR ".join(["UPPER(p.name) LIKE %s" for _ in FEATURED_BASE_PRODUCTS])
-    params = [store_id] + [build_featured_pattern(name) for name in FEATURED_BASE_PRODUCTS]
+def collect_store_snapshot_rows(cur, store_id):
     cur.execute(
-        f"""
+        """
         SELECT p.name, p.upc, SUM(pi.quantity_on_hand) AS qty
         FROM products p
         JOIN product_inventory pi ON pi.product_id = p.id
-        WHERE pi.store_id = %s AND ({like_clause})
+        WHERE pi.store_id = %s
         GROUP BY p.id, p.name, p.upc
-        HAVING qty IS NOT NULL
         """,
-        params
+        (store_id,)
     )
     rows = {}
     for name, upc, qty in cur.fetchall():
@@ -289,6 +254,8 @@ def apply_brand_specific_rules(name):
         text = re.sub(r'^LOST\s*MARY\s*(?:TUBRO|TURBO)\b', 'LOST MARY TURBO', text, flags=re.IGNORECASE)
         if not re.search(r'\b35K\b', text, re.IGNORECASE):
             text = re.sub(r'^LOST MARY TURBO\b', 'LOST MARY TURBO 35K', text, flags=re.IGNORECASE)
+    if re.search(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)\b', text, re.IGNORECASE):
+        text = re.sub(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?\b', 'OLIT HOOKALIT 40K', text, flags=re.IGNORECASE)
     if re.search(r'^LOST\s*MARY\s*ULTRASONIC\b', text, re.IGNORECASE):
         text = re.sub(r'^LOST\s*MARY\s*ULTRASONIC\b', 'LOST MARY ULTRASONIC', text, flags=re.IGNORECASE)
         if not re.search(r'\b25K\b', text, re.IGNORECASE):
@@ -486,8 +453,8 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
         else:
             print("  🧹 No obsolete inventory to prune.")
         if snapshot_table:
-            featured_rows = collect_featured_snapshot_rows(cur, store_id)
-            refresh_store_snapshot_table(cur, snapshot_table, featured_rows)
+            snapshot_rows = collect_store_snapshot_rows(cur, store_id)
+            refresh_store_snapshot_table(cur, snapshot_table, snapshot_rows)
         conn.commit()
         print(f"✅ Upserted {processed} inventory rows for {store_label}.")
     except mysql.connector.Error as e:

@@ -482,6 +482,14 @@ function proceedToCheckout() {
     alert('Your cart is empty. Add items before checking out.');
     return;
   }
-  window.location.href = '/checkout';
+  let shop = 'either';
+  try {
+    const saved = localStorage.getItem('preferredShop');
+    if (saved) {
+      shop = saved;
+    }
+  } catch (err) {}
+  const url = shop ? `/checkout?shop=${encodeURIComponent(shop)}` : '/checkout';
+  window.location.href = url;
 }
 </script>
