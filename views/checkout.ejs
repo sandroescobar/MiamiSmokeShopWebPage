@@ -944,8 +944,8 @@ input.zp-input{display:block;}
 
 
 /* ---------------- Authorize.Net Accept.js init ---------------- */
-const AUTH_NET_LOGIN_ID = "3N8ms8JY%";
-const AUTH_NET_CLIENT_KEY = "63BY26dANq8V966sQrrvWZGqLdg3HCyR8Xurb6D7gL7mYTauQ3QHg5M6EwXMtd59%";
+const AUTH_NET_LOGIN_ID = "<%= authorizeLoginId %>";
+const AUTH_NET_CLIENT_KEY = "<%= authorizeClientKey %>";
 
 function paySetError(msg) {
   const el = document.getElementById('pay-error');
@@ -1031,6 +1031,11 @@ function tokenizeAndPay() {
   const btn = document.getElementById('zp-pay-btn');
   if (!btn) return;
 
+  if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
+    paySetError('Payment configuration missing (Authorize.net keys not set).');
+    return;
+  }
+
   paySetError('');
 
   if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
@@ -1098,11 +1103,30 @@ function tokenizeAndPay() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('zp-pay-btn');
-  if (btn) btn.addEventListener('click', tokenizeAndPay);
-});
 
+// Expose for debugging (you can call tokenizeAndPay() from DevTools if needed)
+window.tokenizeAndPay = tokenizeAndPay;
+
+function bindPayButton() {
+  const btn = document.getElementById('zp-pay-btn');
+  if (!btn) {
+    console.error('[checkout] Pay button #zp-pay-btn not found');
+    return;
+  }
+  // Avoid double-binding if this script runs more than once
+  if (btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    console.log('[checkout] Complete Order clicked');
+    tokenizeAndPay();
+  });
+}
+
+// Bind now (script is at bottom of body), and also on DOMContentLoaded just in case
+bindPayButton();
+document.addEventListener('DOMContentLoaded', bindPayButton);
 </script>
 </body>
 </html>
