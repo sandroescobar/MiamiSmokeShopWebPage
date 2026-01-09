@@ -161,6 +161,7 @@
   display: flex;
   align-items: center;
 }
+input.zp-input{display:block;}
 .zp-hint { font-size: 0.85rem; color: #64748b; margin-top: 6px; }
 .zp-error { color: #b91c1c; font-size: 0.9rem; margin-top: 8px; }
 .zp-success { color: #15803d; font-size: 0.9rem; margin-top: 8px; }
@@ -299,31 +300,33 @@
               <div class="row-1 payment-body">
                 <div class="card payment-card">
                   <div class="card-body">
-<div class="zp-fields" id="zp-fields">
-  <div>
-    <span class="zp-label">Name on card</span>
-    <div id="zp-cardholder" class="zp-input"></div>
+
+<div class="zp-fields" id="authnet-fields">
+  <div class="row-1">
+    <label class="zp-label" for="cardName">Name on card</label>
+    <input id="cardName" class="zp-input" type="text" autocomplete="cc-name" placeholder="Full name"/>
   </div>
 
-  <div>
-    <span class="zp-label">Card number</span>
-    <div id="zp-cardnumber" class="zp-input"></div>
+  <div class="row-1" style="margin-top:10px">
+    <label class="zp-label" for="cardNumber">Card number</label>
+    <input id="cardNumber" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234"/>
   </div>
 
-  <div class="zp-row">
+  <div class="zp-row" style="margin-top:10px">
     <div>
-      <span class="zp-label">Expiration</span>
-      <div id="zp-exp" class="zp-input"></div>
+      <label class="zp-label" for="cardExp">Expiration</label>
+      <input id="cardExp" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY"/>
     </div>
     <div>
-      <span class="zp-label">CVV</span>
-      <div id="zp-cvv" class="zp-input"></div>
+      <label class="zp-label" for="cardCvv">CVV</label>
+      <input id="cardCvv" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-csc" placeholder="123"/>
     </div>
   </div>
 
-  <div id="zp-msg" class="zp-hint">Card details are securely entered via ZenPayments.</div>
-  <div id="zp-error" class="zp-error" role="alert" aria-live="polite"></div>
+  <div id="pay-msg" class="zp-hint">Card details are tokenized securely by Authorize.net (Accept.js).</div>
+  <div id="pay-error" class="zp-error" role="alert" aria-live="polite"></div>
 </div>
+
 
 
 
@@ -370,7 +373,7 @@
   </div>
 
   <!-- ZenPayments Hosted Fields -->
-  <script src="https://zendashboard.com/js/HostedFields.js"></script>
+  <script src="https://js.authorize.net/v1/Accept.js"></script>
   <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
     <div class="policy-modal__dialog">
       <button type="button" id="policy-modal-close" class="policy-modal__close" aria-label="Close policy details">×</button>
@@ -939,145 +942,165 @@
     });
   
 
-/* ---------------- ZenPayments Hosted Fields init ---------------- */
-let zenHostedFieldsForm = null;
 
-function zpSetError(msg) {
-  const el = document.getElementById('zp-error');
+/* ---------------- Authorize.Net Accept.js init ---------------- */
+const AUTH_NET_LOGIN_ID = "<%= authorizeLoginId %>";
+const AUTH_NET_CLIENT_KEY = "<%= authorizeClientKey %>";
+
+function paySetError(msg) {
+  const el = document.getElementById('pay-error');
   if (el) el.textContent = msg || '';
 }
 
-function zpSetHint(msg, isSuccess = false) {
-  const el = document.getElementById('zp-msg');
-  if (!el) return;
-  el.textContent = msg || '';
-  el.classList.toggle('zp-success', !!isSuccess);
+function paySetHint(msg) {
+  const el = document.getElementById('pay-msg');
+  if (el) el.textContent = msg || '';
 }
 
-function zpUpdatePayButtonLabel() {
-  const btn = document.getElementById('zp-pay-btn');
-  if (!btn) return;
-  const total = Number((checkoutTotals && checkoutTotals.total) || 0);
-  if (total > 0) btn.textContent = `Pay $${total.toFixed(2)}`;
+function getSelectedDeliveryMethod() {
+  const method = (document.querySelector('input[name="delivery_method"]:checked') || {}).value;
+  return method || 'pickup';
 }
 
-async function zpGetAccessToken() {
-  console.log('[ZenPayments] requesting hosted-fields token...');
-      const resp = await fetch('/api/zen/hosted-fields/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}) // terminalId is set server-side via env
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data?.error || 'Could not initialize payment.');
-  if (!data.accessToken) throw new Error('Missing access token from server.');
-  return data.accessToken;
-}
+function buildBillingFromForm() {
+  const email = document.querySelector('input[name="email"]')?.value?.trim() || '';
+  const firstName = document.querySelector('input[name="first_name"]')?.value?.trim() || '';
+  const lastName = document.querySelector('input[name="last_name"]')?.value?.trim() || '';
+  const phone = document.querySelector('input[name="phone"]')?.value?.trim() || '';
 
-function zpCreateHostedFieldsForm(config) {
-  // The HostedFields.js API shape can differ slightly by version.
-  // This tries a few common init patterns so you don't get stuck on naming.
-  if (typeof window.HostedFields === 'function') return window.HostedFields(config);
-  if (window.HostedFields && typeof window.HostedFields.create === 'function') return window.HostedFields.create(config);
-  if (window.HostedFields && typeof window.HostedFields.init === 'function') return window.HostedFields.init(config);
-  if (window.HostedFields && typeof window.HostedFields.initialize === 'function') return window.HostedFields.initialize(config);
-  throw new Error('ZenPayments HostedFields library did not load (HostedFields not found).');
-}
+  const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
+  const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
+  const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
+  const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
+  const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
 
-async function zpInitHostedFields() {
-  const btn = document.getElementById('zp-pay-btn');
-  if (!btn) return;
-
-  btn.disabled = true;
-  zpSetError('');
-  zpSetHint('Loading secure card fields…');
-
-  try {
-    const accessToken = await zpGetAccessToken();
-
-    // Clear any prior iframes/fields
-    ['zp-cardholder', 'zp-cardnumber', 'zp-exp', 'zp-cvv'].forEach((id) => {
-      const node = document.getElementById(id);
-      if (node) node.innerHTML = '';
-    });
-
-    const total = Number((checkoutTotals && checkoutTotals.total) || 0);
-    const config = {
-      accessToken,
-      amount: total,
-      paymentAmount: total,
-      fields: {
-        cardHolderName: { selector: '#zp-cardholder' },
-        cardNumber: { selector: '#zp-cardnumber' },
-        cardExpiration: { selector: '#zp-exp' },
-        cardCvv: { selector: '#zp-cvv' },
-        submit: { selector: '#zp-pay-btn' }
-      }
-    };
-
-    zenHostedFieldsForm = zpCreateHostedFieldsForm(config);
-
-    // Listen for the result event (success/failure)
-    if (zenHostedFieldsForm && typeof zenHostedFieldsForm.addEventListener === 'function') {
-      zenHostedFieldsForm.addEventListener('submit.result', (e) => {
-        const ok = !!(e && e.detail && e.detail.result);
-        if (ok) {
-          zpSetError('');
-          zpSetHint('Payment approved ✅', true);
-
-          // TODO: create the order in your DB here (recommended).
-          // For now, just clear cart + go home.
-          try { localStorage.removeItem('cart'); } catch (_) {}
-          setTimeout(() => { window.location.href = '/'; }, 800);
-        } else {
-          const msg = e?.detail?.message || 'Payment declined. Please try another card.';
-          zpSetError(msg);
-          zpSetHint('Please review your card details and try again.');
-          btn.disabled = false;
-          zpUpdatePayButtonLabel();
-        }
-      });
-
-      zenHostedFieldsForm.addEventListener('submit.error', (e) => {
-        const msg = e?.detail?.message || 'Payment error. Please try again.';
-        zpSetError(msg);
-        zpSetHint('Please try again.');
-        btn.disabled = false;
-        zpUpdatePayButtonLabel();
-      });
+  const addressLine = [street, unit].filter(Boolean).join(' ');
+  return {
+    customer: { email, firstName, lastName, phone },
+    billing: {
+      firstName,
+      lastName,
+      phoneNumber: phone,
+      address: addressLine,
+      city,
+      state,
+      zip,
+      country: 'US'
     }
-
-    btn.disabled = false;
-    zpUpdatePayButtonLabel();
-    zpSetHint('Enter your card details to complete the order.');
-  } catch (err) {
-    zpSetError(err?.message || 'Payment initialization failed.');
-    zpSetHint('If this stays stuck, check that /api/zen/hosted-fields/token returns 200 and that ZENPAYMENTS_TERMINAL_ID is the *terminal number* (often like 7000) and is Active.');
-    zpSetHint('Payment unavailable right now.');
-    btn.disabled = true;
-  }
-}
-
-// Re-init payment fields whenever totals change (e.g., switching pickup/delivery)
-function zpRefreshPaymentFields() {
-  zpUpdatePayButtonLabel();
-  // Recreate fields to ensure the processor has the current amount.
-  zpInitHostedFields();
-}
-
-// Hook into your existing setDeliveryFee flow (defined above)
-const _originalSetDeliveryFee = (typeof setDeliveryFee === 'function') ? setDeliveryFee : null;
-if (typeof _originalSetDeliveryFee === 'function') {
-  setDeliveryFee = function patchedSetDeliveryFee(amount) {
-    const result = _originalSetDeliveryFee(amount);
-    // Re-init fields so the amount stays correct when user changes delivery method.
-    zpRefreshPaymentFields();
-    return result;
   };
 }
 
+function parseExp(exp) {
+  // Accepts "MM/YY" or "MMYY" or "MM/YYYY"
+  const raw = String(exp || '').replace(/\s+/g, '');
+  const m = raw.match(/^(\d{2})\s*\/?\s*(\d{2}|\d{4})$/);
+  if (!m) return null;
+  const month = m[1];
+  let year = m[2];
+  if (year.length === 2) year = `20${year}`;
+  return { month, year };
+}
+
+async function submitCharge(opaqueData) {
+  const { customer, billing } = buildBillingFromForm();
+
+  const payload = {
+    opaqueData,
+    totals: checkoutTotals,
+    customer: { email: customer.email },
+    billing,
+    deliveryMethod: getSelectedDeliveryMethod(),
+    pickupStore: selectedStore,
+    selectedDeliveryStore
+  };
+
+  const resp = await fetch('/api/authorize/charge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    throw new Error(data?.error || 'Payment failed. Please try again.');
+  }
+  return data;
+}
+
+function tokenizeAndPay() {
+  const btn = document.getElementById('completeOrderBtn');
+  if (!btn) return;
+
+  paySetError('');
+
+  if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
+    paySetError('Payment is not configured. Missing Authorize.Net keys on server.');
+    return;
+  }
+
+  if (!window.Accept || typeof window.Accept.dispatchData !== 'function') {
+    paySetError('Authorize.Net Accept.js failed to load. Refresh and try again.');
+    return;
+  }
+
+  const expObj = parseExp(document.getElementById('cardExp')?.value);
+  if (!expObj) {
+    paySetError('Expiration must be in MM/YY format.');
+    return;
+  }
+
+  const cardData = {
+    cardNumber: (document.getElementById('cardNumber')?.value || '').replace(/\s+/g, ''),
+    month: expObj.month,
+    year: expObj.year,
+    cardCode: (document.getElementById('cardCvv')?.value || '').trim(),
+    fullName: (document.getElementById('cardName')?.value || '').trim()
+  };
+
+  if (!cardData.cardNumber || !cardData.cardCode || !cardData.month || !cardData.year) {
+    paySetError('Please fill out all card fields.');
+    return;
+  }
+
+  btn.disabled = true;
+  paySetHint('Processing payment…');
+
+  const authData = {
+    clientKey: AUTH_NET_CLIENT_KEY,
+    apiLoginID: AUTH_NET_LOGIN_ID
+  };
+
+  window.Accept.dispatchData({ authData, cardData }, async (response) => {
+    try {
+      const result = response?.messages?.resultCode;
+      if (result !== 'Ok') {
+        const msg = response?.messages?.message?.[0]?.text || 'Card tokenization failed.';
+        throw new Error(msg);
+      }
+
+      const opaqueData = response.opaqueData;
+      if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
+        throw new Error('Missing token from Authorize.Net.');
+      }
+
+      const charge = await submitCharge(opaqueData);
+
+      paySetError('');
+      paySetHint('Payment approved ✅');
+
+      try { localStorage.removeItem('cart'); } catch (_) {}
+      setTimeout(() => { window.location.href = '/'; }, 700);
+    } catch (err) {
+      paySetError(err?.message || 'Payment failed.');
+      paySetHint('Please review your card details and try again.');
+      btn.disabled = false;
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  zpRefreshPaymentFields();
+  const btn = document.getElementById('completeOrderBtn');
+  if (btn) btn.addEventListener('click', tokenizeAndPay);
 });
 
 </script>
