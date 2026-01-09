@@ -1028,7 +1028,7 @@ async function submitCharge(opaqueData) {
 }
 
 function tokenizeAndPay() {
-  const btn = document.getElementById('completeOrderBtn');
+  const btn = document.getElementById('zp-pay-btn');
   if (!btn) return;
 
   paySetError('');
@@ -1099,7 +1099,7 @@ function tokenizeAndPay() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('completeOrderBtn');
+  const btn = document.getElementById('zp-pay-btn');
   if (btn) btn.addEventListener('click', tokenizeAndPay);
 });
 
