@@ -1,10 +1,9 @@
 // index.js (ESM)
 import 'dotenv/config';
 import path from 'path';
+require("dotenv").config();
 import fs from 'fs';
 import express from 'express';
-
-import authorizenet from 'authorizenet';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
@@ -26,35 +25,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 /* --------------------  JSON parsing  -------------------- */
 app.use(express.json());
-
-app.use(express.urlencoded({ extended: true }));
-
-// -----------------------------
-// Store selection defaults (used by products.ejs and checkout pages)
-// -----------------------------
-const STORE_OPTIONS = [
-  {
-    id: "calle8",
-    label: "Calle 8",
-    address1: "6346 SW 8th St",
-    cityStateZip: "West Miami, FL 33144",
-  },
-  {
-    id: "79th",
-    label: "79th Street",
-    address1: "351 NE 79th St Unit 101",
-    cityStateZip: "Miami, FL 33138",
-  },
-];
-
-// Make these available to ALL EJS templates so pages don’t crash if a route forgets to pass them.
-app.use((req, res, next) => {
-  const selectedShop = (req.query && req.query.shop) ? String(req.query.shop) : undefined;
-  res.locals.storeOptions = STORE_OPTIONS;
-  res.locals.selectedShop = selectedShop || res.locals.selectedShop || "calle8";
-  next();
-});
-
 
 /* --------------------  Config resolve  -------------------- */
 const clean = (v) => (typeof v === 'string' ? v.trim() : v);
@@ -111,6 +81,28 @@ const CONTACT_INFO = {
     'Miami Vape Smoke Shop #2 • 351 NE 79th St Unit 101, Miami, FL 33138',
   ],
 };
+
+const STORE_CHOICES = [
+  {
+    id: 'either',
+    label: 'Either store',
+    address: 'See everything in stock',
+    note: 'Fastest fulfillment across Miami'
+  },
+  {
+    id: 'calle8',
+    label: 'Calle 8 (West Miami)',
+    address: '6346 SW 8th St, West Miami, FL 33144',
+    note: 'Pickup + delivery south of the river'
+  },
+  {
+    id: '79th',
+    label: '79th St (Upper Eastside)',
+    address: '351 NE 79th St Unit 101, Miami, FL 33138',
+    note: 'Pickup + delivery for North Miami and the Beach'
+  }
+];
+const STORE_OPTION_MAP = new Map(STORE_CHOICES.map((option) => [option.id, option]));
 
 const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
@@ -389,13 +381,8 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Miami Mint'
   },
   {
-    match: 'GEEKBAR X 25K ORANGE FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/ORANGEFCUKINGFAB.jpg',
-    imageAlt: 'GEEKBAR X 25K • Orange Fcuking Fab'
-  },
-  {
     match: 'GEEKBAR X 25K SOUR FCUKING FAB',
-    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpeg',
+    imageUrl: '/images/imagesForProducts/GEEKBAR%20X%2025K/SOURFCUKINGFAB.jpg',
     imageAlt: 'GEEKBAR X 25K • Sour Fcuking Fab'
   },
   {
@@ -994,11 +981,6 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'Fume Infinity • Summer Black Ice'
   },
   {
-    match: 'FUME INFINITY TROPICAL FRUIT',
-    imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
-    imageAlt: 'Fume Infinity • Tropical Fruit'
-  },
-  {
     match: 'FUME INFINITY TROPICAL PUNCH',
     imageUrl: '/images/imagesForProducts/FUMEINFINITY/TROPICALFRUIT.jpg',
     imageAlt: 'Fume Infinity • Tropical Punch'
@@ -1125,7 +1107,11 @@ const VARIANT_IMAGE_MAPPINGS = [
   }
 ];
 
-const DISCONTINUED_VARIANTS = new Map();
+const DISCONTINUED_VARIANTS = new Map(
+  [
+    ['GEEKBAR X 25K', ['ORANGE FCUKING FAB', 'ORANGE FUCKING FAB']]
+  ].map(([base, flavors]) => [base.toUpperCase(), new Set(flavors.map((name) => name.toUpperCase()))])
+);
 
 const policyPages = {
   terms: {
@@ -1460,11 +1446,11 @@ app.get('/api/stores', async (_req, res) => {
 app.post('/api/check-inventory', async (req, res) => {
   try {
     const { product_ids, store_name } = req.body;
-    
+
     if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
       return res.status(400).json({ error: 'product_ids must be a non-empty array' });
     }
-    
+
     if (!store_name) {
       return res.status(400).json({ error: 'store_name is required' });
     }
@@ -1477,8 +1463,8 @@ app.post('/api/check-inventory', async (req, res) => {
     const storeId = stores[0].id;
     const placeholders = product_ids.map(() => '?').join(',');
     const [availability] = await queryWithRetry(
-      `SELECT product_id, quantity_on_hand 
-       FROM product_inventory 
+      `SELECT product_id, quantity_on_hand
+       FROM product_inventory
        WHERE product_id IN (${placeholders}) AND store_id = ?`,
       [...product_ids, storeId]
     );
@@ -1502,7 +1488,7 @@ app.post('/api/check-inventory', async (req, res) => {
 app.get('/api/closest-store', async (req, res) => {
   try {
     const { lat, lng } = req.query;
-    
+
     if (!lat || !lng) {
       return res.status(400).json({ error: 'lat and lng are required' });
     }
@@ -1593,11 +1579,23 @@ app.get('/policy/:slug', (req, res) => {
 });
 
 /* --------------------  Helper: Group products by variant  -------------------- */
-function isRestrictedProduct(normalizedName = '', normalizedKey = '') {
-  if ((normalizedKey || '').toUpperCase() === 'FUME PRO 30K' && normalizedName.toUpperCase().includes('NO NICOTINE')) {
+function isRestrictedProduct(normalizedName = '', normalizedKey = '', rawName = '') {
+  const upperKey = (normalizedKey || '').toUpperCase();
+  const nameCandidates = [(normalizedName || '').toUpperCase(), (rawName || '').toUpperCase()];
+  const includesPhrase = (phrase) => nameCandidates.some((value) => value && value.includes(phrase));
+  const hasZeroNic = includesPhrase('ZERO NIC') || includesPhrase('ZERO-NIC');
+  const hasNoNicotine = includesPhrase('NO NICOTINE');
+
+  if (upperKey === 'FUME PRO 30K' && (hasNoNicotine || hasZeroNic)) {
     return true;
   }
-  return containsExcludedKeyword(normalizedName);
+  if (upperKey === 'RAZ LTX 25K' && hasZeroNic) {
+    return true;
+  }
+  if (containsExcludedKeyword(normalizedName) || containsExcludedKeyword(rawName)) {
+    return true;
+  }
+  return false;
 }
 
 function normalizeProductName(name) {
@@ -1617,6 +1615,12 @@ function normalizeProductName(name) {
     } else {
       value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\b/i, 'GEEKBAR');
     }
+  }
+  if (/^GEEKBAR\s*X\s*25K\b/i.test(value) && /STRAWBERRY\s+PI(?:N|Ñ)A\s+COLADA/i.test(value)) {
+    value = value.replace(/STRAWBERRY\s+PI(?:N|Ñ)A\s+COLADA/gi, 'STRAWBERRY COLADA');
+  }
+  if (/^FUME\s*INFINITY\b/i.test(value) && /TROPICAL\s+FRUIT/i.test(value)) {
+    value = value.replace(/TROPICAL\s+FRUIT/gi, 'TROPICAL PUNCH');
   }
   if (/^FUME\s*PRO\b/i.test(value)) {
     value = value.replace(/^FUME\s*PRO\b/i, 'FUME PRO');
@@ -1674,7 +1678,7 @@ function normalizeProductName(name) {
 function extractProductVariantKey(name) {
   // Normalize name to uppercase to ensure consistent grouping
   name = String(name || '').toUpperCase().trim();
-  
+
   // Smart extraction that finds size specifications (like 25K, 3GR, 2PK, 50MG, etc.)
   // and uses them as the grouping boundary.
   // Everything UP TO and INCLUDING the size spec = product base
@@ -1685,14 +1689,14 @@ function extractProductVariantKey(name) {
   //   "DESTINO JAR 3.5GR INDICA PURPLE RUNTZ" → "DESTINO JAR 3.5GR"
   //   "SWISHER SWEETS 2PK BANANA SMASH" → "SWISHER SWEETS 2PK"
   //   "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" → "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" (no size, use fallback)
-  
+
   // Size spec pattern: number (with optional decimal) + unit
-  // Units: K, KMG (puff counts), GR (grams), MG (milligrams), ML (milliliters), 
+  // Units: K, KMG (puff counts), GR (grams), MG (milligrams), ML (milliliters),
   //        OZ (ounces), PK (pack count), CT (count), G (grams)
   const sizePattern = /\d+(?:\.\d+)?(?:K|KMG|GR|MG|ML|OZ|PK|CT|G)\b/;
-  
+
   const words = name.split(/\s+/);
-  
+
   // Find the position of the first size spec
   for (let i = 0; i < words.length; i++) {
     if (sizePattern.test(words[i])) {
@@ -1701,19 +1705,19 @@ function extractProductVariantKey(name) {
       return words.slice(0, i + 1).join(' ');
     }
   }
-  
+
   // No size spec found - fall back to original logic (first 2-3 words)
   if (words.length < 2) return name;
-  
+
   let baseWords = words.slice(0, 2);
-  
+
   // If there's a 3rd word and it looks like a descriptor/quantity, include it
   // (e.g., "SINGLE", "ORIGINAL", "KINGS", "SLIM", etc.)
-  if (words.length > 2 && 
+  if (words.length > 2 &&
       /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL)$/.test(words[2])) {
     baseWords.push(words[2]);
   }
-  
+
   return baseWords.join(' ');
 }
 
@@ -1725,15 +1729,15 @@ function extractFlavor(name, baseKey) {
 
 function groupProductsByVariant(products) {
   const grouped = {};
-  
+
   products.forEach(product => {
     const normalizedName = normalizeProductName(product.name) || '';
     const baseKey = extractProductVariantKey(normalizedName);
     const normalizedKey = (baseKey || '').toUpperCase();
-    if (isRestrictedProduct(normalizedName, normalizedKey)) {
+    if (isRestrictedProduct(normalizedName, normalizedKey, product.name)) {
       return;
     }
-    
+
     if (!grouped[normalizedKey]) {
       grouped[normalizedKey] = {
         ...product,
@@ -1743,7 +1747,7 @@ function groupProductsByVariant(products) {
         variantMap: new Map()
       };
     }
-    
+
     const flavor = extractFlavor(normalizedName, baseKey);
     const blockSet = DISCONTINUED_VARIANTS.get(normalizedKey);
     if (blockSet && blockSet.has(flavor.toUpperCase())) {
@@ -1789,7 +1793,7 @@ function groupProductsByVariant(products) {
       group.variants.push(variantPayload);
     }
   });
-  
+
   Object.values(grouped).forEach(group => {
     group.variants.sort((a, b) => {
       if (!!a.has_image === !!b.has_image) {
@@ -1799,7 +1803,7 @@ function groupProductsByVariant(products) {
     });
     delete group.variantMap;
   });
-  
+
   return Object.values(grouped).filter(group => {
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
       const baseKey = (group.base_name || group.name || '').toUpperCase();
@@ -1835,7 +1839,7 @@ async function initStoresTable() {
 
     // Check if stores exist
     const [stores] = await queryWithRetry('SELECT COUNT(*) AS count FROM stores');
-    
+
     if (stores[0].count === 0) {
       // Insert stores
       await queryWithRetry(`
@@ -1932,24 +1936,10 @@ async function seedVariantImages() {
 }
 
 /* --------------------  Checkout  -------------------- */
-app.get('/checkout', (req, res) => {
-  // Accept both naming styles (Render uses AUTHORIZE_NET_*, local may use AUTH_NET_*)
-  const authorizeLoginId = clean(
-    process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || ''
-  ) || '';
-  const authorizeClientKey = clean(process.env.AUTHORIZE_NET_CLIENT_KEY || process.env.AUTH_NET_CLIENT_KEY || '') || '';
-  const authorizeEnv = (clean(process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || 'sandbox') || 'sandbox').toLowerCase();
-
-  // Optional query params you already use elsewhere
-  const shop = req.query.shop || '';
-
+app.get('/checkout', (_req, res) => {
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
-    description: 'Complete your purchase',
-    shop,
-    authorizeLoginId,
-    authorizeClientKey,
-    authorizeEnv,
+    description: 'Complete your purchase'
   });
 });
 
@@ -1963,10 +1953,8 @@ app.get('/checkout', (req, res) => {
  *   then ZenPayments' HostedFields.js renders secure iframes for card entry.
  */
 const ZENPAYMENTS_API_BASE = process.env.ZENPAYMENTS_API_BASE || 'https://zendashboard.com';
-// IMPORTANT: Values pasted into .env / Render env vars often include quotes or leading/trailing spaces.
-// ZenPayments treats extra whitespace as invalid credentials (401).
-const ZENPAYMENTS_API_TOKEN = (process.env.ZENPAYMENTS_API_TOKEN || '').trim(); // Required
-const ZENPAYMENTS_TERMINAL_ID = (process.env.ZENPAYMENTS_TERMINAL_ID || '').trim(); // Required (unless you pass terminalId from client)
+const ZENPAYMENTS_API_TOKEN = process.env.ZENPAYMENTS_API_TOKEN;          // Required
+const ZENPAYMENTS_TERMINAL_ID = process.env.ZENPAYMENTS_TERMINAL_ID;      // Required (unless you pass terminalId from client)
 const ZENPAYMENTS_DOMAIN = process.env.ZENPAYMENTS_DOMAIN || null;        // Optional override (e.g. miamivapesmoke.com)
 
 const _fetch = (typeof fetch === 'function') ? fetch : null;
@@ -1980,21 +1968,13 @@ app.post('/api/zen/hosted-fields/token', async (req, res) => {
       return res.status(500).json({ error: 'Missing ZENPAYMENTS_API_TOKEN environment variable.' });
     }
 
-    const terminalIdRaw = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
-// Zen expects the *Terminal Number / TID* (often like 7000) as an integer.
-const terminalId = Number.parseInt(String(terminalIdRaw || '').trim(), 10);
-
-if (!Number.isInteger(terminalId)) {
-  return res.status(400).json({
-    error: 'Missing/invalid terminalId. ZENPAYMENTS_TERMINAL_ID must be the Terminal Number (e.g., 7000) and it must be numeric.',
-    received: terminalIdRaw
-  });
-}
+    const terminalId = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
+    if (!terminalId) {
+      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server.' });
+    }
 
     // ZenPayments expects a domain value that matches the site where Hosted Fields will be embedded.
     const domain = ZENPAYMENTS_DOMAIN || (req.headers.host || '').replace(/^https?:\/\//, '');
-
-    console.log('[ZenPayments] Requesting Hosted Fields token', { terminalId, domain, base: ZENPAYMENTS_API_BASE });
 
     const zenResp = await _fetch(`${ZENPAYMENTS_API_BASE}/api/hosted-fields/token`, {
       method: 'POST',
@@ -2029,115 +2009,6 @@ if (!Number.isInteger(terminalId)) {
     return res.status(500).json({ error: 'Server error requesting Hosted Fields token.' });
   }
 });
-
-/* --------------------  Authorize.Net Accept.js -------------------- */
-/*
-  Required env vars:
-    AUTHORIZE_NET_API_LOGIN_ID
-    AUTHORIZE_NET_TRANSACTION_KEY
-    AUTHORIZE_NET_CLIENT_KEY   (public client key used by Accept.js on the browser)
-    AUTHORIZE_NET_ENV=production  (optional; default sandbox)
-*/
-const AUTHORIZE_NET_ENDPOINT =
-  ((process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || '')).toLowerCase() === 'production'
-    ? 'https://api.authorize.net/xml/v1/request.api'
-    : 'https://apitest.authorize.net/xml/v1/request.api';
-
-app.post('/api/authorize/charge', async (req, res) => {
-  try {
-    const { APIContracts, APIControllers } = authorizenet;
-
-    const loginId = clean(
-      process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || ''
-    );
-    const txnKey = clean(process.env.AUTHORIZE_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANSACTION_KEY || '');
-
-    if (!loginId || !txnKey) {
-      return res.status(500).json({ error: 'Authorize.Net credentials missing on server.' });
-    }
-
-    const opaqueData = req.body?.opaqueData;
-    const totals = req.body?.totals || {};
-    const amountRaw = totals.total ?? req.body?.amount;
-
-    const amount = Number(amountRaw);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid amount.' });
-    }
-
-    if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
-      return res.status(400).json({ error: 'Missing opaqueData from Accept.js.' });
-    }
-
-    const customer = req.body?.customer || {};
-    const billing = req.body?.billing || {};
-
-    const merchantAuthenticationType = new APIContracts.MerchantAuthenticationType();
-    merchantAuthenticationType.setName(loginId);
-    merchantAuthenticationType.setTransactionKey(txnKey);
-
-    const opaqueDataType = new APIContracts.OpaqueDataType();
-    opaqueDataType.setDataDescriptor(opaqueData.dataDescriptor);
-    opaqueDataType.setDataValue(opaqueData.dataValue);
-
-    const paymentType = new APIContracts.PaymentType();
-    paymentType.setOpaqueData(opaqueDataType);
-
-    const transactionRequestType = new APIContracts.TransactionRequestType();
-    transactionRequestType.setTransactionType(APIContracts.TransactionTypeEnum.AUTHCAPTURETRANSACTION);
-    transactionRequestType.setPayment(paymentType);
-    transactionRequestType.setAmount(amount.toFixed(2));
-
-    if (customer.email) {
-      const customerData = new APIContracts.CustomerDataType();
-      customerData.setEmail(customer.email);
-      transactionRequestType.setCustomer(customerData);
-    }
-
-    // Optional billing address (helps approval rates)
-    if (billing && (billing.firstName || billing.lastName || billing.address || billing.zip)) {
-      const billTo = new APIContracts.CustomerAddressType();
-      if (billing.firstName) billTo.setFirstName(String(billing.firstName));
-      if (billing.lastName) billTo.setLastName(String(billing.lastName));
-      if (billing.address) billTo.setAddress(String(billing.address));
-      if (billing.city) billTo.setCity(String(billing.city));
-      if (billing.state) billTo.setState(String(billing.state));
-      if (billing.zip) billTo.setZip(String(billing.zip));
-      if (billing.country) billTo.setCountry(String(billing.country));
-      if (billing.phoneNumber) billTo.setPhoneNumber(String(billing.phoneNumber));
-      transactionRequestType.setBillTo(billTo);
-    }
-
-    const createRequest = new APIContracts.CreateTransactionRequest();
-    createRequest.setMerchantAuthentication(merchantAuthenticationType);
-    createRequest.setTransactionRequest(transactionRequestType);
-
-    const controller = new APIControllers.CreateTransactionController(createRequest.getJSON());
-    controller.setEnvironment(AUTHORIZE_NET_ENDPOINT);
-
-    controller.execute(() => {
-      const apiResponse = controller.getResponse();
-      const response = new APIContracts.CreateTransactionResponse(apiResponse);
-
-      if (response.getMessages().getResultCode() === APIContracts.MessageTypeEnum.OK) {
-        const t = response.getTransactionResponse();
-        const transId = t?.getTransId?.() || t?.transId;
-        return res.json({ ok: true, transactionId: transId || null, raw: t });
-      }
-
-      const t = response.getTransactionResponse && response.getTransactionResponse();
-      const errorText =
-        t?.getErrors?.()?.getError?.()?.[0]?.getErrorText?.() ||
-        response.getMessages?.()?.getMessage?.()?.[0]?.getText?.() ||
-        'Transaction failed.';
-      return res.status(400).json({ error: errorText, details: { transaction: t } });
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'Authorize.Net charge failed', details: String(err?.message || err) });
-  }
-});
-
-
 app.get('/faq', (_req, res) => {
   res.render('faq', {
     title: 'FAQ • Miami Vape Smoke Shop',
@@ -2151,11 +2022,13 @@ app.get('/products', async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = PRODUCTS_PAGE_SIZE;
-    
+
     const q = (req.query.q || '').trim();
     const sort = (req.query.sort || 'newest').toLowerCase();
     const category = (req.query.category || '').trim();
     const categoryId = category && !Number.isNaN(Number(category)) ? Number(category) : null;
+    const requestedShop = String(req.query.shop || 'either').toLowerCase();
+    const selectedShop = STORE_OPTION_MAP.has(requestedShop) ? requestedShop : 'either';
 
     // WHERE
     const where = [];
@@ -2269,13 +2142,30 @@ app.get('/products', async (req, res) => {
           if (!fullGroup) {
             return group;
           }
-          const seen = new Set(group.variants.map(v => v.id));
-          const mergedVariants = [...group.variants];
-          fullGroup.variants.forEach(variant => {
-            if (!seen.has(variant.id)) {
-              mergedVariants.push(variant);
+          const normalizeFlavorKey = (value) => {
+            const trimmed = (value || 'Original').trim();
+            return (trimmed || 'Original').toUpperCase();
+          };
+          const flavorMap = new Map();
+          const mergedVariants = [];
+          const registerVariant = (variant) => {
+            const key = normalizeFlavorKey(variant.flavor);
+            const existing = flavorMap.get(key);
+            if (existing) {
+              existing.total_qty = Number(existing.total_qty || 0) + Number(variant.total_qty || 0);
+              if (!existing.has_image && variant.has_image) {
+                existing.image_url = variant.image_url;
+                existing.image_alt = variant.image_alt;
+                existing.has_image = true;
+              }
+              return;
             }
-          });
+            const payload = { ...variant };
+            flavorMap.set(key, payload);
+            mergedVariants.push(payload);
+          };
+          group.variants.forEach(registerVariant);
+          fullGroup.variants.forEach(registerVariant);
           return {
             ...group,
             variants: mergedVariants,
@@ -2283,41 +2173,21 @@ app.get('/products', async (req, res) => {
         });
       }
     }
-    
+
     const estimatedGroupedTotal = totalGrouped;
 
     // Get all categories
     const [categoriesRows] = await queryWithRetry('SELECT id, name, slug FROM categories ORDER BY id ASC');
     const categories = (categoriesRows || []).filter((cat) => !HIDDEN_CATEGORY_NAMES.has((cat.name || '').toUpperCase()));
 
-    // Build store options for the Products page UI (prevents storeOptions undefined)
-    let storeOptions = [];
-    try {
-      const [storesRows] = await queryWithRetry('SELECT id, name, address FROM stores ORDER BY id ASC');
-      const slugFor = (name) => {
-        const n = String(name || '').toLowerCase();
-        if (n.includes('calle')) return 'calle8';
-        if (n.includes('79')) return '79th';
-        return n.replace(/[^a-z0-9]+/g, '');
-      };
-      storeOptions = (storesRows || []).map((st) => ({
-        db_id: st.id,
-        id: slugFor(st.name),
-        name: st.name,
-        address: st.address,
-      }));
-    } catch (_) {
-      storeOptions = [];
-    }
-    const selectedShop = (req.query.shop || (storeOptions[0] && storeOptions[0].id) || 'calle8');
-
     res.render('products', {
       products: finalProducts,
       page, pageSize, total: estimatedGroupedTotal,
-      shop: selectedShop, q, sort, category,
-      categories,
-      storeOptions,
+      shop: selectedShop,
       selectedShop,
+      storeOptions: STORE_CHOICES,
+      q, sort, category,
+      categories,
       title: 'Shop Products • Miami Vape Smoke Shop',
       description: 'Same-day pickup or delivery from either location.',
     });
@@ -2336,3 +2206,18 @@ app.listen(PORT, async () => {
   await ensureSnapshotTables();
   await seedVariantImages();
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
