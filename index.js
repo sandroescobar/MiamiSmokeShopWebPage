@@ -83,25 +83,28 @@ const CONTACT_INFO = {
 
 const STORE_CHOICES = [
   {
-    id: 'either',
-    label: 'Either store',
-    address: 'See everything in stock',
-    note: 'Fastest fulfillment across Miami'
-  },
-  {
     id: 'calle8',
-    label: 'Calle 8 (West Miami)',
-    address: '6346 SW 8th St, West Miami, FL 33144',
-    note: 'Pickup + delivery south of the river'
+    label: 'Calle 8',
+    address: CONTACT_INFO.addresses[0],
+    note: 'Closest for Coral Gables, West Miami, Little Havana deliveries',
   },
   {
     id: '79th',
-    label: '79th St (Upper Eastside)',
-    address: '351 NE 79th St Unit 101, Miami, FL 33138',
-    note: 'Pickup + delivery for North Miami and the Beach'
-  }
+    label: '79th Street',
+    address: CONTACT_INFO.addresses[1],
+    note: 'Best for Upper Eastside, Wynwood, Miami Shores, Biscayne Corridor',
+  },
+  {
+    id: 'either',
+    label: 'Either location',
+    address: 'Show everything we can source from both stores',
+    note: 'Browse the full catalog and we will confirm pickup or delivery availability',
+  },
 ];
-const STORE_OPTION_MAP = new Map(STORE_CHOICES.map((option) => [option.id, option]));
+
+const STORE_CHOICE_MAP = new Map(STORE_CHOICES.map((choice) => [choice.id, choice]));
+const STORE_NAME_BY_ID = Object.fromEntries(STORE_CHOICES.map((choice) => [choice.id, choice.label]));
+const DEFAULT_SHOP = 'either';
 
 const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
@@ -148,19 +151,50 @@ const PRODUCT_EXCLUSION_KEYWORDS = [
 ];
 const PRODUCTS_PAGE_SIZE = 30;
 const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th'];
-const SNAPSHOT_ROWS_SQL = SNAPSHOT_TABLES
-  .map((table) => `SELECT name, quantity, is_active FROM \`${table}\``)
-  .join('\n    UNION ALL\n    ');
-const SNAPSHOT_AGG_SQL = `
-  SELECT
-    UPPER(name) AS name_key,
-    SUM(CASE WHEN COALESCE(is_active, 1) = 1 THEN quantity ELSE 0 END) AS total_qty,
-    MAX(CASE WHEN COALESCE(is_active, 1) = 1 THEN 1 ELSE 0 END) AS any_active
-  FROM (
-    ${SNAPSHOT_ROWS_SQL}
-  ) snapshot_rows
-  GROUP BY UPPER(name)
-`;
+const SHOP_TABLES = {
+  either: SNAPSHOT_TABLES,
+  calle8: ['inventory_calle8'],
+  '79th': ['inventory_79th']
+};
+const SHOP_ALIAS_MAP = new Map([
+  ['either', 'either'],
+  ['either store', 'either'],
+  ['both', 'either'],
+  ['all', 'either'],
+  ['calle8', 'calle8'],
+  ['calle 8', 'calle8'],
+  ['calle-8', 'calle8'],
+  ['8th', 'calle8'],
+  ['79th', '79th'],
+  ['79', '79th'],
+  ['79th street', '79th']
+]);
+
+function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
+  const list = Array.isArray(tables) && tables.length ? tables : SNAPSHOT_TABLES;
+  const rowsSql = list
+    .map((table) => `SELECT name, quantity, is_active FROM \`${table}\``)
+    .join('\n    UNION ALL\n    ');
+  return `
+    SELECT
+      UPPER(name) AS name_key,
+      SUM(CASE WHEN COALESCE(is_active, 1) = 1 THEN quantity ELSE 0 END) AS total_qty,
+      MAX(CASE WHEN COALESCE(is_active, 1) = 1 THEN 1 ELSE 0 END) AS any_active
+    FROM (
+      ${rowsSql}
+    ) snapshot_rows
+    GROUP BY UPPER(name)
+  `;
+}
+
+function normalizeShop(value = '') {
+  const key = String(value || '').trim().toLowerCase();
+  return SHOP_ALIAS_MAP.get(key) || DEFAULT_SHOP;
+}
+
+function getStoreChoice(id = DEFAULT_SHOP) {
+  return STORE_CHOICE_MAP.get(id) || STORE_CHOICE_MAP.get(DEFAULT_SHOP);
+}
 
 function containsExcludedKeyword(value = '') {
   const upperValue = value.toUpperCase();
@@ -223,11 +257,6 @@ function buildImageReadyBaseSet(map = new Map()) {
 
 function applyLocalQtyOverride(items = []) {
   if (!SHOW_ALL_LOCAL) return items;
-  for (const item of items) {
-    if (Number(item.total_qty || 0) <= 0) {
-      item.total_qty = 999;
-    }
-  }
   return items;
 }
 
@@ -485,6 +514,246 @@ const VARIANT_IMAGE_MAPPINGS = [
     imageAlt: 'GEEKBAR X 25K • Watermelon Ice'
   },
   {
+    match: 'RAZ LTX 25K BANGIN SOUR BERRIES',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/BANGINSOURBERRIES.jpg',
+    imageAlt: 'RAZ LTX 25K • Bangin Sour Berries'
+  },
+  {
+    match: 'RAZ LTX 25K BLUEBERRY PUNCH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/BLUEBERRYPUNCH.jpg',
+    imageAlt: 'RAZ LTX 25K • Blueberry Punch'
+  },
+  {
+    match: 'RAZ LTX 25K BLUEBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/BLUEBERRYWATERMELON.jpg',
+    imageAlt: 'RAZ LTX 25K • Blueberry Watermelon'
+  },
+  {
+    match: 'RAZ LTX 25K BLUE RAZ GUSH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/BLUERAZGUSH.jpg',
+    imageAlt: 'RAZ LTX 25K • Blue Raz Gush'
+  },
+  {
+    match: 'RAZ LTX 25K BLUE RAZ ICE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/BLUERAZICE.jpg',
+    imageAlt: 'RAZ LTX 25K • Blue Raz Ice'
+  },
+  {
+    match: 'RAZ LTX 25K CHERRY STRAPPLE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/CHERRYSTRAPPLE.jpg',
+    imageAlt: 'RAZ LTX 25K • Cherry Strapple'
+  },
+  {
+    match: 'RAZ LTX 25K CLEAR DIAMOND',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/CLEARDIAMOND.jpg',
+    imageAlt: 'RAZ LTX 25K • Clear Diamond'
+  },
+  {
+    match: 'RAZ LTX 25K CLEAR SAPPHIRE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/CLEARSAPPHIRE.jpg',
+    imageAlt: 'RAZ LTX 25K • Clear Sapphire'
+  },
+  {
+    match: 'RAZ LTX 25K FIRE & ICE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FIRE%26ICE.jpg',
+    imageAlt: 'RAZ LTX 25K • Fire & Ice'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN RASPBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENASPBERRYWATERMELON.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Raspberry Watermelon'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN BANANA',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENBANANA.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Banana'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN CHERRY APPLE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENCHERRYAPPLE.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Cherry Apple'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN DRAGON FRUIT LEMON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENDRAGONFRUITLEMON.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Dragon Fruit Lemon'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN JUICY STRAWBERRY',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENJUICYSTRAWBERRY.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Juicy Strawberry'
+  },
+  {
+    match: 'RAZ LTX 25K GEORGIA PEACH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/GEORGIAPEACH.jpg',
+    imageAlt: 'RAZ LTX 25K • Georgia Peach'
+  },
+  {
+    match: 'RAZ LTX 25K HAWAIIAN PUNCH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/HAWAIIANPUNCH.jpg',
+    imageAlt: 'RAZ LTX 25K • Hawaiian Punch'
+  },
+  {
+    match: 'RAZ LTX 25K ICED BLUE DRAGON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/ICEDBLUEDRAGON.jpg',
+    imageAlt: 'RAZ LTX 25K • Iced Blue Dragon'
+  },
+  {
+    match: 'RAZ LTX 25K MANGO LOCO',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/MANGO%20LOCO.jpg',
+    imageAlt: 'RAZ LTX 25K • Mango Loco'
+  },
+  {
+    match: 'RAZ LTX 25K MIAMI MINT',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/MIAMIMINT.jpg',
+    imageAlt: 'RAZ LTX 25K • Miami Mint'
+  },
+  {
+    match: 'RAZ LTX 25K NEW YORK MINT',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/NEWYORKMINT.jpg',
+    imageAlt: 'RAZ LTX 25K • New York Mint'
+  },
+  {
+    match: 'RAZ LTX 25K NIGHT CRAWLER',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/NIGHTCRAWLER.jpg',
+    imageAlt: 'RAZ LTX 25K • Night Crawler'
+  },
+  {
+    match: 'RAZ LTX 25K ORANGE MANGO',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/ORANGEMANGO.jpg',
+    imageAlt: 'RAZ LTX 25K • Orange Mango'
+  },
+  {
+    match: 'RAZ LTX 25K ORANGE PINEAPPLE PUNCH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/ORANGEPINEAPPLEPUNCH.jpg',
+    imageAlt: 'RAZ LTX 25K • Orange Pineapple Punch'
+  },
+  {
+    match: 'RAZ LTX 25K PINK LEMONADE MINTY O\'S',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/PINKLEMONADEMINTY%20O%27S.jpg',
+    imageAlt: 'RAZ LTX 25K • Pink Lemonade Minty O\'s'
+  },
+  {
+    match: 'RAZ LTX 25K SOUR APPLE ICE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/SOURAPPLEICE.jpg',
+    imageAlt: 'RAZ LTX 25K • Sour Apple Ice'
+  },
+  {
+    match: 'RAZ LTX 25K SOUR APPLE WATERMELON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/SOURAPPLEWATERMELON.jpg',
+    imageAlt: 'RAZ LTX 25K • Sour Apple Watermelon'
+  },
+  {
+    match: 'RAZ LTX 25K SOUR RASPBERRY PUNCH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/SOURRASPBERRYPUNCH.jpg',
+    imageAlt: 'RAZ LTX 25K • Sour Raspberry Punch'
+  },
+  {
+    match: 'RAZ LTX 25K SOUR WATERMELON PEACH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/SOURWATERMELONPEACH.jpg',
+    imageAlt: 'RAZ LTX 25K • Sour Watermelon Peach'
+  },
+  {
+    match: 'RAZ LTX 25K STRAWBERRY BURST',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/STRAWBERRYBURST.jpg',
+    imageAlt: 'RAZ LTX 25K • Strawberry Burst'
+  },
+  {
+    match: 'RAZ LTX 25K STRAWBERRY KIWI PEAR',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/STRAWBERRYKIWIPEAR.jpg',
+    imageAlt: 'RAZ LTX 25K • Strawberry Kiwi Pear'
+  },
+  {
+    match: 'RAZ LTX 25K STRAWBERRY ORANGE TANG',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/STRAWBERRYORANGETANG.jpg',
+    imageAlt: 'RAZ LTX 25K • Strawberry Orange Tang'
+  },
+  {
+    match: 'RAZ LTX 25K STRAWBERRY PEACH GUSH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/STRAWBERRYPEACHGUSH.jpg',
+    imageAlt: 'RAZ LTX 25K • Strawberry Peach Gush'
+  },
+  {
+    match: 'RAZ LTX 25K TRIPLE BERRY GUSH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/TRIPLEBERRYGUSH.jpg',
+    imageAlt: 'RAZ LTX 25K • Triple Berry Gush'
+  },
+  {
+    match: 'RAZ LTX 25K TRIPLE BERRY PUNCH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/TRIPLEBERRYPUNCH.jpg',
+    imageAlt: 'RAZ LTX 25K • Triple Berry Punch'
+  },
+  {
+    match: 'RAZ LTX 25K TROPICAL GUSH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/TROPICALGUSH.jpg',
+    imageAlt: 'RAZ LTX 25K • Tropical Gush'
+  },
+  {
+    match: 'RAZ LTX 25K WATERMELON ICE',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/WATERMELONICE.jpg',
+    imageAlt: 'RAZ LTX 25K • Watermelon Ice'
+  },
+  {
+    match: 'RAZ LTX 25K WHITE GRAPE GUSH',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/WHITEGRAPEGUSH.jpg',
+    imageAlt: 'RAZ LTX 25K • White Grape Gush'
+  },
+  {
+    match: 'RAZ LTX 25K WINTERGREEN',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/WINTERGREEN.jpg',
+    imageAlt: 'RAZ LTX 25K • Wintergreen'
+  },
+  {
+    match: 'RAZ LTX 25K FROZEN ASPBERRY WATERMELON',
+    imageUrl: '/images/imagesForProducts/RAZ%20LTX%2025K/FROZENASPBERRYWATERMELON.jpg',
+    imageAlt: 'RAZ LTX 25K • Frozen Aspberry Watermelon'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K BLUEBERRY ICE',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/BLUEBERRYICE.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Blueberry Ice'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K COOL MINT',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/COOLMINT.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Cool Mint'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K GRAPE ICE',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/GRAPEICE.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Grape Ice'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K LADY KILLER',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/LADYKILLER.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Lady Killer'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K LOVE 66',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/LOVE66.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Love 66'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K PEACH MANGO WATERMELON',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/PEACHMANGOWATERMELON.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Peach Mango Watermelon'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K PINEAPPLE COCONUT',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/PINEAPPLECOCONUT.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Pineapple Coconut'
+  },
+  {
+    match: 'OLIT HOOKALIT 40K STRAWBERRY KIWI',
+    imageUrl: '/images/imagesForProducts/OLITHOOKALIT40K/STRAWBERRYKIWI.jpg',
+    imageAlt: 'OLIT HOOKALIT 40K • Strawberry Kiwi'
+  },
+  {
+    match: 'GRABBA LEAF SMALL',
+    imageUrl: '/images/imagesForProducts/GRABBALEAFSMALL/GRABBALEAFSMALL.jpg',
+    imageAlt: 'Grabba Leaf Small'
+  },
+  {
     match: 'CUVIE PLUS BLUEBERRY',
     imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLUEBERRY.jpg',
     imageAlt: 'Cuvie Plus • Blueberry'
@@ -523,6 +792,26 @@ const VARIANT_IMAGE_MAPPINGS = [
     match: 'CUVIE PLUS APPLE PEACH',
     imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/APPLEPEACH.jpeg',
     imageAlt: 'Cuvie Plus • Apple Peach'
+  },
+  {
+    match: 'CUVIE PLUS BLACK DIAMOND',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLACKDIAMOND.jpg',
+    imageAlt: 'Cuvie Plus • Black Diamond'
+  },
+  {
+    match: 'CUVIE PLUS BLACK DRAGON',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/BLACKDRAGON.jpg',
+    imageAlt: 'Cuvie Plus • Black Dragon'
+  },
+  {
+    match: 'CUVIE PLUS PINEAPPLE ICE',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/PINEAPPLEICE.jpg',
+    imageAlt: 'Cuvie Plus • Pineapple Ice'
+  },
+  {
+    match: 'CUVIE PLUS TRES LECHES',
+    imageUrl: '/images/imagesForProducts/CUVIE%20PLUS/TRESLECHES.jpg',
+    imageAlt: 'Cuvie Plus • Tres Leches'
   },
   {
     match: 'CUVIE PLUS BLACK ICE',
@@ -1606,6 +1895,12 @@ function normalizeProductName(name) {
       value = value.replace(/^RAZ LTX\b/i, 'RAZ LTX 25K');
     }
   }
+  if (/^RAZ\s*LTX\s*25K\b/i.test(value) && /FROZEN\s+CHERRY\s+PIE/i.test(value)) {
+    value = value.replace(/FROZEN\s+CHERRY\s+PIE/gi, 'FROZEN CHERRY APPLE');
+  }
+  if (/^RAZ\s*LTX\s*25K\b/i.test(value) && /PINK\s+LEMONADE\s+MINTY/i.test(value)) {
+    value = value.replace(/PINK\s+LEMONADE\s+MINTY(?:\s+O'?S?)?/gi, "PINK LEMONADE MINTY O'S");
+  }
   if (/^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b/i.test(value)) {
     value = value.replace(/^(?:GEEKBAR|GEEK\s?BAR)\s*X\s*(?:25|25K)\b/i, 'GEEKBAR X 25K');
   } else if (/^(?:GEEKBAR|GEEK\s?BAR)\b/i.test(value)) {
@@ -1935,13 +2230,136 @@ async function seedVariantImages() {
 }
 
 /* --------------------  Checkout  -------------------- */
-app.get('/checkout', (_req, res) => {
+app.get('/checkout', (req, res) => {
+  const selectedShop = normalizeShop(req.query.shop);
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
-    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID,
-    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY
+    selectedShop,
+    storeMeta: getStoreChoice(selectedShop),
+    storeOptions: STORE_CHOICES,
+    storeNameMap: STORE_NAME_BY_ID,
+
+    // ---- Authorize.Net (Accept.js) ----
+    // These get injected into checkout.ejs so the browser can tokenize card data.
+    // Make sure these env vars are set where your app runs.
+    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID || '',
+    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY || '',
+    authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
+});
+
+
+/* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
+/**
+ * Client: checkout.ejs tokenizes card details via Accept.js -> opaqueData
+ * Server: uses opaqueData + merchant auth to create an authCaptureTransaction.
+ *
+ * SECURITY NOTE:
+ * Right now the client sends totals computed from localStorage. That's not secure.
+ * For production, compute the amount on the server from your cart/order items.
+ */
+app.post('/api/authorize/charge', async (req, res) => {
+  try {
+    const { opaqueData, totals, customer, billing } = req.body || {};
+
+    if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
+      return res.status(400).json({ error: 'Missing opaqueData token.' });
+    }
+
+    const loginId = process.env.AUTH_NET_LOGIN_ID;
+    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANS_KEY;
+    const env = (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')).toLowerCase();
+
+    if (!loginId || !transactionKey) {
+      return res.status(500).json({ error: 'Authorize.Net server keys are not configured (loginId/transactionKey missing).' });
+    }
+
+    const amountNum = Number(totals?.total);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ error: 'Invalid total amount.' });
+    }
+    const amount = amountNum.toFixed(2);
+
+    const endpoint = env === 'production'
+      ? 'https://api.authorize.net/xml/v1/request.api'
+      : 'https://apitest.authorize.net/xml/v1/request.api';
+
+    // Build request (JSON version of Authorize.Net createTransactionRequest)
+    const payload = {
+      createTransactionRequest: {
+        merchantAuthentication: {
+          name: loginId,
+          transactionKey,
+        },
+        refId: `ref_${Date.now()}`,
+        transactionRequest: {
+          transactionType: 'authCaptureTransaction',
+          amount,
+          payment: {
+            opaqueData: {
+              dataDescriptor: opaqueData.dataDescriptor,
+              dataValue: opaqueData.dataValue,
+            },
+          },
+          // Optional but helpful fields
+          customer: customer?.email ? { email: String(customer.email) } : undefined,
+          billTo: billing ? {
+            firstName: billing.firstName || undefined,
+            lastName: billing.lastName || undefined,
+            address: billing.address || undefined,
+            city: billing.city || undefined,
+            state: billing.state || undefined,
+            zip: billing.zip || undefined,
+            country: billing.country || 'US',
+            phoneNumber: billing.phoneNumber || undefined,
+          } : undefined,
+        },
+      },
+    };
+
+    // Remove undefined fields so Authorize.Net doesn't complain
+    if (!payload.createTransactionRequest.transactionRequest.customer) delete payload.createTransactionRequest.transactionRequest.customer;
+    if (!payload.createTransactionRequest.transactionRequest.billTo) delete payload.createTransactionRequest.transactionRequest.billTo;
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok || !data) {
+      return res.status(502).json({ error: 'Authorize.Net request failed.' });
+    }
+
+    const resultCode = data?.messages?.resultCode;
+    const t = data?.transactionResponse;
+
+    if (resultCode !== 'Ok' || !t) {
+      const msg = data?.messages?.message?.[0]?.text
+        || t?.errors?.[0]?.errorText
+        || 'Payment failed.';
+      return res.status(400).json({ error: msg });
+    }
+
+    // Approved transactions generally include responseCode === '1'
+    if (String(t.responseCode) !== '1') {
+      const errMsg = t?.errors?.[0]?.errorText || 'Payment was not approved.';
+      return res.status(400).json({ error: errMsg });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      transactionId: t.transId,
+      authCode: t.authCode,
+      avsResultCode: t.avsResultCode,
+      cvvResultCode: t.cvvResultCode,
+    });
+  } catch (err) {
+    console.error('[authorize.net] charge error:', err?.message || err);
+    return res.status(500).json({ error: 'Server error while charging card.' });
+  }
 });
 
 
@@ -2023,13 +2441,15 @@ app.get('/products', async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
     const pageSize = PRODUCTS_PAGE_SIZE;
+    const selectedShop = normalizeShop(req.query.shop);
+    const snapshotTables = SHOP_TABLES[selectedShop] || SNAPSHOT_TABLES;
+    const snapshotAggSql = buildSnapshotAggSql(snapshotTables);
+    const storeMeta = getStoreChoice(selectedShop);
 
     const q = (req.query.q || '').trim();
     const sort = (req.query.sort || 'newest').toLowerCase();
     const category = (req.query.category || '').trim();
     const categoryId = category && !Number.isNaN(Number(category)) ? Number(category) : null;
-    const requestedShop = String(req.query.shop || 'either').toLowerCase();
-    const selectedShop = STORE_OPTION_MAP.has(requestedShop) ? requestedShop : 'either';
 
     // WHERE
     const where = [];
@@ -2066,13 +2486,13 @@ app.get('/products', async (req, res) => {
     const inventoryJoinSql = SHOW_ALL_LOCAL
       ? `
         LEFT JOIN (
-          ${SNAPSHOT_AGG_SQL}
+          ${snapshotAggSql}
         ) snap ON snap.name_key = UPPER(p.name)
         LEFT JOIN product_images pi ON pi.product_id = p.id
       `
       : `
         INNER JOIN (
-          ${SNAPSHOT_AGG_SQL}
+          ${snapshotAggSql}
         ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
         LEFT JOIN product_images pi ON pi.product_id = p.id
       `;
@@ -2183,12 +2603,16 @@ app.get('/products', async (req, res) => {
 
     res.render('products', {
       products: finalProducts,
-      page, pageSize, total: estimatedGroupedTotal,
-      shop: selectedShop,
-      selectedShop,
-      storeOptions: STORE_CHOICES,
-      q, sort, category,
+      page,
+      pageSize,
+      total: estimatedGroupedTotal,
+      q,
+      sort,
+      category,
       categories,
+      selectedShop,
+      storeMeta,
+      storeOptions: STORE_CHOICES,
       title: 'Shop Products • Miami Vape Smoke Shop',
       description: 'Same-day pickup or delivery from either location.',
     });
