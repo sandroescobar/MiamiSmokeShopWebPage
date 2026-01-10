@@ -1932,14 +1932,22 @@ async function seedVariantImages() {
 }
 
 /* --------------------  Checkout  -------------------- */
-app.get('/checkout', (_req, res) => {
-  const authorizeLoginId = process.env.AUTH_NET_LOGIN_ID || '';
-  const authorizeClientKey = process.env.AUTH_NET_CLIENT_KEY || '';
+app.get('/checkout', (req, res) => {
+  // Accept both naming styles (Render uses AUTHORIZE_NET_*, local may use AUTH_NET_*)
+  const authorizeLoginId = process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || '';
+  const authorizeClientKey = process.env.AUTHORIZE_NET_CLIENT_KEY || process.env.AUTH_NET_CLIENT_KEY || '';
+  const authorizeEnv = (process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || 'sandbox').toLowerCase();
+
+  // Optional query params you already use elsewhere
+  const shop = req.query.shop || '';
+
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
+    shop,
     authorizeLoginId,
-    authorizeClientKey
+    authorizeClientKey,
+    authorizeEnv,
   });
 });
 
@@ -2029,7 +2037,7 @@ if (!Number.isInteger(terminalId)) {
     AUTHORIZE_NET_ENV=production  (optional; default sandbox)
 */
 const AUTHORIZE_NET_ENDPOINT =
-  (process.env.AUTHORIZE_NET_ENV || '').toLowerCase() === 'production'
+  ((process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || '')).toLowerCase() === 'production'
     ? 'https://api.authorize.net/xml/v1/request.api'
     : 'https://apitest.authorize.net/xml/v1/request.api';
 
@@ -2037,8 +2045,8 @@ app.post('/api/authorize/charge', async (req, res) => {
   try {
     const { APIContracts, APIControllers } = authorizenet;
 
-    const loginId = process.env.AUTHORIZE_NET_API_LOGIN_ID;
-    const txnKey = process.env.AUTHORIZE_NET_TRANSACTION_KEY;
+    const loginId = process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID;
+    const txnKey = process.env.AUTHORIZE_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANSACTION_KEY;
 
     if (!loginId || !txnKey) {
       return res.status(500).json({ error: 'Authorize.Net credentials missing on server.' });
