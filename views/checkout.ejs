@@ -146,26 +146,25 @@
     .policy-modal__body ul{padding-left:18px;margin:0}
     .policy-modal__loading{color:#475569;font-size:14px;margin:0}
     .policy-modal__error{color:#b91c1c;font-size:14px;margin:0}
-  
 
-/* ---------------- ZenPayments Hosted Fields ---------------- */
-.zp-fields { display: grid; gap: 12px; }
-.zp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.zp-label { font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; display:block; }
-.zp-input {
-  min-height: 44px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: #fff;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-}
-input.zp-input{display:block;}
-.zp-hint { font-size: 0.85rem; color: #64748b; margin-top: 6px; }
-.zp-error { color: #b91c1c; font-size: 0.9rem; margin-top: 8px; }
-.zp-success { color: #15803d; font-size: 0.9rem; margin-top: 8px; }
-</style>
+    /* ---------------- ZenPayments Hosted Fields ---------------- */
+    .zp-fields { display: grid; gap: 12px; }
+    .zp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .zp-label { font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; display:block; }
+    .zp-input {
+      min-height: 44px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #fff;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+    }
+    input.zp-input{display:block;}
+    .zp-hint { font-size: 0.85rem; color: #64748b; margin-top: 6px; }
+    .zp-error { color: #b91c1c; font-size: 0.9rem; margin-top: 8px; }
+    .zp-success { color: #15803d; font-size: 0.9rem; margin-top: 8px; }
+  </style>
 </head>
 <body>
 
@@ -327,9 +326,6 @@ input.zp-input{display:block;}
   <div id="pay-error" class="zp-error" role="alert" aria-live="polite"></div>
 </div>
 
-
-
-
                   </div>
                 </div>
                 <div class="policy-links">
@@ -372,8 +368,9 @@ input.zp-input{display:block;}
     </div>
   </div>
 
-  <!-- ZenPayments Hosted Fields -->
+  <!-- Authorize.Net Accept.js -->
   <script src="https://js.authorize.net/v1/Accept.js"></script>
+
   <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
     <div class="policy-modal__dialog">
       <button type="button" id="policy-modal-close" class="policy-modal__close" aria-label="Close policy details">×</button>
@@ -397,7 +394,6 @@ input.zp-input{display:block;}
       const container = document.getElementById('order-items-container');
       const TAX_RATE = 0.0875;
 
-      // Extract product IDs from cart for inventory checks
       cartProductIds = cart.map(item => item.id).filter(Boolean);
 
       if (cart.length === 0) {
@@ -436,12 +432,8 @@ input.zp-input{display:block;}
     function updateSummaryDelivery() {
       const deliveryEl = document.getElementById('summary-delivery');
       const totalEl = document.getElementById('summary-total');
-      if (deliveryEl) {
-        deliveryEl.textContent = `$${checkoutTotals.delivery.toFixed(2)}`;
-      }
-      if (totalEl) {
-        totalEl.textContent = `$${checkoutTotals.total.toFixed(2)}`;
-      }
+      if (deliveryEl) deliveryEl.textContent = `$${checkoutTotals.delivery.toFixed(2)}`;
+      if (totalEl) totalEl.textContent = `$${checkoutTotals.total.toFixed(2)}`;
     }
 
     function setDeliveryFee(amount) {
@@ -466,9 +458,7 @@ input.zp-input{display:block;}
     }
 
     function estimateDeliveryFee(distance) {
-      if (!distance || Number.isNaN(distance)) {
-        return 9.99;
-      }
+      if (!distance || Number.isNaN(distance)) return 9.99;
       const surcharge = Math.max(0, distance - 4) * 1.25;
       return Math.min(24.99, 10.99 + surcharge);
     }
@@ -479,32 +469,28 @@ input.zp-input{display:block;}
         first: '1st', second: '2nd', third: '3rd', fourth: '4th', fifth: '5th',
         sixth: '6th', seventh: '7th', eighth: '8th', eight: '8th', ninth: '9th', tenth: '10th'
       };
-      return street.replace(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|eight|ninth|tenth)\b/gi, (match) => map[match.toLowerCase()] || match);
+      return street.replace(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|eight|ninth|tenth)\b/gi,
+        (match) => map[match.toLowerCase()] || match
+      );
     }
 
     async function geocodeAddressWithFallback(street, city, state, zip) {
       const normalizedStreet = normalizeStreetTokens(street);
       const attempts = [];
       const formattedOriginal = `${street}, ${city}, ${state} ${zip}`;
-      if (normalizedStreet && normalizedStreet !== street) {
-        attempts.push(`${normalizedStreet}, ${city}, ${state} ${zip}`);
-      }
+      if (normalizedStreet && normalizedStreet !== street) attempts.push(`${normalizedStreet}, ${city}, ${state} ${zip}`);
       attempts.push(formattedOriginal);
 
       for (const address of attempts) {
         const geocodeRes = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
         );
-        if (!geocodeRes.ok || geocodeRes.status === 429) {
-          return null;
-        }
+        if (!geocodeRes.ok || geocodeRes.status === 429) return null;
         const geocodeData = await geocodeRes.json();
         if (geocodeData.length > 0) {
           const lat = parseFloat(geocodeData[0].lat);
           const lng = parseFloat(geocodeData[0].lon);
-          if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-            return { lat, lng };
-          }
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) return { lat, lng };
         }
       }
       return null;
@@ -514,29 +500,17 @@ input.zp-input{display:block;}
       deliveryStoreOptions = [];
       selectedDeliveryStore = null;
       const container = document.getElementById('delivery-stores');
-      if (container) {
-        container.innerHTML = '';
-        container.style.display = 'none';
-      }
+      if (container) { container.innerHTML = ''; container.style.display = 'none'; }
       const info = document.getElementById('closest-store-info');
-      if (info) {
-        info.style.display = 'none';
-      }
+      if (info) info.style.display = 'none';
       const notice = document.getElementById('delivery-availability-notice');
-      if (notice) {
-        notice.style.display = 'none';
-      }
+      if (notice) notice.style.display = 'none';
       setDeliveryFee(0);
     }
 
     function updateClosestStoreHighlight(closest) {
       const info = document.getElementById('closest-store-info');
-      if (!info || !closest) {
-        if (info) {
-          info.style.display = 'none';
-        }
-        return;
-      }
+      if (!info || !closest) { if (info) info.style.display = 'none'; return; }
       const nameEl = document.getElementById('closest-store-name');
       const addressEl = document.getElementById('closest-store-address');
       const distanceEl = document.getElementById('closest-store-distance');
@@ -550,74 +524,62 @@ input.zp-input{display:block;}
 
     function updateDeliveryNotice(selectedOption) {
       const notice = document.getElementById('delivery-availability-notice');
-      if (!notice) {
-        return;
-      }
+      if (!notice) return;
       const messages = [];
       const closest = deliveryStoreOptions[0];
-      if (closest && closest.missingCount > 0) {
-        messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
-      }
-      if (selectedOption && selectedOption.missingCount > 0) {
-        messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
-      }
-      if (messages.length > 0) {
-        notice.innerHTML = messages.join('<br>');
-        notice.style.display = 'block';
-      } else {
-        notice.style.display = 'none';
-      }
+      if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
+      if (selectedOption && selectedOption.missingCount > 0) messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
+      if (messages.length > 0) { notice.innerHTML = messages.join('<br>'); notice.style.display = 'block'; }
+      else { notice.style.display = 'none'; }
     }
 
     function renderDeliveryStores() {
       const container = document.getElementById('delivery-stores');
       const helper = document.getElementById('delivery-store-helper');
-      if (!container) {
-        return;
-      }
+      if (!container) return;
+
       if (!deliveryStoreOptions.length) {
         container.innerHTML = '';
         container.style.display = 'none';
-        if (helper) {
-          helper.style.display = 'block';
-        }
+        if (helper) helper.style.display = 'block';
         updateClosestStoreHighlight(null);
         updateDeliveryNotice(null);
         return;
       }
-      if (helper) {
-        helper.style.display = 'none';
-      }
+
+      if (helper) helper.style.display = 'none';
+
       const totalItems = cartProductIds.length;
-      const cards = deliveryStoreOptions
-        .map((option, idx) => {
-          const checked = selectedDeliveryStore ? selectedDeliveryStore === option.name : idx === 0;
-          const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
-          const availabilityClass = option.missingCount === 0 ? 'available' : 'unavailable';
-          const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
-          const warning = option.missingCount === 0 ? '' : `<div class="store-distance" style="color:#b45309;">Missing ${option.missingCount} item(s)</div>`;
-          return `
-            <label class="store-option">
-              <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
-              <div class="store-header">
-                <div class="store-name">${option.name}</div>
-                <span class="availability ${availabilityClass}">${availabilityLabel}</span>
-              </div>
-              <div class="store-address">${option.address}</div>
-              <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
-              ${warning}
-            </label>
-          `;
-        })
-        .join('');
+      const cards = deliveryStoreOptions.map((option, idx) => {
+        const checked = selectedDeliveryStore ? selectedDeliveryStore === option.name : idx === 0;
+        const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
+        const availabilityClass = option.missingCount === 0 ? 'available' : 'unavailable';
+        const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
+        const warning = option.missingCount === 0 ? '' : `<div class="store-distance" style="color:#b45309;">Missing ${option.missingCount} item(s)</div>`;
+        return `
+          <label class="store-option">
+            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
+            <div class="store-header">
+              <div class="store-name">${option.name}</div>
+              <span class="availability ${availabilityClass}">${availabilityLabel}</span>
+            </div>
+            <div class="store-address">${option.address}</div>
+            <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
+            ${warning}
+          </label>
+        `;
+      }).join('');
+
       container.innerHTML = cards;
       container.style.display = 'block';
+
       container.querySelectorAll('input[name="store_delivery"]').forEach(input => {
         input.addEventListener('change', (e) => {
           selectedDeliveryStore = e.target.value;
           applyDeliverySelection();
         });
       });
+
       applyDeliverySelection();
     }
 
@@ -628,9 +590,8 @@ input.zp-input{display:block;}
         updateDeliveryNotice(null);
         return;
       }
-      if (!selectedDeliveryStore) {
-        selectedDeliveryStore = deliveryStoreOptions[0].name;
-      }
+      if (!selectedDeliveryStore) selectedDeliveryStore = deliveryStoreOptions[0].name;
+
       const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
       selectedDeliveryStore = selectedOption.name;
       setDeliveryFee(selectedOption.fee);
@@ -639,36 +600,37 @@ input.zp-input{display:block;}
     }
 
     async function buildDeliveryStoreOptions(lat, lng) {
-      if (!allStores.length) {
-        clearDeliveryOptions();
-        return;
-      }
+      if (!allStores.length) { clearDeliveryOptions(); return; }
+
       const totalItems = cartProductIds.length;
-      const results = await Promise.all(
-        allStores.map(async store => {
-          const availability = await getStoreAvailability(store.name);
-          const availableCount = Object.values(availability || {}).filter(Boolean).length;
-          const missingCount = Math.max(totalItems - availableCount, 0);
-          const storeLat = parseFloat(store.latitude);
-          const storeLng = parseFloat(store.longitude);
-          const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
-          const fee = estimateDeliveryFee(distance);
-          return { ...store, distance, fee, availableCount, missingCount };
-        })
-      );
+      const results = await Promise.all(allStores.map(async store => {
+        const availability = await getStoreAvailability(store.name);
+        const availableCount = Object.values(availability || {}).filter(Boolean).length;
+        const missingCount = Math.max(totalItems - availableCount, 0);
+
+        const storeLat = parseFloat(store.latitude);
+        const storeLng = parseFloat(store.longitude);
+        const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
+        const fee = estimateDeliveryFee(distance);
+
+        return { ...store, distance, fee, availableCount, missingCount };
+      }));
+
       results.sort((a, b) => a.distance - b.distance);
+
       const previousSelection = selectedDeliveryStore;
       deliveryStoreOptions = results;
+
       if (previousSelection && results.some(option => option.name === previousSelection)) {
         selectedDeliveryStore = previousSelection;
       } else {
         const fullyStocked = results.find(option => option.missingCount === 0);
         selectedDeliveryStore = (fullyStocked || results[0]) ? (fullyStocked || results[0]).name : null;
       }
+
       renderDeliveryStores();
     }
 
-    // Initialize stores
     async function initializeStores() {
       try {
         const res = await fetch('/api/stores');
@@ -694,7 +656,6 @@ input.zp-input{display:block;}
       }
     }
 
-    // Render pickup store selection
     async function renderPickupStores() {
       const container = document.getElementById('pickup-stores');
       let html = '';
@@ -723,7 +684,6 @@ input.zp-input{display:block;}
 
       container.innerHTML = html;
 
-      // Add event listeners
       document.querySelectorAll('input[name="store_pickup"]').forEach(radio => {
         radio.addEventListener('change', async (e) => {
           selectedStore = e.target.value;
@@ -732,20 +692,14 @@ input.zp-input{display:block;}
       });
     }
 
-    // Check inventory for store
     async function getStoreAvailability(storeName) {
       if (cartProductIds.length === 0) return {};
-
       try {
         const res = await fetch('/api/check-inventory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product_ids: cartProductIds,
-            store_name: storeName
-          })
+          body: JSON.stringify({ product_ids: cartProductIds, store_name: storeName })
         });
-
         if (!res.ok) throw new Error('Failed to check inventory');
         return await res.json();
       } catch (err) {
@@ -754,7 +708,6 @@ input.zp-input{display:block;}
       }
     }
 
-    // Display inventory check results
     async function checkInventoryForStore(storeName) {
       const availability = await getStoreAvailability(storeName);
       const unavailable = Object.entries(availability)
@@ -763,7 +716,6 @@ input.zp-input{display:block;}
         .filter(i => i !== -1);
 
       const notice = document.getElementById('pickup-availability-notice');
-
       if (unavailable.length > 0) {
         notice.innerHTML = `⚠️ ${unavailable.length} item(s) not available at ${storeName}`;
         notice.style.display = 'block';
@@ -772,7 +724,6 @@ input.zp-input{display:block;}
       }
     }
 
-    // Handle delivery method toggle
     (function(){
       const radios = document.querySelectorAll('input[name="delivery_method"]');
       const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
@@ -784,31 +735,23 @@ input.zp-input{display:block;}
         const method = (document.querySelector('input[name="delivery_method"]:checked')||{}).value;
         const isDelivery = method === 'uber';
 
-        // Toggle visibility
         pickupSection.style.display = isDelivery ? 'none' : 'block';
         deliverySection.style.display = isDelivery ? 'block' : 'none';
         addressSection.style.display = isDelivery ? 'block' : 'none';
 
-        // Toggle address fields
         addressInputs.forEach(i=>{
           i.disabled = !isDelivery;
           i.required = isDelivery;
         });
 
         if (isDelivery) {
-          if (deliveryStoreOptions.length) {
-            applyDeliverySelection();
-          } else if (userDeliveryLocation) {
-            buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
-          } else {
-            setDeliveryFee(0);
-          }
+          if (deliveryStoreOptions.length) applyDeliverySelection();
+          else if (userDeliveryLocation) buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
+          else setDeliveryFee(0);
         } else {
           setDeliveryFee(0);
           const deliveryNotice = document.getElementById('delivery-availability-notice');
-          if (deliveryNotice) {
-            deliveryNotice.style.display = 'none';
-          }
+          if (deliveryNotice) deliveryNotice.style.display = 'none';
         }
       }
 
@@ -816,7 +759,6 @@ input.zp-input{display:block;}
       update();
     })();
 
-    // Handle delivery address input - find closest store
     (function(){
       const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
       const debounceDelay = 1500;
@@ -847,9 +789,7 @@ input.zp-input{display:block;}
           const coords = await geocodeAddressWithFallback(street, city, state, zip);
 
           if (!coords) {
-            if (helper) {
-              helper.textContent = 'Could not locate that address. Double-check the details.';
-            }
+            if (helper) helper.textContent = 'Could not locate that address. Double-check the details.';
             clearDeliveryOptions();
             return;
           }
@@ -858,9 +798,7 @@ input.zp-input{display:block;}
           await buildDeliveryStoreOptions(coords.lat, coords.lng);
         } catch (err) {
           console.error('Error finding closest store:', err);
-          if (helper) {
-            helper.textContent = 'Something went wrong while finding nearby stores.';
-          }
+          if (helper) helper.textContent = 'Something went wrong while finding nearby stores.';
           clearDeliveryOptions();
         }
       }
@@ -919,20 +857,14 @@ input.zp-input{display:block;}
           openPolicyModal(link.href, link.textContent.trim());
         });
       });
-      if (policyModalClose) {
-        policyModalClose.addEventListener('click', closePolicyModal);
-      }
+      if (policyModalClose) policyModalClose.addEventListener('click', closePolicyModal);
       if (policyModal) {
         policyModal.addEventListener('click', (event) => {
-          if (event.target === policyModal) {
-            closePolicyModal();
-          }
+          if (event.target === policyModal) closePolicyModal();
         });
       }
       document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          closePolicyModal();
-        }
+        if (event.key === 'Escape') closePolicyModal();
       });
     }
 
@@ -940,200 +872,175 @@ input.zp-input{display:block;}
       initializeStores();
       setupPolicyLinks();
     });
-  
 
+    /* ---------------- Authorize.Net Accept.js init ---------------- */
+    const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
+    const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
 
-/* ---------------- Authorize.Net Accept.js init ---------------- */
-const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
-const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
-
-
-function paySetError(msg) {
-  const el = document.getElementById('pay-error');
-  if (el) el.textContent = msg || '';
-}
-
-function paySetHint(msg) {
-  const el = document.getElementById('pay-msg');
-  if (el) el.textContent = msg || '';
-}
-
-function getSelectedDeliveryMethod() {
-  const method = (document.querySelector('input[name="delivery_method"]:checked') || {}).value;
-  return method || 'pickup';
-}
-
-function buildBillingFromForm() {
-  const email = document.querySelector('input[name="email"]')?.value?.trim() || '';
-  const firstName = document.querySelector('input[name="first_name"]')?.value?.trim() || '';
-  const lastName = document.querySelector('input[name="last_name"]')?.value?.trim() || '';
-  const phone = document.querySelector('input[name="phone"]')?.value?.trim() || '';
-
-  const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
-  const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
-  const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
-  const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
-  const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
-
-  const addressLine = [street, unit].filter(Boolean).join(' ');
-  return {
-    customer: { email, firstName, lastName, phone },
-    billing: {
-      firstName,
-      lastName,
-      phoneNumber: phone,
-      address: addressLine,
-      city,
-      state,
-      zip,
-      country: 'US'
+    function paySetError(msg) {
+      const el = document.getElementById('pay-error');
+      if (el) el.textContent = msg || '';
     }
-  };
-}
 
-function parseExp(exp) {
-  // Accepts "MM/YY" or "MMYY" or "MM/YYYY"
-  const raw = String(exp || '').replace(/\s+/g, '');
-  const m = raw.match(/^(\d{2})\s*\/?\s*(\d{2}|\d{4})$/);
-  if (!m) return null;
-  const month = m[1];
-  let year = m[2];
-  if (year.length === 2) year = `20${year}`;
-  return { month, year };
-}
+    function paySetHint(msg) {
+      const el = document.getElementById('pay-msg');
+      if (el) el.textContent = msg || '';
+    }
 
-async function submitCharge(opaqueData) {
-  const { customer, billing } = buildBillingFromForm();
+    function getSelectedDeliveryMethod() {
+      const method = (document.querySelector('input[name="delivery_method"]:checked') || {}).value;
+      return method || 'pickup';
+    }
 
-  const payload = {
-    opaqueData,
-    totals: checkoutTotals,
-    customer: { email: customer.email },
-    billing,
-    deliveryMethod: getSelectedDeliveryMethod(),
-    pickupStore: selectedStore,
-    selectedDeliveryStore
-  };
+    function buildBillingFromForm() {
+      const email = document.querySelector('input[name="email"]')?.value?.trim() || '';
+      const firstName = document.querySelector('input[name="first_name"]')?.value?.trim() || '';
+      const lastName = document.querySelector('input[name="last_name"]')?.value?.trim() || '';
+      const phone = document.querySelector('input[name="phone"]')?.value?.trim() || '';
 
-  const resp = await fetch('/api/authorize/charge', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+      const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
+      const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
+      const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
+      const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
+      const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
 
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(data?.error || 'Payment failed. Please try again.');
-  }
-  return data;
-}
+      const addressLine = [street, unit].filter(Boolean).join(' ');
+      return {
+        customer: { email, firstName, lastName, phone },
+        billing: {
+          firstName,
+          lastName,
+          phoneNumber: phone,
+          address: addressLine,
+          city,
+          state,
+          zip,
+          country: 'US'
+        }
+      };
+    }
 
-function tokenizeAndPay() {
-  const btn = document.getElementById('zp-pay-btn');
-  if (!btn) return;
+    function parseExp(exp) {
+      const raw = String(exp || '').replace(/\s+/g, '');
+      const m = raw.match(/^(\d{2})\s*\/?\s*(\d{2}|\d{4})$/);
+      if (!m) return null;
+      const month = m[1];
+      let year = m[2];
+      if (year.length === 2) year = `20${year}`;
+      return { month, year };
+    }
 
-  if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
-    paySetError('Payment configuration missing (Authorize.net keys not set).');
-    return;
-  }
+    async function submitCharge(opaqueData) {
+      const { customer, billing } = buildBillingFromForm();
 
-  paySetError('');
+      const payload = {
+        opaqueData,
+        totals: checkoutTotals,
+        customer: { email: customer.email },
+        billing,
+        deliveryMethod: getSelectedDeliveryMethod(),
+        pickupStore: selectedStore,
+        selectedDeliveryStore
+      };
 
-  if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
-    paySetError('Payment is not configured. Missing Authorize.Net keys on server.');
-    return;
-  }
+      const resp = await fetch('/api/authorize/charge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-  if (!window.Accept || typeof window.Accept.dispatchData !== 'function') {
-    paySetError('Authorize.Net Accept.js failed to load. Refresh and try again.');
-    return;
-  }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || 'Payment failed. Please try again.');
+      return data;
+    }
 
-  const expObj = parseExp(document.getElementById('cardExp')?.value);
-  if (!expObj) {
-    paySetError('Expiration must be in MM/YY format.');
-    return;
-  }
+    function tokenizeAndPay() {
+      const btn = document.getElementById('zp-pay-btn');
+      if (!btn) return;
 
-  const cardData = {
-    cardNumber: (document.getElementById('cardNumber')?.value || '').replace(/\s+/g, ''),
-    month: expObj.month,
-    year: expObj.year,
-    cardCode: (document.getElementById('cardCvv')?.value || '').trim(),
-    fullName: (document.getElementById('cardName')?.value || '').trim()
-  };
-
-  if (!cardData.cardNumber || !cardData.cardCode || !cardData.month || !cardData.year) {
-    paySetError('Please fill out all card fields.');
-    return;
-  }
-
-  btn.disabled = true;
-  paySetHint('Processing payment…');
-
-  const authData = {
-    clientKey: AUTH_NET_CLIENT_KEY,
-    apiLoginID: AUTH_NET_LOGIN_ID
-  };
-
-  window.Accept.dispatchData({ authData, cardData }, async (response) => {
-    try {
-      const result = response?.messages?.resultCode;
-      if (result !== 'Ok') {
-        const msg = response?.messages?.message?.[0]?.text || 'Card tokenization failed.';
-        throw new Error(msg);
+      if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
+        paySetError('Payment configuration missing (Authorize.net keys not set).');
+        return;
       }
-
-      const opaqueData = response.opaqueData;
-      if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
-        throw new Error('Missing token from Authorize.Net.');
-      }
-
-      const charge = await submitCharge(opaqueData);
 
       paySetError('');
-      paySetHint('Payment approved ✅');
 
-      try { localStorage.removeItem('cart'); } catch (_) {}
-      setTimeout(() => { window.location.href = '/'; }, 700);
-    } catch (err) {
-      paySetError(err?.message || 'Payment failed.');
-      paySetHint('Please review your card details and try again.');
-      btn.disabled = false;
+      if (!window.Accept || typeof window.Accept.dispatchData !== 'function') {
+        paySetError('Authorize.Net Accept.js failed to load. Refresh and try again.');
+        return;
+      }
+
+      const expObj = parseExp(document.getElementById('cardExp')?.value);
+      if (!expObj) {
+        paySetError('Expiration must be in MM/YY format.');
+        return;
+      }
+
+      const cardData = {
+        cardNumber: (document.getElementById('cardNumber')?.value || '').replace(/\s+/g, ''),
+        month: expObj.month,
+        year: expObj.year,
+        cardCode: (document.getElementById('cardCvv')?.value || '').trim(),
+        fullName: (document.getElementById('cardName')?.value || '').trim()
+      };
+
+      if (!cardData.cardNumber || !cardData.cardCode || !cardData.month || !cardData.year) {
+        paySetError('Please fill out all card fields.');
+        return;
+      }
+
+      btn.disabled = true;
+      paySetHint('Processing payment…');
+
+      const authData = {
+        clientKey: AUTH_NET_CLIENT_KEY,
+        apiLoginID: AUTH_NET_LOGIN_ID
+      };
+
+      window.Accept.dispatchData({ authData, cardData }, async (response) => {
+        try {
+          const result = response?.messages?.resultCode;
+          if (result !== 'Ok') {
+            const msg = response?.messages?.message?.[0]?.text || 'Card tokenization failed.';
+            throw new Error(msg);
+          }
+
+          const opaqueData = response.opaqueData;
+          if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
+            throw new Error('Missing token from Authorize.Net.');
+          }
+
+          await submitCharge(opaqueData);
+
+          paySetError('');
+          paySetHint('Payment approved ✅');
+
+          try { localStorage.removeItem('cart'); } catch (_) {}
+          setTimeout(() => { window.location.href = '/'; }, 700);
+        } catch (err) {
+          paySetError(err?.message || 'Payment failed.');
+          paySetHint('Please review your card details and try again.');
+          btn.disabled = false;
+        }
+      });
     }
-  });
-}
 
+    window.tokenizeAndPay = tokenizeAndPay;
 
-// Expose for debugging (you can call tokenizeAndPay() from DevTools if needed)
-window.tokenizeAndPay = tokenizeAndPay;
+    function bindPayButton() {
+      const btn = document.getElementById('zp-pay-btn');
+      if (!btn) return;
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
 
-function bindPayButton() {
-  const btn = document.getElementById('zp-pay-btn');
-  if (!btn) {
-    console.error('[checkout] Pay button #zp-pay-btn not found');
-    return;
-  }
-  // Avoid double-binding if this script runs more than once
-  if (btn.dataset.bound === '1') return;
-  btn.dataset.bound = '1';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        tokenizeAndPay();
+      });
+    }
 
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
-    console.log('[checkout] Complete Order clicked');
-    tokenizeAndPay();
-  });
-}
-
-
-
-
-
-
-
-// Bind now (script is at bottom of body), and also on DOMContentLoaded just in case
-bindPayButton();
-document.addEventListener('DOMContentLoaded', bindPayButton);
-</script>
+    bindPayButton();
+    document.addEventListener('DOMContentLoaded', bindPayButton);
+  </script>
 </body>
 </html>

@@ -1938,7 +1938,9 @@ async function seedVariantImages() {
 app.get('/checkout', (_req, res) => {
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
-    description: 'Complete your purchase'
+    description: 'Complete your purchase',
+    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID,
+    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY
   });
 });
 
