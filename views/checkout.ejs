@@ -944,8 +944,9 @@ input.zp-input{display:block;}
 
 
 /* ---------------- Authorize.Net Accept.js init ---------------- */
-const AUTH_NET_LOGIN_ID = <%- JSON.stringify(authorizeLoginId || '') %>;
-const AUTH_NET_CLIENT_KEY = <%- JSON.stringify(authorizeClientKey || '') %>;
+const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
+const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
+
 
 function paySetError(msg) {
   const el = document.getElementById('pay-error');
@@ -1123,6 +1124,12 @@ function bindPayButton() {
     tokenizeAndPay();
   });
 }
+
+
+
+
+
+
 
 // Bind now (script is at bottom of body), and also on DOMContentLoaded just in case
 bindPayButton();
