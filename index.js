@@ -1,7 +1,6 @@
 // index.js (ESM)
 import 'dotenv/config';
 import path from 'path';
-require("dotenv").config();
 import fs from 'fs';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
