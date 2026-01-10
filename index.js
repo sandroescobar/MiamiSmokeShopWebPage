@@ -1934,9 +1934,11 @@ async function seedVariantImages() {
 /* --------------------  Checkout  -------------------- */
 app.get('/checkout', (req, res) => {
   // Accept both naming styles (Render uses AUTHORIZE_NET_*, local may use AUTH_NET_*)
-  const authorizeLoginId = process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || '';
-  const authorizeClientKey = process.env.AUTHORIZE_NET_CLIENT_KEY || process.env.AUTH_NET_CLIENT_KEY || '';
-  const authorizeEnv = (process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || 'sandbox').toLowerCase();
+  const authorizeLoginId = clean(
+    process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || ''
+  ) || '';
+  const authorizeClientKey = clean(process.env.AUTHORIZE_NET_CLIENT_KEY || process.env.AUTH_NET_CLIENT_KEY || '') || '';
+  const authorizeEnv = (clean(process.env.AUTHORIZE_NET_ENV || process.env.AUTH_NET_ENV || 'sandbox') || 'sandbox').toLowerCase();
 
   // Optional query params you already use elsewhere
   const shop = req.query.shop || '';
@@ -2045,8 +2047,10 @@ app.post('/api/authorize/charge', async (req, res) => {
   try {
     const { APIContracts, APIControllers } = authorizenet;
 
-    const loginId = process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID;
-    const txnKey = process.env.AUTHORIZE_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANSACTION_KEY;
+    const loginId = clean(
+      process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTH_NET_API_LOGIN_ID || process.env.AUTH_NET_LOGIN_ID || ''
+    );
+    const txnKey = clean(process.env.AUTHORIZE_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANSACTION_KEY || '');
 
     if (!loginId || !txnKey) {
       return res.status(500).json({ error: 'Authorize.Net credentials missing on server.' });

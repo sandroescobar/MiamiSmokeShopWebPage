@@ -944,8 +944,8 @@ input.zp-input{display:block;}
 
 
 /* ---------------- Authorize.Net Accept.js init ---------------- */
-const AUTH_NET_LOGIN_ID = "<%= authorizeLoginId %>";
-const AUTH_NET_CLIENT_KEY = "<%= authorizeClientKey %>";
+const AUTH_NET_LOGIN_ID = <%- JSON.stringify(authorizeLoginId || '') %>;
+const AUTH_NET_CLIENT_KEY = <%- JSON.stringify(authorizeClientKey || '') %>;
 
 function paySetError(msg) {
   const el = document.getElementById('pay-error');
