@@ -2,11 +2,11 @@
 import 'dotenv/config';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
-import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +16,88 @@ const app = express();
 
 /* --------------------  EJS + layouts  -------------------- */
 app.set('view engine', 'ejs');
+
+
+// -------------------- Authorize.Net (Accept.js) --------------------
+// Supports both local (.env) and Render-style environment variable names.
+function getAuthorizeNetConfig() {
+  const loginId =
+    process.env.AUTH_NET_LOGIN_ID ||
+    process.env.AUTHORIZE_NET_API_LOGIN_ID ||
+    process.env.AUTHORIZE_NET_LOGIN_ID ||
+    '';
+
+  const clientKey =
+    process.env.AUTH_NET_CLIENT_KEY ||
+    process.env.AUTHORIZE_NET_CLIENT_KEY ||
+    '';
+
+  const transactionKey =
+    process.env.AUTH_NET_TRANSACTION_KEY ||
+    process.env.AUTHORIZE_NET_TRANSACTION_KEY ||
+    '';
+
+  const rawEnv = (process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || 'production')
+    .toString()
+    .toLowerCase();
+  const isSandbox = rawEnv.includes('sandbox') || rawEnv.includes('test') || rawEnv.includes('apitest');
+
+  return {
+    loginId,
+    clientKey,
+    transactionKey,
+    env: isSandbox ? 'sandbox' : 'production',
+    endpoint: isSandbox
+      ? 'https://apitest.authorize.net/xml/v1/request.api'
+      : 'https://api.authorize.net/xml/v1/request.api',
+  };
+}
+
+function safeJsonParse(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function httpsPostJson(url, payload, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const body = JSON.stringify(payload);
+
+    const req = https.request(
+      {
+        method: 'POST',
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'User-Agent': 'miamivapesmoke/1.0',
+        },
+        timeout: timeoutMs,
+      },
+      (resp) => {
+        let data = '';
+        resp.on('data', (chunk) => (data += chunk));
+        resp.on('end', () => {
+          resolve({
+            status: resp.statusCode || 0,
+            headers: resp.headers,
+            body: data,
+          });
+        });
+      }
+    );
+
+    req.on('timeout', () => req.destroy(new Error('Authorize.Net request timed out')));
+    req.on('error', reject);
+
+    req.write(body);
+    req.end();
+  });
+}
 app.set('views', path.join(__dirname, 'views'));
 app.use(ejsLayouts);
 app.set('layout', 'layouts/main');
@@ -196,12 +278,6 @@ function normalizeShop(value = '') {
 function getStoreChoice(id = DEFAULT_SHOP) {
   return STORE_CHOICE_MAP.get(id) || STORE_CHOICE_MAP.get(DEFAULT_SHOP);
 }
-
-// Backwards-compat alias (older code referenced getStoreMetadata)
-function getStoreMetadata(selectedShop) {
-  return getStoreChoice(selectedShop);
-}
-
 
 function containsExcludedKeyword(value = '') {
   const upperValue = value.toUpperCase();
@@ -2239,22 +2315,142 @@ async function seedVariantImages() {
 /* --------------------  Checkout  -------------------- */
 app.get('/checkout', (req, res) => {
   const selectedShop = normalizeShop(req.query.shop);
-
-    const authorizeEnv = process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || process.env.AUTHORIZE_NET_ENVIRONMENT || 'production';
-    const authorizeLoginId = process.env.AUTH_NET_LOGIN_ID || process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTHORIZE_NET_LOGIN_ID || '';
-    const authorizeClientKey = process.env.AUTH_NET_CLIENT_KEY || process.env.AUTHORIZE_NET_CLIENT_KEY || '';
+  const authNet = getAuthorizeNetConfig();
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
-    authorizeEnv,
-    authorizeLoginId,
-    authorizeClientKey,
+    authorizeLoginId: authNet.loginId,
+    authorizeClientKey: authNet.clientKey,
+    authorizeEnv: authNet.env,
     selectedShop,
     storeMeta: getStoreChoice(selectedShop),
     storeOptions: STORE_CHOICES,
     storeNameMap: STORE_NAME_BY_ID,
   });
 });
+
+// Charge card using Authorize.Net Accept.js opaqueData (server-side)
+app.post('/api/authorize/charge', async (req, res) => {
+  try {
+    const cfg = getAuthorizeNetConfig();
+
+    if (!cfg.loginId || !cfg.transactionKey) {
+      console.error('[Authorize.Net] Missing server credentials (loginId/transactionKey).');
+      return res.status(500).json({ error: 'Payment configuration missing on server.' });
+    }
+
+    const body = req.body || {};
+    const opaqueData = body.opaqueData || {};
+    const totals = body.totals || {};
+
+    if (!opaqueData.dataDescriptor || !opaqueData.dataValue) {
+      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+    }
+
+    const amount = Number(totals.total ?? totals.amount ?? totals.grandTotal ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid total amount.' });
+    }
+
+    const billing = body.billing || {};
+    const customer = body.customer || {};
+
+    // Authorize.Net invoiceNumber max length is 20
+    const invoiceNumber = String(body.invoiceNumber || `INV${Date.now()}`).slice(0, 20);
+
+    const payload = {
+      createTransactionRequest: {
+        merchantAuthentication: {
+          name: cfg.loginId,
+          transactionKey: cfg.transactionKey,
+        },
+        refId: String(Date.now()),
+        transactionRequest: {
+          transactionType: 'authCaptureTransaction',
+          amount: amount.toFixed(2),
+          payment: {
+            opaqueData: {
+              dataDescriptor: opaqueData.dataDescriptor,
+              dataValue: opaqueData.dataValue,
+            },
+          },
+          order: {
+            invoiceNumber,
+            description: 'Miami Vape Smoke Shop order',
+          },
+          customer: {
+            email: String(customer.email || billing.email || ''),
+          },
+          billTo: {
+            firstName: String(billing.firstName || ''),
+            lastName: String(billing.lastName || ''),
+            address: String(billing.address || ''),
+            city: String(billing.city || ''),
+            state: String(billing.state || ''),
+            zip: String(billing.zip || ''),
+            country: String(billing.country || 'US'),
+            phoneNumber: String(billing.phone || ''),
+          },
+        },
+      },
+    };
+
+    const resp = await httpsPostJson(cfg.endpoint, payload);
+    const parsed = safeJsonParse(resp.body);
+
+    if (!parsed) {
+      console.error('[Authorize.Net] Returned invalid JSON', {
+        status: resp.status,
+        contentType: resp.headers?.['content-type'],
+        bodyPreview: String(resp.body || '').slice(0, 500),
+      });
+      return res.status(502).json({ error: 'Authorize.Net returned an invalid response.' });
+    }
+
+    const ctr = parsed.createTransactionResponse;
+    const resultCode = ctr?.messages?.resultCode;
+
+    if (resultCode !== 'Ok') {
+      const msg = ctr?.messages?.message?.[0];
+      console.error('[Authorize.Net] Charge failed', {
+        code: msg?.code,
+        text: msg?.text,
+      });
+      return res.status(400).json({
+        error: msg?.text || 'Payment failed.',
+        code: msg?.code || 'AUTHNET_ERROR',
+      });
+    }
+
+    const tx = ctr?.transactionResponse;
+    const responseCode = tx?.responseCode;
+
+    // responseCode '1' = approved
+    if (responseCode !== '1') {
+      const err = tx?.errors?.[0];
+      console.error('[Authorize.Net] Not approved', {
+        responseCode,
+        errorCode: err?.errorCode,
+        errorText: err?.errorText,
+      });
+      return res.status(402).json({
+        error: err?.errorText || 'Transaction not approved.',
+        code: err?.errorCode || 'NOT_APPROVED',
+      });
+    }
+
+    return res.json({
+      success: true,
+      transactionId: tx?.transId,
+      authCode: tx?.authCode,
+      message: 'Charge successful',
+    });
+  } catch (err) {
+    console.error('[Authorize.Net] charge error:', err?.message || err);
+    return res.status(500).json({ error: 'Server error while charging card.' });
+  }
+});
+
 
 
 
@@ -2272,184 +2468,251 @@ const ZENPAYMENTS_DOMAIN = process.env.ZENPAYMENTS_DOMAIN || null;        // Opt
 
 const _fetch = (typeof fetch === 'function') ? fetch : null;
 
-/**
- * POST JSON helper that works even when global fetch is unavailable (older Node runtimes).
- * Returns: { ok, status, data, raw }
- */
-async function postJson(url, payload, extraHeaders = {}) {
-  // Uses global fetch if available; falls back to https.request for older Node runtimes.
-  if (typeof fetch === 'function') {
-    const resp = await _fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'miamivapesmoke-checkout/1.0',
-        ...extraHeaders
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const raw = await resp.text();
-    let data = null;
-    try { data = JSON.parse(raw); } catch (_) {}
-
-    return {
-      ok: resp.ok,
-      statusCode: resp.status,
-      headers: Object.fromEntries(resp.headers.entries()),
-      data,
-      raw,
-    };
-  }
-
-  // Fallback: https.request (Node < 18)
-  const https = require('https');
-  const { hostname, pathname, search } = new URL(url);
-  const body = JSON.stringify(payload);
-
-  return await new Promise((resolve) => {
-    const req = https.request({
-      hostname,
-      path: `${pathname}${search || ''}`,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'miamivapesmoke-checkout/1.0',
-        'Content-Length': Buffer.byteLength(body),
-        ...extraHeaders
-      }
-    }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        let data = null;
-        try { data = JSON.parse(raw); } catch (_) {}
-
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          statusCode: res.statusCode,
-          headers: res.headers,
-          data,
-          raw,
-        });
-      });
-    });
-
-    req.setTimeout(15000, () => {
-      req.destroy(new Error('Authorize.Net request timed out'));
-    });
-
-    req.on('error', (err) => {
-      resolve({
-        ok: false,
-        statusCode: 0,
-        headers: {},
-        data: null,
-        raw: String(err && err.message ? err.message : err)
-      });
-    });
-
-    req.write(body);
-    req.end();
-  });
-}
-
-
-app.post('/api/authorize/charge', async (req, res) => {
+app.post('/api/zen/hosted-fields/token', async (req, res) => {
   try {
-    const loginId = process.env.AUTH_NET_LOGIN_ID || process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTHORIZE_NET_LOGIN_ID || '';
-    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || process.env.AUTHORIZE_NET_TRANSACTION_KEY || '';
-    const env = (process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || process.env.AUTHORIZE_NET_ENVIRONMENT || 'sandbox').toLowerCase(); // 'production' or 'sandbox'
-
-    if (!loginId || !transactionKey) {
-      return res.status(500).json({ error: 'Authorize.Net server keys are not configured.' });
+    if (!_fetch) {
+      return res.status(500).json({ error: 'Server fetch() is not available. Upgrade Node to v18+ (or install a fetch polyfill).' });
+    }
+    if (!ZENPAYMENTS_API_TOKEN) {
+      return res.status(500).json({ error: 'Missing ZENPAYMENTS_API_TOKEN environment variable.' });
     }
 
-    const { opaqueData, totals, customer, billing } = req.body || {};
-    const dataDescriptor = opaqueData?.dataDescriptor;
-    const dataValue = opaqueData?.dataValue;
-    if (!dataDescriptor || !dataValue) {
-      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+    const terminalId = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
+    if (!terminalId) {
+      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server.' });
     }
 
-    // NOTE: totals from the browser are not trustworthy. For now we do basic validation and charge that amount.
-    const amountNum = Number(totals?.total);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      return res.status(400).json({ error: 'Invalid total amount.' });
-    }
-    const amount = amountNum.toFixed(2);
+    // ZenPayments expects a domain value that matches the site where Hosted Fields will be embedded.
+    const domain = ZENPAYMENTS_DOMAIN || (req.headers.host || '').replace(/^https?:\/\//, '');
 
-    const endpoint =
-      env === 'production'
-        ? 'https://api.authorize.net/xml/v1/request.api'
-        : 'https://apitest.authorize.net/xml/v1/request.api';
+    const zenResp = await _fetch(`${ZENPAYMENTS_API_BASE}/api/hosted-fields/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ZENPAYMENTS_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        terminal: { id: terminalId },
+        domain
+      })
+    });
 
-    const payload = {
-      createTransactionRequest: {
-        merchantAuthentication: { name: loginId, transactionKey },
-        refId: `order-${Date.now()}`,
-        transactionRequest: {
-          transactionType: 'authCaptureTransaction',
-          amount,
-          payment: {
-            opaqueData: { dataDescriptor, dataValue }
-          },
-          billTo: billing ? {
-            firstName: billing.firstName || '',
-            lastName: billing.lastName || '',
-            address: billing.address || '',
-            city: billing.city || '',
-            state: billing.state || '',
-            zip: billing.zip || '',
-            country: billing.country || 'US',
-            phoneNumber: billing.phoneNumber || ''
-          } : undefined,
-          customer: customer?.email ? { email: customer.email } : undefined
-        }
-      }
-    };
+    const data = await zenResp.json().catch(() => ({}));
 
-    const { ok: respOk, statusCode: respStatus, data, raw } = await postJson(endpoint, payload);
-
-    if (!data) {
-      console.error('[Authorize.Net] non-JSON response from gateway', {
-        status: respStatus,
-        raw: String(raw || '').slice(0, 600)
+    if (!zenResp.ok) {
+      return res.status(zenResp.status).json({
+        error: 'ZenPayments token request failed',
+        status: zenResp.status,
+        details: data
       });
-      return res.status(502).json({ error: 'Payment gateway error. Please try again in a moment.' });
     }
 
-    // Helpful for debugging in logs (keeps response body server-side)
-    if (!respOk) {
-      console.error('[Authorize.Net] HTTP error', respStatus, raw?.slice?.(0, 500) || raw);
-    }
-const resultCode = data?.messages?.resultCode;
-    const trx = data?.transactionResponse;
-
-    if (!respOk || resultCode !== 'Ok' || trx?.responseCode !== '1') {
-      const errText =
-        trx?.errors?.[0]?.errorText ||
-        data?.messages?.message?.[0]?.text ||
-        'Payment was declined.';
-      return res.status(400).json({ error: errText, raw: data });
+    const accessToken = data.access_token || data.accessToken || data.token;
+    if (!accessToken) {
+      return res.status(500).json({ error: 'ZenPayments did not return an access token.', details: data });
     }
 
-    return res.json({
-      ok: true,
-      transId: trx.transId,
-      authCode: trx.authCode,
-      avs: trx.avsResultCode,
-      cvv: trx.cvvResultCode
+    return res.json({ accessToken });
+  } catch (err) {
+    console.error('[ZenPayments] hosted-fields token error:', err);
+    return res.status(500).json({ error: 'Server error requesting Hosted Fields token.' });
+  }
+});
+app.get('/faq', (_req, res) => {
+  res.render('faq', {
+    title: 'FAQ • Miami Vape Smoke Shop',
+    description: 'Delivery, THCa, payments, and policies explained.',
+    contact: CONTACT_INFO,
+  });
+});
+
+/* --------------------  Products (SSR)  -------------------- */
+app.get('/products', async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const pageSize = PRODUCTS_PAGE_SIZE;
+    const selectedShop = normalizeShop(req.query.shop);
+    const snapshotTables = SHOP_TABLES[selectedShop] || SNAPSHOT_TABLES;
+    const snapshotAggSql = buildSnapshotAggSql(snapshotTables);
+    const storeMeta = getStoreChoice(selectedShop);
+
+    const q = (req.query.q || '').trim();
+    const sort = (req.query.sort || 'newest').toLowerCase();
+    const category = (req.query.category || '').trim();
+    const categoryId = category && !Number.isNaN(Number(category)) ? Number(category) : null;
+
+    // WHERE
+    const where = [];
+    const params = [];
+    if (q) {
+      where.push('(p.name LIKE ? OR p.upc LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    if (categoryId !== null) {
+      const [categoryRows] = await queryWithRetry(
+        'SELECT id FROM categories WHERE id = ? OR parent_id = ? ORDER BY parent_id IS NULL DESC, id ASC',
+        [categoryId, categoryId]
+      );
+      let categoryFilterIds = categoryRows.map((row) => row.id);
+      if (!categoryFilterIds.length) {
+        categoryFilterIds = [categoryId];
+      } else if (!categoryFilterIds.includes(categoryId)) {
+        categoryFilterIds.unshift(categoryId);
+      }
+      const placeholders = categoryFilterIds.map(() => '?').join(',');
+      where.push(`p.category_id IN (${placeholders})`);
+      params.push(...categoryFilterIds);
+    }
+    if (FEATURED_NAME_CLAUSE) {
+      where.push(`(${FEATURED_NAME_CLAUSE})`);
+      params.push(...FEATURED_NAME_PARAMS);
+    }
+    PRODUCT_EXCLUSION_KEYWORDS.forEach((keyword) => {
+      where.push('UPPER(p.name) NOT LIKE ?');
+      params.push(`%${keyword}%`);
+    });
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const inventoryJoinSql = SHOW_ALL_LOCAL
+      ? `
+        LEFT JOIN (
+          ${snapshotAggSql}
+        ) snap ON snap.name_key = UPPER(p.name)
+        LEFT JOIN product_images pi ON pi.product_id = p.id
+      `
+      : `
+        INNER JOIN (
+          ${snapshotAggSql}
+        ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
+        LEFT JOIN product_images pi ON pi.product_id = p.id
+      `;
+
+    const sortSql =
+      sort === 'price_asc'  ? 'ORDER BY p.unit_price ASC' :
+      sort === 'price_desc' ? 'ORDER BY p.unit_price DESC' :
+      sort === 'newest'     ? 'ORDER BY p.id DESC' :
+                              'ORDER BY p.id DESC';
+
+    const pageSql = `
+      SELECT
+        p.id,
+        p.name,
+        COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
+        ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
+        COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
+        p.unit_price AS price,
+        COALESCE(snap.total_qty, 0) AS total_qty,
+        p.supplier AS brand,
+        NULL AS rating,
+        NULL AS review_count
+      FROM products p
+      ${inventoryJoinSql}
+      ${whereSql}
+      ${sortSql}
+    `;
+    const [rows] = await queryWithRetry(pageSql, params);
+    applyLocalQtyOverride(rows);
+
+    // Group the fetched products by variant
+    const groupedProducts = groupProductsByVariant(rows).filter(group =>
+      FEATURED_BASE_SET.has((group.base_name || group.name || '').toUpperCase())
+    );
+    const totalGrouped = groupedProducts.length;
+    const startIndex = (page - 1) * pageSize;
+    const paginatedProducts = groupedProducts.slice(startIndex, startIndex + pageSize);
+
+    let finalProducts = paginatedProducts;
+
+    if (paginatedProducts.length) {
+      const baseKeys = [...new Set(paginatedProducts.map(p => (p.base_name || '').toUpperCase()).filter(Boolean))];
+      if (baseKeys.length) {
+        const variantConditions = baseKeys.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
+        const variantParams = baseKeys.map(key => `${key}%`);
+        const variantSql = `
+          SELECT
+            p.id,
+            p.name,
+            COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
+            ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
+            COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
+            p.unit_price AS price,
+            COALESCE(snap.total_qty, 0) AS total_qty,
+            p.supplier AS brand,
+            NULL AS rating,
+            NULL AS review_count
+          FROM products p
+          ${inventoryJoinSql}
+          WHERE ${variantConditions}
+        `;
+        const [variantRows] = await queryWithRetry(variantSql, variantParams);
+        applyLocalQtyOverride(variantRows);
+        const variantGroups = groupProductsByVariant(variantRows);
+        const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
+        finalProducts = paginatedProducts.map(group => {
+          const fullGroup = variantMap.get(group.base_name.toUpperCase());
+          if (!fullGroup) {
+            return group;
+          }
+          const normalizeFlavorKey = (value) => {
+            const trimmed = (value || 'Original').trim();
+            return (trimmed || 'Original').toUpperCase();
+          };
+          const flavorMap = new Map();
+          const mergedVariants = [];
+          const registerVariant = (variant) => {
+            const key = normalizeFlavorKey(variant.flavor);
+            const existing = flavorMap.get(key);
+            if (existing) {
+              existing.total_qty = Number(existing.total_qty || 0) + Number(variant.total_qty || 0);
+              if (!existing.has_image && variant.has_image) {
+                existing.image_url = variant.image_url;
+                existing.image_alt = variant.image_alt;
+                existing.has_image = true;
+              }
+              return;
+            }
+            const payload = { ...variant };
+            flavorMap.set(key, payload);
+            mergedVariants.push(payload);
+          };
+          group.variants.forEach(registerVariant);
+          fullGroup.variants.forEach(registerVariant);
+          return {
+            ...group,
+            variants: mergedVariants,
+          };
+        });
+      }
+    }
+
+    const estimatedGroupedTotal = totalGrouped;
+
+    // Get all categories
+    const [categoriesRows] = await queryWithRetry('SELECT id, name, slug FROM categories ORDER BY id ASC');
+    const categories = (categoriesRows || []).filter((cat) => !HIDDEN_CATEGORY_NAMES.has((cat.name || '').toUpperCase()));
+
+    res.render('products', {
+      products: finalProducts,
+      page,
+      pageSize,
+      total: estimatedGroupedTotal,
+      q,
+      sort,
+      category,
+      categories,
+      selectedShop,
+      storeMeta,
+      storeOptions: STORE_CHOICES,
+      title: 'Shop Products • Miami Vape Smoke Shop',
+      description: 'Same-day pickup or delivery from either location.',
     });
   } catch (err) {
-    console.error('[Authorize.Net] charge error:', err);
-    return res.status(500).json({ error: 'Server error while processing payment.' });
+    console.error('Error loading products:', err);
+    res.status(500).send('Error loading products');
   }
 });
 
-
+/* --------------------  Start  -------------------- */
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, async () => {
   console.log(`Server running → http://localhost:${PORT}`);
@@ -2458,6 +2721,10 @@ app.listen(PORT, async () => {
   await ensureSnapshotTables();
   await seedVariantImages();
 });
+
+
+
+
 
 
 
