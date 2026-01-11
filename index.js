@@ -2647,7 +2647,8 @@ function postJson(url, body) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data)
+          'Content-Length': Buffer.byteLength(data),
+          'Accept': 'application/json'
         },
         timeout: 20000
       },
