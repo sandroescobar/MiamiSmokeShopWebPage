@@ -2,7 +2,6 @@
 import 'dotenv/config';
 import path from 'path';
 import fs from 'fs';
-import https from 'https';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
@@ -16,88 +15,6 @@ const app = express();
 
 /* --------------------  EJS + layouts  -------------------- */
 app.set('view engine', 'ejs');
-
-
-// -------------------- Authorize.Net (Accept.js) --------------------
-// Supports both local (.env) and Render-style environment variable names.
-function getAuthorizeNetConfig() {
-  const loginId =
-    process.env.AUTH_NET_LOGIN_ID ||
-    process.env.AUTHORIZE_NET_API_LOGIN_ID ||
-    process.env.AUTHORIZE_NET_LOGIN_ID ||
-    '';
-
-  const clientKey =
-    process.env.AUTH_NET_CLIENT_KEY ||
-    process.env.AUTHORIZE_NET_CLIENT_KEY ||
-    '';
-
-  const transactionKey =
-    process.env.AUTH_NET_TRANSACTION_KEY ||
-    process.env.AUTHORIZE_NET_TRANSACTION_KEY ||
-    '';
-
-  const rawEnv = (process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || 'production')
-    .toString()
-    .toLowerCase();
-  const isSandbox = rawEnv.includes('sandbox') || rawEnv.includes('test') || rawEnv.includes('apitest');
-
-  return {
-    loginId,
-    clientKey,
-    transactionKey,
-    env: isSandbox ? 'sandbox' : 'production',
-    endpoint: isSandbox
-      ? 'https://apitest.authorize.net/xml/v1/request.api'
-      : 'https://api.authorize.net/xml/v1/request.api',
-  };
-}
-
-function safeJsonParse(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function httpsPostJson(url, payload, timeoutMs = 15000) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const body = JSON.stringify(payload);
-
-    const req = https.request(
-      {
-        method: 'POST',
-        hostname: u.hostname,
-        path: u.pathname + u.search,
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          'User-Agent': 'miamivapesmoke/1.0',
-        },
-        timeout: timeoutMs,
-      },
-      (resp) => {
-        let data = '';
-        resp.on('data', (chunk) => (data += chunk));
-        resp.on('end', () => {
-          resolve({
-            status: resp.statusCode || 0,
-            headers: resp.headers,
-            body: data,
-          });
-        });
-      }
-    );
-
-    req.on('timeout', () => req.destroy(new Error('Authorize.Net request timed out')));
-    req.on('error', reject);
-
-    req.write(body);
-    req.end();
-  });
-}
 app.set('views', path.join(__dirname, 'views'));
 app.use(ejsLayouts);
 app.set('layout', 'layouts/main');
@@ -2315,138 +2232,220 @@ async function seedVariantImages() {
 /* --------------------  Checkout  -------------------- */
 app.get('/checkout', (req, res) => {
   const selectedShop = normalizeShop(req.query.shop);
-  const authNet = getAuthorizeNetConfig();
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
-    authorizeLoginId: authNet.loginId,
-    authorizeClientKey: authNet.clientKey,
-    authorizeEnv: authNet.env,
     selectedShop,
     storeMeta: getStoreChoice(selectedShop),
     storeOptions: STORE_CHOICES,
     storeNameMap: STORE_NAME_BY_ID,
+
+    // ---- Authorize.Net (Accept.js) ----
+    // These get injected into checkout.ejs so the browser can tokenize card data.
+    // Make sure these env vars are set where your app runs.
+    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID || '',
+    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY || '',
+    authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
 });
 
-// Charge card using Authorize.Net Accept.js opaqueData (server-side)
-app.post('/api/authorize/charge', async (req, res) => {
-  try {
-    const cfg = getAuthorizeNetConfig();
 
-    if (!cfg.loginId || !cfg.transactionKey) {
-      console.error('[Authorize.Net] Missing server credentials (loginId/transactionKey).');
-      return res.status(500).json({ error: 'Payment configuration missing on server.' });
+/* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
+/**
+ * Client: checkout.ejs tokenizes card details via Accept.js -> opaqueData
+ * Server: uses opaqueData + merchant auth to create an authCaptureTransaction.
+ *
+ * SECURITY NOTE:
+ * Right now the client sends totals computed from localStorage. That's not secure.
+ * For production, compute the amount on the server from your cart/order items.
+ */
+app.post('/api/authorize/charge', async (req, res) => {
+  // Robust Authorize.Net charge handler (handles BOM responses + trims env vars)
+  try {
+    const cleanEnvVal = (v) => {
+      if (v === undefined || v === null) return '';
+      return String(v)
+        .replace(/\uFEFF/g, '')         // strip BOM
+        .replace(/[\r\n]+/g, '')        // strip newlines
+        .trim()
+        .replace(/^['"]|['"]$/g, '')    // strip surrounding quotes
+        .trim();
+    };
+
+    const getAuthNetConfig = () => {
+      const rawEnv =
+        cleanEnvVal(process.env.AUTH_NET_ENV) ||
+        cleanEnvVal(process.env.AUTHORIZE_NET_ENV) ||
+        cleanEnvVal(process.env.AUTHORIZe_NET_ENV) ||
+        (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
+
+      const envNorm = String(rawEnv).toLowerCase();
+      const isProd = envNorm === 'production' || envNorm === 'prod' || envNorm === 'live';
+
+      const apiLoginId =
+        cleanEnvVal(process.env.AUTH_NET_LOGIN_ID) ||
+        cleanEnvVal(process.env.AUTH_NET_API_LOGIN_ID) ||
+        cleanEnvVal(process.env.AUTHORIZE_NET_API_LOGIN_ID) ||
+        cleanEnvVal(process.env.AUTHORIZE_NET_LOGIN_ID) ||
+        cleanEnvVal(process.env.AUTHORIZe_NET_API_LOGIN_ID) ||
+        cleanEnvVal(process.env.AUTHORIZe_NET_LOGIN_ID);
+
+      const transactionKey =
+        cleanEnvVal(process.env.AUTH_NET_TRANSACTION_KEY) ||
+        cleanEnvVal(process.env.AUTHORIZE_NET_TRANSACTION_KEY) ||
+        cleanEnvVal(process.env.AUTHORIZe_NET_TRANSACTION_KEY);
+
+      const clientKey =
+        cleanEnvVal(process.env.AUTH_NET_CLIENT_KEY) ||
+        cleanEnvVal(process.env.AUTHORIZE_NET_CLIENT_KEY) ||
+        cleanEnvVal(process.env.AUTHORIZe_NET_CLIENT_KEY);
+
+      const endpoint = isProd
+        ? 'https://api.authorize.net/xml/v1/request.api'
+        : 'https://apitest.authorize.net/xml/v1/request.api';
+
+      return {
+        env: isProd ? 'production' : 'sandbox',
+        endpoint,
+        apiLoginId,
+        transactionKey,
+        clientKey,
+      };
+    };
+
+    const { endpoint, env, apiLoginId, transactionKey } = getAuthNetConfig();
+
+    if (!apiLoginId || !transactionKey) {
+      console.error('[Authorize.Net] Missing credentials', {
+        env,
+        loginIdPresent: !!apiLoginId,
+        transactionKeyPresent: !!transactionKey,
+      });
+      return res.status(500).json({
+        error: 'Payment configuration missing on server.',
+      });
     }
 
-    const body = req.body || {};
-    const opaqueData = body.opaqueData || {};
-    const totals = body.totals || {};
+    // Expect Accept.js opaqueData from client
+    const {
+      opaqueDataDescriptor,
+      opaqueDataValue,
+      amount,
+      order,
+      billing,
+      customer,
+    } = req.body || {};
 
-    if (!opaqueData.dataDescriptor || !opaqueData.dataValue) {
+    if (!opaqueDataDescriptor || !opaqueDataValue) {
       return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
     }
 
-    const amount = Number(totals.total ?? totals.amount ?? totals.grandTotal ?? 0);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid total amount.' });
+    const numericAmount = Number(amount ?? order?.total ?? order?.totalAmount ?? order?.amount ?? 0);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid charge amount.' });
     }
+    const amountStr = numericAmount.toFixed(2);
 
-    const billing = body.billing || {};
-    const customer = body.customer || {};
-
-    // Authorize.Net invoiceNumber max length is 20
-    const invoiceNumber = String(body.invoiceNumber || `INV${Date.now()}`).slice(0, 20);
-
+    // Build Authorize.Net createTransactionRequest payload
     const payload = {
       createTransactionRequest: {
         merchantAuthentication: {
-          name: cfg.loginId,
-          transactionKey: cfg.transactionKey,
+          name: apiLoginId,
+          transactionKey: transactionKey,
         },
         refId: String(Date.now()),
         transactionRequest: {
           transactionType: 'authCaptureTransaction',
-          amount: amount.toFixed(2),
+          amount: amountStr,
           payment: {
             opaqueData: {
-              dataDescriptor: opaqueData.dataDescriptor,
-              dataValue: opaqueData.dataValue,
+              dataDescriptor: opaqueDataDescriptor,
+              dataValue: opaqueDataValue,
             },
-          },
-          order: {
-            invoiceNumber,
-            description: 'Miami Vape Smoke Shop order',
-          },
-          customer: {
-            email: String(customer.email || billing.email || ''),
-          },
-          billTo: {
-            firstName: String(billing.firstName || ''),
-            lastName: String(billing.lastName || ''),
-            address: String(billing.address || ''),
-            city: String(billing.city || ''),
-            state: String(billing.state || ''),
-            zip: String(billing.zip || ''),
-            country: String(billing.country || 'US'),
-            phoneNumber: String(billing.phone || ''),
           },
         },
       },
     };
 
-    const resp = await httpsPostJson(cfg.endpoint, payload);
-    const parsed = safeJsonParse(resp.body);
+    // Optional metadata (safe defaults)
+    if (order?.invoiceNumber) payload.createTransactionRequest.transactionRequest.order = { invoiceNumber: String(order.invoiceNumber).slice(0, 20) };
+    if (customer?.email) payload.createTransactionRequest.transactionRequest.customer = { email: String(customer.email).slice(0, 255) };
+    if (billing?.firstName || billing?.lastName) {
+      payload.createTransactionRequest.transactionRequest.billTo = {
+        firstName: billing?.firstName ? String(billing.firstName).slice(0, 50) : undefined,
+        lastName: billing?.lastName ? String(billing.lastName).slice(0, 50) : undefined,
+        address: billing?.address ? String(billing.address).slice(0, 60) : undefined,
+        city: billing?.city ? String(billing.city).slice(0, 40) : undefined,
+        state: billing?.state ? String(billing.state).slice(0, 40) : undefined,
+        zip: billing?.zip ? String(billing.zip).slice(0, 20) : undefined,
+        country: billing?.country ? String(billing.country).slice(0, 60) : undefined,
+        phoneNumber: billing?.phone ? String(billing.phone).slice(0, 25) : undefined,
+      };
+    }
 
-    if (!parsed) {
+    // Call Authorize.Net
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const rawText = await resp.text();
+    const cleanedText = String(rawText).replace(/^\uFEFF/, '').trim();
+
+    let result;
+    try {
+      result = JSON.parse(cleanedText);
+    } catch (e) {
       console.error('[Authorize.Net] Returned invalid JSON', {
         status: resp.status,
-        contentType: resp.headers?.['content-type'],
-        bodyPreview: String(resp.body || '').slice(0, 500),
+        contentType: resp.headers.get('content-type'),
+        bodyPreview: cleanedText.slice(0, 300),
       });
       return res.status(502).json({ error: 'Authorize.Net returned an invalid response.' });
     }
 
-    const ctr = parsed.createTransactionResponse;
-    const resultCode = ctr?.messages?.resultCode;
+    const msg = result?.messages;
+    if (msg?.resultCode === 'Error') {
+      const err = msg?.message?.[0] || {};
+      const code = err.code;
+      const text = err.text || 'Payment was declined.';
+      console.error('[Authorize.Net] API error', { code, text });
 
-    if (resultCode !== 'Ok') {
-      const msg = ctr?.messages?.message?.[0];
-      console.error('[Authorize.Net] Charge failed', {
-        code: msg?.code,
-        text: msg?.text,
-      });
-      return res.status(400).json({
-        error: msg?.text || 'Payment failed.',
-        code: msg?.code || 'AUTHNET_ERROR',
-      });
+      // E00007 = invalid merchant authentication values
+      if (code === 'E00007') {
+        return res.status(500).json({
+          error: 'Payment gateway authentication failed (check API Login ID / Transaction Key and sandbox vs production).',
+          code,
+        });
+      }
+
+      return res.status(402).json({ error: text, code });
     }
 
-    const tx = ctr?.transactionResponse;
-    const responseCode = tx?.responseCode;
+    const trx = result?.transactionResponse;
+    const transId = trx?.transId;
 
-    // responseCode '1' = approved
-    if (responseCode !== '1') {
-      const err = tx?.errors?.[0];
-      console.error('[Authorize.Net] Not approved', {
-        responseCode,
-        errorCode: err?.errorCode,
-        errorText: err?.errorText,
+    if (!transId) {
+      console.error('[Authorize.Net] Missing transaction id', {
+        responseCode: trx?.responseCode,
+        errors: trx?.errors,
+        messages: msg,
       });
-      return res.status(402).json({
-        error: err?.errorText || 'Transaction not approved.',
-        code: err?.errorCode || 'NOT_APPROVED',
-      });
+      return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
     return res.json({
-      success: true,
-      transactionId: tx?.transId,
-      authCode: tx?.authCode,
-      message: 'Charge successful',
+      ok: true,
+      transactionId: transId,
+      authCode: trx?.authCode,
+      responseCode: trx?.responseCode,
     });
   } catch (err) {
-    console.error('[Authorize.Net] charge error:', err?.message || err);
+    console.error('[Authorize.Net] charge exception', err);
     return res.status(500).json({ error: 'Server error while charging card.' });
   }
 });
