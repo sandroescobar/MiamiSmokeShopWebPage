@@ -2576,8 +2576,8 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const endpoint =
       env === 'sandbox'
-        ? 'https://apitest.authorize.net/xml/v1/request.api'
-        : 'https://api2.authorize.net/xml/v1/request.api';
+        ? 'https://apitest.authorize.net/json/v1/request.api'
+        : 'https://api2.authorize.net/json/v1/request.api';
 
     const billTo = {
       firstName: billing?.firstName || '',
