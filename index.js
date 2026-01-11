@@ -6,8 +6,8 @@ import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
-
 import https from 'https';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
@@ -197,9 +197,11 @@ function getStoreChoice(id = DEFAULT_SHOP) {
   return STORE_CHOICE_MAP.get(id) || STORE_CHOICE_MAP.get(DEFAULT_SHOP);
 }
 
-function getStoreMetadata(id = DEFAULT_SHOP) {
-  return getStoreChoice(id);
+// Backwards-compat alias (older code referenced getStoreMetadata)
+function getStoreMetadata(selectedShop) {
+  return getStoreChoice(selectedShop);
 }
+
 
 function containsExcludedKeyword(value = '') {
   const upperValue = value.toUpperCase();
@@ -2235,31 +2237,22 @@ async function seedVariantImages() {
 }
 
 /* --------------------  Checkout  -------------------- */
-
 app.get('/checkout', (req, res) => {
   const selectedShop = normalizeShop(req.query.shop);
 
-  // These are PUBLIC keys meant for the browser (Accept.js tokenization).
-  // (Do NOT expose AUTH_NET_TRANSACTION_KEY to the browser.)
-  const authorizeLoginId = (process.env.AUTH_NET_LOGIN_ID || '').trim();
-  const authorizeClientKey = (process.env.AUTH_NET_CLIENT_KEY || '').trim();
-  const authNetEnv = (process.env.AUTH_NET_ENV || '').trim();
-
-  // Helpful, non-sensitive debug (booleans only)
-  console.log('[checkout] authnet keys present:', Boolean(authorizeLoginId), Boolean(authorizeClientKey), 'env:', authNetEnv || 'unset');
-
+    const authorizeEnv = process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || process.env.AUTHORIZE_NET_ENVIRONMENT || 'production';
+    const authorizeLoginId = process.env.AUTH_NET_LOGIN_ID || process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTHORIZE_NET_LOGIN_ID || '';
+    const authorizeClientKey = process.env.AUTH_NET_CLIENT_KEY || process.env.AUTHORIZE_NET_CLIENT_KEY || '';
   res.render('checkout', {
-    title: 'Secure Checkout | Miami Vape Smoke',
-    description: 'Complete your purchase securely with pickup or delivery options.',
-    selectedShop,
-    storeMeta: getStoreMetadata(selectedShop),
-    storeOptions: Object.values(STORE_NAME_BY_ID),
-    storeNameMap: STORE_NAME_BY_ID,
-
-    // passed into checkout.ejs
+    title: 'Checkout • Miami Vape Smoke Shop',
+    description: 'Complete your purchase',
+    authorizeEnv,
     authorizeLoginId,
     authorizeClientKey,
-    authNetEnv
+    selectedShop,
+    storeMeta: getStoreChoice(selectedShop),
+    storeOptions: STORE_CHOICES,
+    storeNameMap: STORE_NAME_BY_ID,
   });
 });
 
@@ -2279,251 +2272,184 @@ const ZENPAYMENTS_DOMAIN = process.env.ZENPAYMENTS_DOMAIN || null;        // Opt
 
 const _fetch = (typeof fetch === 'function') ? fetch : null;
 
-app.post('/api/zen/hosted-fields/token', async (req, res) => {
-  try {
-    if (!_fetch) {
-      return res.status(500).json({ error: 'Server fetch() is not available. Upgrade Node to v18+ (or install a fetch polyfill).' });
-    }
-    if (!ZENPAYMENTS_API_TOKEN) {
-      return res.status(500).json({ error: 'Missing ZENPAYMENTS_API_TOKEN environment variable.' });
-    }
-
-    const terminalId = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
-    if (!terminalId) {
-      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server.' });
-    }
-
-    // ZenPayments expects a domain value that matches the site where Hosted Fields will be embedded.
-    const domain = ZENPAYMENTS_DOMAIN || (req.headers.host || '').replace(/^https?:\/\//, '');
-
-    const zenResp = await _fetch(`${ZENPAYMENTS_API_BASE}/api/hosted-fields/token`, {
+/**
+ * POST JSON helper that works even when global fetch is unavailable (older Node runtimes).
+ * Returns: { ok, status, data, raw }
+ */
+async function postJson(url, payload, extraHeaders = {}) {
+  // Uses global fetch if available; falls back to https.request for older Node runtimes.
+  if (typeof fetch === 'function') {
+    const resp = await _fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ZENPAYMENTS_API_TOKEN}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'miamivapesmoke-checkout/1.0',
+        ...extraHeaders
       },
-      body: JSON.stringify({
-        terminal: { id: terminalId },
-        domain
-      })
+      body: JSON.stringify(payload),
     });
 
-    const data = await zenResp.json().catch(() => ({}));
+    const raw = await resp.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch (_) {}
 
-    if (!zenResp.ok) {
-      return res.status(zenResp.status).json({
-        error: 'ZenPayments token request failed',
-        status: zenResp.status,
-        details: data
-      });
-    }
-
-    const accessToken = data.access_token || data.accessToken || data.token;
-    if (!accessToken) {
-      return res.status(500).json({ error: 'ZenPayments did not return an access token.', details: data });
-    }
-
-    return res.json({ accessToken });
-  } catch (err) {
-    console.error('[ZenPayments] hosted-fields token error:', err);
-    return res.status(500).json({ error: 'Server error requesting Hosted Fields token.' });
+    return {
+      ok: resp.ok,
+      statusCode: resp.status,
+      headers: Object.fromEntries(resp.headers.entries()),
+      data,
+      raw,
+    };
   }
-});
-app.get('/faq', (_req, res) => {
-  res.render('faq', {
-    title: 'FAQ • Miami Vape Smoke Shop',
-    description: 'Delivery, THCa, payments, and policies explained.',
-    contact: CONTACT_INFO,
-  });
-});
 
-/* --------------------  Products (SSR)  -------------------- */
-app.get('/products', async (req, res) => {
-  try {
-    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-    const pageSize = PRODUCTS_PAGE_SIZE;
-    const selectedShop = normalizeShop(req.query.shop);
-    const snapshotTables = SHOP_TABLES[selectedShop] || SNAPSHOT_TABLES;
-    const snapshotAggSql = buildSnapshotAggSql(snapshotTables);
-    const storeMeta = getStoreChoice(selectedShop);
+  // Fallback: https.request (Node < 18)
+  const https = require('https');
+  const { hostname, pathname, search } = new URL(url);
+  const body = JSON.stringify(payload);
 
-    const q = (req.query.q || '').trim();
-    const sort = (req.query.sort || 'newest').toLowerCase();
-    const category = (req.query.category || '').trim();
-    const categoryId = category && !Number.isNaN(Number(category)) ? Number(category) : null;
-
-    // WHERE
-    const where = [];
-    const params = [];
-    if (q) {
-      where.push('(p.name LIKE ? OR p.upc LIKE ?)');
-      params.push(`%${q}%`, `%${q}%`);
-    }
-    if (categoryId !== null) {
-      const [categoryRows] = await queryWithRetry(
-        'SELECT id FROM categories WHERE id = ? OR parent_id = ? ORDER BY parent_id IS NULL DESC, id ASC',
-        [categoryId, categoryId]
-      );
-      let categoryFilterIds = categoryRows.map((row) => row.id);
-      if (!categoryFilterIds.length) {
-        categoryFilterIds = [categoryId];
-      } else if (!categoryFilterIds.includes(categoryId)) {
-        categoryFilterIds.unshift(categoryId);
+  return await new Promise((resolve) => {
+    const req = https.request({
+      hostname,
+      path: `${pathname}${search || ''}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'miamivapesmoke-checkout/1.0',
+        'Content-Length': Buffer.byteLength(body),
+        ...extraHeaders
       }
-      const placeholders = categoryFilterIds.map(() => '?').join(',');
-      where.push(`p.category_id IN (${placeholders})`);
-      params.push(...categoryFilterIds);
-    }
-    if (FEATURED_NAME_CLAUSE) {
-      where.push(`(${FEATURED_NAME_CLAUSE})`);
-      params.push(...FEATURED_NAME_PARAMS);
-    }
-    PRODUCT_EXCLUSION_KEYWORDS.forEach((keyword) => {
-      where.push('UPPER(p.name) NOT LIKE ?');
-      params.push(`%${keyword}%`);
-    });
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => {
+        let data = null;
+        try { data = JSON.parse(raw); } catch (_) {}
 
-    const inventoryJoinSql = SHOW_ALL_LOCAL
-      ? `
-        LEFT JOIN (
-          ${snapshotAggSql}
-        ) snap ON snap.name_key = UPPER(p.name)
-        LEFT JOIN product_images pi ON pi.product_id = p.id
-      `
-      : `
-        INNER JOIN (
-          ${snapshotAggSql}
-        ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
-        LEFT JOIN product_images pi ON pi.product_id = p.id
-      `;
-
-    const sortSql =
-      sort === 'price_asc'  ? 'ORDER BY p.unit_price ASC' :
-      sort === 'price_desc' ? 'ORDER BY p.unit_price DESC' :
-      sort === 'newest'     ? 'ORDER BY p.id DESC' :
-                              'ORDER BY p.id DESC';
-
-    const pageSql = `
-      SELECT
-        p.id,
-        p.name,
-        COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
-        ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
-        COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
-        p.unit_price AS price,
-        COALESCE(snap.total_qty, 0) AS total_qty,
-        p.supplier AS brand,
-        NULL AS rating,
-        NULL AS review_count
-      FROM products p
-      ${inventoryJoinSql}
-      ${whereSql}
-      ${sortSql}
-    `;
-    const [rows] = await queryWithRetry(pageSql, params);
-    applyLocalQtyOverride(rows);
-
-    // Group the fetched products by variant
-    const groupedProducts = groupProductsByVariant(rows).filter(group =>
-      FEATURED_BASE_SET.has((group.base_name || group.name || '').toUpperCase())
-    );
-    const totalGrouped = groupedProducts.length;
-    const startIndex = (page - 1) * pageSize;
-    const paginatedProducts = groupedProducts.slice(startIndex, startIndex + pageSize);
-
-    let finalProducts = paginatedProducts;
-
-    if (paginatedProducts.length) {
-      const baseKeys = [...new Set(paginatedProducts.map(p => (p.base_name || '').toUpperCase()).filter(Boolean))];
-      if (baseKeys.length) {
-        const variantConditions = baseKeys.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
-        const variantParams = baseKeys.map(key => `${key}%`);
-        const variantSql = `
-          SELECT
-            p.id,
-            p.name,
-            COALESCE(NULLIF(pi.image_url,''), COALESCE(NULLIF(p.image_url,''), '/images/products/placeholder.webp')) AS image_url,
-            ((pi.image_url IS NOT NULL AND pi.image_url <> '') OR (p.image_url IS NOT NULL AND p.image_url <> '')) AS has_image,
-            COALESCE(NULLIF(pi.image_alt,''), COALESCE(NULLIF(p.image_placeholder,''), 'Image coming soon')) AS image_alt,
-            p.unit_price AS price,
-            COALESCE(snap.total_qty, 0) AS total_qty,
-            p.supplier AS brand,
-            NULL AS rating,
-            NULL AS review_count
-          FROM products p
-          ${inventoryJoinSql}
-          WHERE ${variantConditions}
-        `;
-        const [variantRows] = await queryWithRetry(variantSql, variantParams);
-        applyLocalQtyOverride(variantRows);
-        const variantGroups = groupProductsByVariant(variantRows);
-        const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
-        finalProducts = paginatedProducts.map(group => {
-          const fullGroup = variantMap.get(group.base_name.toUpperCase());
-          if (!fullGroup) {
-            return group;
-          }
-          const normalizeFlavorKey = (value) => {
-            const trimmed = (value || 'Original').trim();
-            return (trimmed || 'Original').toUpperCase();
-          };
-          const flavorMap = new Map();
-          const mergedVariants = [];
-          const registerVariant = (variant) => {
-            const key = normalizeFlavorKey(variant.flavor);
-            const existing = flavorMap.get(key);
-            if (existing) {
-              existing.total_qty = Number(existing.total_qty || 0) + Number(variant.total_qty || 0);
-              if (!existing.has_image && variant.has_image) {
-                existing.image_url = variant.image_url;
-                existing.image_alt = variant.image_alt;
-                existing.has_image = true;
-              }
-              return;
-            }
-            const payload = { ...variant };
-            flavorMap.set(key, payload);
-            mergedVariants.push(payload);
-          };
-          group.variants.forEach(registerVariant);
-          fullGroup.variants.forEach(registerVariant);
-          return {
-            ...group,
-            variants: mergedVariants,
-          };
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          statusCode: res.statusCode,
+          headers: res.headers,
+          data,
+          raw,
         });
-      }
+      });
+    });
+
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('Authorize.Net request timed out'));
+    });
+
+    req.on('error', (err) => {
+      resolve({
+        ok: false,
+        statusCode: 0,
+        headers: {},
+        data: null,
+        raw: String(err && err.message ? err.message : err)
+      });
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
+
+app.post('/api/authorize/charge', async (req, res) => {
+  try {
+    const loginId = process.env.AUTH_NET_LOGIN_ID || process.env.AUTHORIZE_NET_API_LOGIN_ID || process.env.AUTHORIZE_NET_LOGIN_ID || '';
+    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || process.env.AUTHORIZE_NET_TRANSACTION_KEY || '';
+    const env = (process.env.AUTH_NET_ENV || process.env.AUTHORIZE_NET_ENV || process.env.AUTHORIZE_NET_ENVIRONMENT || 'sandbox').toLowerCase(); // 'production' or 'sandbox'
+
+    if (!loginId || !transactionKey) {
+      return res.status(500).json({ error: 'Authorize.Net server keys are not configured.' });
     }
 
-    const estimatedGroupedTotal = totalGrouped;
+    const { opaqueData, totals, customer, billing } = req.body || {};
+    const dataDescriptor = opaqueData?.dataDescriptor;
+    const dataValue = opaqueData?.dataValue;
+    if (!dataDescriptor || !dataValue) {
+      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+    }
 
-    // Get all categories
-    const [categoriesRows] = await queryWithRetry('SELECT id, name, slug FROM categories ORDER BY id ASC');
-    const categories = (categoriesRows || []).filter((cat) => !HIDDEN_CATEGORY_NAMES.has((cat.name || '').toUpperCase()));
+    // NOTE: totals from the browser are not trustworthy. For now we do basic validation and charge that amount.
+    const amountNum = Number(totals?.total);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ error: 'Invalid total amount.' });
+    }
+    const amount = amountNum.toFixed(2);
 
-    res.render('products', {
-      products: finalProducts,
-      page,
-      pageSize,
-      total: estimatedGroupedTotal,
-      q,
-      sort,
-      category,
-      categories,
-      selectedShop,
-      storeMeta,
-      storeOptions: STORE_CHOICES,
-      title: 'Shop Products • Miami Vape Smoke Shop',
-      description: 'Same-day pickup or delivery from either location.',
+    const endpoint =
+      env === 'production'
+        ? 'https://api.authorize.net/xml/v1/request.api'
+        : 'https://apitest.authorize.net/xml/v1/request.api';
+
+    const payload = {
+      createTransactionRequest: {
+        merchantAuthentication: { name: loginId, transactionKey },
+        refId: `order-${Date.now()}`,
+        transactionRequest: {
+          transactionType: 'authCaptureTransaction',
+          amount,
+          payment: {
+            opaqueData: { dataDescriptor, dataValue }
+          },
+          billTo: billing ? {
+            firstName: billing.firstName || '',
+            lastName: billing.lastName || '',
+            address: billing.address || '',
+            city: billing.city || '',
+            state: billing.state || '',
+            zip: billing.zip || '',
+            country: billing.country || 'US',
+            phoneNumber: billing.phoneNumber || ''
+          } : undefined,
+          customer: customer?.email ? { email: customer.email } : undefined
+        }
+      }
+    };
+
+    const { ok: respOk, statusCode: respStatus, data, raw } = await postJson(endpoint, payload);
+
+    if (!data) {
+      console.error('[Authorize.Net] non-JSON response from gateway', {
+        status: respStatus,
+        raw: String(raw || '').slice(0, 600)
+      });
+      return res.status(502).json({ error: 'Payment gateway error. Please try again in a moment.' });
+    }
+
+    // Helpful for debugging in logs (keeps response body server-side)
+    if (!respOk) {
+      console.error('[Authorize.Net] HTTP error', respStatus, raw?.slice?.(0, 500) || raw);
+    }
+const resultCode = data?.messages?.resultCode;
+    const trx = data?.transactionResponse;
+
+    if (!respOk || resultCode !== 'Ok' || trx?.responseCode !== '1') {
+      const errText =
+        trx?.errors?.[0]?.errorText ||
+        data?.messages?.message?.[0]?.text ||
+        'Payment was declined.';
+      return res.status(400).json({ error: errText, raw: data });
+    }
+
+    return res.json({
+      ok: true,
+      transId: trx.transId,
+      authCode: trx.authCode,
+      avs: trx.avsResultCode,
+      cvv: trx.cvvResultCode
     });
   } catch (err) {
-    console.error('Error loading products:', err);
-    res.status(500).send('Error loading products');
+    console.error('[Authorize.Net] charge error:', err);
+    return res.status(500).json({ error: 'Server error while processing payment.' });
   }
 });
 
-/* --------------------  Start  -------------------- */
+
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, async () => {
   console.log(`Server running → http://localhost:${PORT}`);
@@ -2542,151 +2468,4 @@ app.listen(PORT, async () => {
 
 
 
-
-
-
-
-
-
-
-/* ------------------------ Authorize.Net Accept.js ------------------------ */
-/**
- * Client (checkout.ejs) tokenizes card details with Accept.js, sending opaqueData here.
- * We then create an authCaptureTransaction server-side using the Transaction Key.
- */
-app.post('/api/authorize/charge', async (req, res) => {
-  try {
-    const loginId = process.env.AUTH_NET_LOGIN_ID || '';
-    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || '';
-    const env = (process.env.AUTH_NET_ENV || 'production').toLowerCase();
-
-    if (!loginId || !transactionKey) {
-      return res.status(500).json({ error: 'Authorize.Net is not configured on the server (missing keys).' });
-    }
-
-    const { opaqueData, totals, customer, billing } = req.body || {};
-
-    const amount = Number(totals?.total);
-    if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
-      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid amount.' });
-    }
-
-    const endpoint =
-      env === 'sandbox'
-        ? 'https://apitest.authorize.net/json/v1/request.api'
-        : 'https://api2.authorize.net/json/v1/request.api';
-
-    const billTo = {
-      firstName: billing?.firstName || '',
-      lastName: billing?.lastName || '',
-      address: billing?.address || '',
-      city: billing?.city || '',
-      state: billing?.state || '',
-      zip: billing?.zip || '',
-      country: billing?.country || 'US',
-      phoneNumber: billing?.phoneNumber || ''
-    };
-
-    const payload = {
-      createTransactionRequest: {
-        merchantAuthentication: { name: loginId, transactionKey },
-        transactionRequest: {
-          transactionType: 'authCaptureTransaction',
-          amount: amount.toFixed(2),
-          payment: {
-            opaqueData: {
-              dataDescriptor: opaqueData.dataDescriptor,
-              dataValue: opaqueData.dataValue
-            }
-          },
-          billTo,
-          customer: { email: customer?.email || '' }
-        }
-      }
-    };
-
-    const anetResp = await postJson(endpoint, payload);
-
-    const resultCode = anetResp?.messages?.resultCode;
-    if (resultCode !== 'Ok') {
-      const msg =
-        anetResp?.messages?.message?.[0]?.text ||
-        anetResp?.transactionResponse?.errors?.[0]?.errorText ||
-        'Payment failed.';
-      return res.status(402).json({ error: msg, raw: scrubAuthorizeNetError(anetResp) });
-    }
-
-    const tr = anetResp?.transactionResponse || {};
-    if (!tr?.transId) {
-      return res.status(500).json({ error: 'Payment response missing transaction ID.', raw: scrubAuthorizeNetError(anetResp) });
-    }
-
-    return res.json({
-      ok: true,
-      transactionId: tr.transId,
-      authCode: tr.authCode || null
-    });
-  } catch (err) {
-    console.error('[Authorize.Net] charge error:', err?.message || err);
-    return res.status(500).json({ error: 'Server error while charging card.' });
-  }
-});
-
-function postJson(url, body) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const data = JSON.stringify(body);
-
-    const req = https.request(
-      {
-        hostname: u.hostname,
-        path: u.pathname + u.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data),
-          'Accept': 'application/json'
-        },
-        timeout: 20000
-      },
-      (resp) => {
-        let raw = '';
-        resp.on('data', (chunk) => (raw += chunk));
-        resp.on('end', () => {
-          try {
-            const json = JSON.parse(raw || '{}');
-            resolve(json);
-          } catch (e) {
-            reject(new Error('Authorize.Net returned invalid JSON.'));
-          }
-        });
-      }
-    );
-
-    req.on('timeout', () => req.destroy(new Error('Authorize.Net request timed out.')));
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
-}
-
-function scrubAuthorizeNetError(payload) {
-  if (!payload || typeof payload !== 'object') return null;
-  return {
-    messages: payload.messages,
-    transactionResponse: payload.transactionResponse
-      ? {
-          responseCode: payload.transactionResponse.responseCode,
-          authCode: payload.transactionResponse.authCode,
-          transId: payload.transactionResponse.transId,
-          errors: payload.transactionResponse.errors
-        }
-      : undefined
-  };
-}
-
-/* ------------------------------------------------------------------------ */
 
