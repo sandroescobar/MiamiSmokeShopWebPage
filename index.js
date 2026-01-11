@@ -7,6 +7,7 @@ import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
 
+import https from 'https';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
@@ -2230,136 +2231,32 @@ async function seedVariantImages() {
 }
 
 /* --------------------  Checkout  -------------------- */
+
 app.get('/checkout', (req, res) => {
   const selectedShop = normalizeShop(req.query.shop);
+
+  // These are PUBLIC keys meant for the browser (Accept.js tokenization).
+  // (Do NOT expose AUTH_NET_TRANSACTION_KEY to the browser.)
+  const authorizeLoginId = (process.env.AUTH_NET_LOGIN_ID || '').trim();
+  const authorizeClientKey = (process.env.AUTH_NET_CLIENT_KEY || '').trim();
+  const authNetEnv = (process.env.AUTH_NET_ENV || '').trim();
+
+  // Helpful, non-sensitive debug (booleans only)
+  console.log('[checkout] authnet keys present:', Boolean(authorizeLoginId), Boolean(authorizeClientKey), 'env:', authNetEnv || 'unset');
+
   res.render('checkout', {
-    title: 'Checkout • Miami Vape Smoke Shop',
-    description: 'Complete your purchase',
+    title: 'Secure Checkout | Miami Vape Smoke',
+    description: 'Complete your purchase securely with pickup or delivery options.',
     selectedShop,
-    storeMeta: getStoreChoice(selectedShop),
-    storeOptions: STORE_CHOICES,
+    storeMeta: getStoreMetadata(selectedShop),
+    storeOptions: Object.values(STORE_NAME_BY_ID),
     storeNameMap: STORE_NAME_BY_ID,
 
-    // ---- Authorize.Net (Accept.js) ----
-    // These get injected into checkout.ejs so the browser can tokenize card data.
-    // Make sure these env vars are set where your app runs.
-    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID || '',
-    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY || '',
-    authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
+    // passed into checkout.ejs
+    authorizeLoginId,
+    authorizeClientKey,
+    authNetEnv
   });
-});
-
-
-/* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
-/**
- * Client: checkout.ejs tokenizes card details via Accept.js -> opaqueData
- * Server: uses opaqueData + merchant auth to create an authCaptureTransaction.
- *
- * SECURITY NOTE:
- * Right now the client sends totals computed from localStorage. That's not secure.
- * For production, compute the amount on the server from your cart/order items.
- */
-app.post('/api/authorize/charge', async (req, res) => {
-  try {
-    const { opaqueData, totals, customer, billing } = req.body || {};
-
-    if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
-      return res.status(400).json({ error: 'Missing opaqueData token.' });
-    }
-
-    const loginId = process.env.AUTH_NET_LOGIN_ID;
-    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || process.env.AUTH_NET_TRANS_KEY;
-    const env = (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')).toLowerCase();
-
-    if (!loginId || !transactionKey) {
-      return res.status(500).json({ error: 'Authorize.Net server keys are not configured (loginId/transactionKey missing).' });
-    }
-
-    const amountNum = Number(totals?.total);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      return res.status(400).json({ error: 'Invalid total amount.' });
-    }
-    const amount = amountNum.toFixed(2);
-
-    const endpoint = env === 'production'
-      ? 'https://api.authorize.net/xml/v1/request.api'
-      : 'https://apitest.authorize.net/xml/v1/request.api';
-
-    // Build request (JSON version of Authorize.Net createTransactionRequest)
-    const payload = {
-      createTransactionRequest: {
-        merchantAuthentication: {
-          name: loginId,
-          transactionKey,
-        },
-        refId: `ref_${Date.now()}`,
-        transactionRequest: {
-          transactionType: 'authCaptureTransaction',
-          amount,
-          payment: {
-            opaqueData: {
-              dataDescriptor: opaqueData.dataDescriptor,
-              dataValue: opaqueData.dataValue,
-            },
-          },
-          // Optional but helpful fields
-          customer: customer?.email ? { email: String(customer.email) } : undefined,
-          billTo: billing ? {
-            firstName: billing.firstName || undefined,
-            lastName: billing.lastName || undefined,
-            address: billing.address || undefined,
-            city: billing.city || undefined,
-            state: billing.state || undefined,
-            zip: billing.zip || undefined,
-            country: billing.country || 'US',
-            phoneNumber: billing.phoneNumber || undefined,
-          } : undefined,
-        },
-      },
-    };
-
-    // Remove undefined fields so Authorize.Net doesn't complain
-    if (!payload.createTransactionRequest.transactionRequest.customer) delete payload.createTransactionRequest.transactionRequest.customer;
-    if (!payload.createTransactionRequest.transactionRequest.billTo) delete payload.createTransactionRequest.transactionRequest.billTo;
-
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await resp.json().catch(() => null);
-    if (!resp.ok || !data) {
-      return res.status(502).json({ error: 'Authorize.Net request failed.' });
-    }
-
-    const resultCode = data?.messages?.resultCode;
-    const t = data?.transactionResponse;
-
-    if (resultCode !== 'Ok' || !t) {
-      const msg = data?.messages?.message?.[0]?.text
-        || t?.errors?.[0]?.errorText
-        || 'Payment failed.';
-      return res.status(400).json({ error: msg });
-    }
-
-    // Approved transactions generally include responseCode === '1'
-    if (String(t.responseCode) !== '1') {
-      const errMsg = t?.errors?.[0]?.errorText || 'Payment was not approved.';
-      return res.status(400).json({ error: errMsg });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      transactionId: t.transId,
-      authCode: t.authCode,
-      avsResultCode: t.avsResultCode,
-      cvvResultCode: t.cvvResultCode,
-    });
-  } catch (err) {
-    console.error('[authorize.net] charge error:', err?.message || err);
-    return res.status(500).json({ error: 'Server error while charging card.' });
-  }
 });
 
 
@@ -2645,4 +2542,146 @@ app.listen(PORT, async () => {
 
 
 
+
+
+
+/* ------------------------ Authorize.Net Accept.js ------------------------ */
+/**
+ * Client (checkout.ejs) tokenizes card details with Accept.js, sending opaqueData here.
+ * We then create an authCaptureTransaction server-side using the Transaction Key.
+ */
+app.post('/api/authorize/charge', async (req, res) => {
+  try {
+    const loginId = process.env.AUTH_NET_LOGIN_ID || '';
+    const transactionKey = process.env.AUTH_NET_TRANSACTION_KEY || '';
+    const env = (process.env.AUTH_NET_ENV || 'production').toLowerCase();
+
+    if (!loginId || !transactionKey) {
+      return res.status(500).json({ error: 'Authorize.Net is not configured on the server (missing keys).' });
+    }
+
+    const { opaqueData, totals, customer, billing } = req.body || {};
+
+    const amount = Number(totals?.total);
+    if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
+      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount.' });
+    }
+
+    const endpoint =
+      env === 'sandbox'
+        ? 'https://apitest.authorize.net/xml/v1/request.api'
+        : 'https://api2.authorize.net/xml/v1/request.api';
+
+    const billTo = {
+      firstName: billing?.firstName || '',
+      lastName: billing?.lastName || '',
+      address: billing?.address || '',
+      city: billing?.city || '',
+      state: billing?.state || '',
+      zip: billing?.zip || '',
+      country: billing?.country || 'US',
+      phoneNumber: billing?.phoneNumber || ''
+    };
+
+    const payload = {
+      createTransactionRequest: {
+        merchantAuthentication: { name: loginId, transactionKey },
+        transactionRequest: {
+          transactionType: 'authCaptureTransaction',
+          amount: amount.toFixed(2),
+          payment: {
+            opaqueData: {
+              dataDescriptor: opaqueData.dataDescriptor,
+              dataValue: opaqueData.dataValue
+            }
+          },
+          billTo,
+          customer: { email: customer?.email || '' }
+        }
+      }
+    };
+
+    const anetResp = await postJson(endpoint, payload);
+
+    const resultCode = anetResp?.messages?.resultCode;
+    if (resultCode !== 'Ok') {
+      const msg =
+        anetResp?.messages?.message?.[0]?.text ||
+        anetResp?.transactionResponse?.errors?.[0]?.errorText ||
+        'Payment failed.';
+      return res.status(402).json({ error: msg, raw: scrubAuthorizeNetError(anetResp) });
+    }
+
+    const tr = anetResp?.transactionResponse || {};
+    if (!tr?.transId) {
+      return res.status(500).json({ error: 'Payment response missing transaction ID.', raw: scrubAuthorizeNetError(anetResp) });
+    }
+
+    return res.json({
+      ok: true,
+      transactionId: tr.transId,
+      authCode: tr.authCode || null
+    });
+  } catch (err) {
+    console.error('[Authorize.Net] charge error:', err?.message || err);
+    return res.status(500).json({ error: 'Server error while charging card.' });
+  }
+});
+
+function postJson(url, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const data = JSON.stringify(body);
+
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data)
+        },
+        timeout: 20000
+      },
+      (resp) => {
+        let raw = '';
+        resp.on('data', (chunk) => (raw += chunk));
+        resp.on('end', () => {
+          try {
+            const json = JSON.parse(raw || '{}');
+            resolve(json);
+          } catch (e) {
+            reject(new Error('Authorize.Net returned invalid JSON.'));
+          }
+        });
+      }
+    );
+
+    req.on('timeout', () => req.destroy(new Error('Authorize.Net request timed out.')));
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+function scrubAuthorizeNetError(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  return {
+    messages: payload.messages,
+    transactionResponse: payload.transactionResponse
+      ? {
+          responseCode: payload.transactionResponse.responseCode,
+          authCode: payload.transactionResponse.authCode,
+          transId: payload.transactionResponse.transId,
+          errors: payload.transactionResponse.errors
+        }
+      : undefined
+  };
+}
+
+/* ------------------------------------------------------------------------ */
 

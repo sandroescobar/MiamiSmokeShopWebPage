@@ -147,7 +147,7 @@
     .policy-modal__loading{color:#475569;font-size:14px;margin:0}
     .policy-modal__error{color:#b91c1c;font-size:14px;margin:0}
 
-    /* ---------------- Authorize.Net Fields (plain inputs; tokenized by Accept.js) ---------------- */
+    /* ---------------- Authorize.Net Accept.js fields ---------------- */
     .zp-fields { display: grid; gap: 12px; }
     .zp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .zp-label { font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; display:block; }
@@ -163,7 +163,6 @@
     input.zp-input{display:block;}
     .zp-hint { font-size: 0.85rem; color: #64748b; margin-top: 6px; }
     .zp-error { color: #b91c1c; font-size: 0.9rem; margin-top: 8px; }
-    .zp-success { color: #15803d; font-size: 0.9rem; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -300,31 +299,31 @@
                 <div class="card payment-card">
                   <div class="card-body">
 
-<div class="zp-fields" id="authnet-fields">
-  <div class="row-1">
-    <label class="zp-label" for="cardName">Name on card</label>
-    <input id="cardName" class="zp-input" type="text" autocomplete="cc-name" placeholder="Full name"/>
-  </div>
+                    <div class="zp-fields" id="authnet-fields">
+                      <div class="row-1">
+                        <label class="zp-label" for="cardName">Name on card</label>
+                        <input id="cardName" class="zp-input" type="text" autocomplete="cc-name" placeholder="Full name"/>
+                      </div>
 
-  <div class="row-1" style="margin-top:10px">
-    <label class="zp-label" for="cardNumber">Card number</label>
-    <input id="cardNumber" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234"/>
-  </div>
+                      <div class="row-1" style="margin-top:10px">
+                        <label class="zp-label" for="cardNumber">Card number</label>
+                        <input id="cardNumber" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234"/>
+                      </div>
 
-  <div class="zp-row" style="margin-top:10px">
-    <div>
-      <label class="zp-label" for="cardExp">Expiration</label>
-      <input id="cardExp" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY"/>
-    </div>
-    <div>
-      <label class="zp-label" for="cardCvv">CVV</label>
-      <input id="cardCvv" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-csc" placeholder="123"/>
-    </div>
-  </div>
+                      <div class="zp-row" style="margin-top:10px">
+                        <div>
+                          <label class="zp-label" for="cardExp">Expiration</label>
+                          <input id="cardExp" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY"/>
+                        </div>
+                        <div>
+                          <label class="zp-label" for="cardCvv">CVV</label>
+                          <input id="cardCvv" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-csc" placeholder="123"/>
+                        </div>
+                      </div>
 
-  <div id="pay-msg" class="zp-hint">Card details are tokenized securely by Authorize.net (Accept.js).</div>
-  <div id="pay-error" class="zp-error" role="alert" aria-live="polite"></div>
-</div>
+                      <div id="pay-msg" class="zp-hint">Card details are tokenized securely by Authorize.net (Accept.js).</div>
+                      <div id="pay-error" class="zp-error" role="alert" aria-live="polite"></div>
+                    </div>
 
                   </div>
                 </div>
@@ -368,7 +367,6 @@
     </div>
   </div>
 
-  <!-- Authorize.Net Accept.js (tokenization) -->
   <script src="https://js.authorize.net/v1/Accept.js"></script>
 
   <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
@@ -379,7 +377,19 @@
   </div>
 
   <script>
-    // -------------------- Global state --------------------
+    // ---------------- EJS-injected config ----------------
+    // NOTE: Using typeof checks prevents EJS ReferenceError if a variable wasn't passed.
+    const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
+    const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
+    const AUTH_NET_ENV = <%- JSON.stringify((typeof authNetEnv !== 'undefined') ? authNetEnv : '') %>;
+
+    console.log('[checkout] authnet config', {
+      loginIdPresent: !!AUTH_NET_LOGIN_ID,
+      clientKeyPresent: !!AUTH_NET_CLIENT_KEY,
+      env: AUTH_NET_ENV || 'unset'
+    });
+
+    // Global state
     let allStores = [];
     let selectedStore = null;
     let cartProductIds = [];
@@ -388,7 +398,7 @@
     let selectedDeliveryStore = null;
     let userDeliveryLocation = null;
 
-    // -------------------- Render cart items + totals --------------------
+    // Render cart items and update totals
     (function(){
       const cart = JSON.parse(localStorage.getItem('cart')) || [];
       const container = document.getElementById('order-items-container');
@@ -399,44 +409,46 @@
 
       if (cart.length === 0) {
         container.innerHTML = '<p style="color:#64748b; margin-bottom:16px;">Your cart is empty</p>';
-        return;
+      } else {
+        let itemsHtml = '';
+        let subtotal = 0;
+
+        cart.forEach(item => {
+          const price = typeof item.price === 'string' ? parseFloat(item.price.replace('$', '')) : (item.price || 0);
+          const itemTotal = price * (item.quantity || 1);
+          subtotal += itemTotal;
+          itemsHtml += `
+            <div class="line" style="font-size:13px; padding:8px 0;">
+              <span>${item.name} <span style="color:#64748b;">×${item.quantity}</span></span>
+              <span>$${itemTotal.toFixed(2)}</span>
+            </div>
+          `;
+        });
+
+        const tax = subtotal * TAX_RATE;
+        const delivery = 0;
+        const total = subtotal + tax + delivery;
+
+        checkoutTotals = { subtotal, tax, delivery, total };
+
+        container.innerHTML = itemsHtml + '<div style="border-bottom:1px solid #e2e8f0; margin-bottom:8px;"></div>';
+
+        document.getElementById('summary-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        document.getElementById('summary-delivery').textContent = `$${delivery.toFixed(2)}`;
+        document.getElementById('summary-tax').textContent = `$${tax.toFixed(2)}`;
+        document.getElementById('summary-total').textContent = `$${total.toFixed(2)}`;
       }
-
-      let itemsHtml = '';
-      let subtotal = 0;
-
-      cart.forEach(item => {
-        const price = typeof item.price === 'string' ? parseFloat(item.price.replace('$', '')) : (item.price || 0);
-        const qty = item.quantity || 1;
-        const itemTotal = price * qty;
-        subtotal += itemTotal;
-        itemsHtml += `
-          <div class="line" style="font-size:13px; padding:8px 0;">
-            <span>${item.name} <span style="color:#64748b;">×${qty}</span></span>
-            <span>$${itemTotal.toFixed(2)}</span>
-          </div>
-        `;
-      });
-
-      const tax = subtotal * TAX_RATE;
-      const delivery = 0;
-      const total = subtotal + tax + delivery;
-
-      checkoutTotals = { subtotal, tax, delivery, total };
-
-      container.innerHTML = itemsHtml + '<div style="border-bottom:1px solid #e2e8f0; margin-bottom:8px;"></div>';
-
-      document.getElementById('summary-subtotal').textContent = `$${subtotal.toFixed(2)}`;
-      document.getElementById('summary-delivery').textContent = `$${delivery.toFixed(2)}`;
-      document.getElementById('summary-tax').textContent = `$${tax.toFixed(2)}`;
-      document.getElementById('summary-total').textContent = `$${total.toFixed(2)}`;
     })();
 
     function updateSummaryDelivery() {
       const deliveryEl = document.getElementById('summary-delivery');
       const totalEl = document.getElementById('summary-total');
-      if (deliveryEl) deliveryEl.textContent = `$${checkoutTotals.delivery.toFixed(2)}`;
-      if (totalEl) totalEl.textContent = `$${checkoutTotals.total.toFixed(2)}`;
+      if (deliveryEl) {
+        deliveryEl.textContent = `$${checkoutTotals.delivery.toFixed(2)}`;
+      }
+      if (totalEl) {
+        totalEl.textContent = `$${checkoutTotals.total.toFixed(2)}`;
+      }
     }
 
     function setDeliveryFee(amount) {
@@ -461,7 +473,9 @@
     }
 
     function estimateDeliveryFee(distance) {
-      if (!distance || Number.isNaN(distance)) return 9.99;
+      if (!distance || Number.isNaN(distance) || distance === Infinity) {
+        return 9.99;
+      }
       const surcharge = Math.max(0, distance - 4) * 1.25;
       return Math.min(24.99, 10.99 + surcharge);
     }
@@ -512,16 +526,22 @@
         container.style.display = 'none';
       }
       const info = document.getElementById('closest-store-info');
-      if (info) info.style.display = 'none';
+      if (info) {
+        info.style.display = 'none';
+      }
       const notice = document.getElementById('delivery-availability-notice');
-      if (notice) notice.style.display = 'none';
+      if (notice) {
+        notice.style.display = 'none';
+      }
       setDeliveryFee(0);
     }
 
     function updateClosestStoreHighlight(closest) {
       const info = document.getElementById('closest-store-info');
       if (!info || !closest) {
-        if (info) info.style.display = 'none';
+        if (info) {
+          info.style.display = 'none';
+        }
         return;
       }
       const nameEl = document.getElementById('closest-store-name');
@@ -537,8 +557,9 @@
 
     function updateDeliveryNotice(selectedOption) {
       const notice = document.getElementById('delivery-availability-notice');
-      if (!notice) return;
-
+      if (!notice) {
+        return;
+      }
       const messages = [];
       const closest = deliveryStoreOptions[0];
       if (closest && closest.missingCount > 0) {
@@ -547,7 +568,6 @@
       if (selectedOption && selectedOption.missingCount > 0) {
         messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
       }
-
       if (messages.length > 0) {
         notice.innerHTML = messages.join('<br>');
         notice.style.display = 'block';
@@ -559,19 +579,22 @@
     function renderDeliveryStores() {
       const container = document.getElementById('delivery-stores');
       const helper = document.getElementById('delivery-store-helper');
-      if (!container) return;
-
+      if (!container) {
+        return;
+      }
       if (!deliveryStoreOptions.length) {
         container.innerHTML = '';
         container.style.display = 'none';
-        if (helper) helper.style.display = 'block';
+        if (helper) {
+          helper.style.display = 'block';
+        }
         updateClosestStoreHighlight(null);
         updateDeliveryNotice(null);
         return;
       }
-
-      if (helper) helper.style.display = 'none';
-
+      if (helper) {
+        helper.style.display = 'none';
+      }
       const totalItems = cartProductIds.length;
       const cards = deliveryStoreOptions
         .map((option, idx) => {
@@ -594,17 +617,14 @@
           `;
         })
         .join('');
-
       container.innerHTML = cards;
       container.style.display = 'block';
-
       container.querySelectorAll('input[name="store_delivery"]').forEach(input => {
         input.addEventListener('change', (e) => {
           selectedDeliveryStore = e.target.value;
           applyDeliverySelection();
         });
       });
-
       applyDeliverySelection();
     }
 
@@ -615,11 +635,9 @@
         updateDeliveryNotice(null);
         return;
       }
-
       if (!selectedDeliveryStore) {
         selectedDeliveryStore = deliveryStoreOptions[0].name;
       }
-
       const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
       selectedDeliveryStore = selectedOption.name;
       setDeliveryFee(selectedOption.fee);
@@ -632,9 +650,7 @@
         clearDeliveryOptions();
         return;
       }
-
       const totalItems = cartProductIds.length;
-
       const results = await Promise.all(
         allStores.map(async store => {
           const availability = await getStoreAvailability(store.name);
@@ -647,22 +663,19 @@
           return { ...store, distance, fee, availableCount, missingCount };
         })
       );
-
       results.sort((a, b) => a.distance - b.distance);
       const previousSelection = selectedDeliveryStore;
       deliveryStoreOptions = results;
-
       if (previousSelection && results.some(option => option.name === previousSelection)) {
         selectedDeliveryStore = previousSelection;
       } else {
         const fullyStocked = results.find(option => option.missingCount === 0);
         selectedDeliveryStore = (fullyStocked || results[0]) ? (fullyStocked || results[0]).name : null;
       }
-
       renderDeliveryStores();
     }
 
-    // -------------------- Stores --------------------
+    // Initialize stores
     async function initializeStores() {
       try {
         const res = await fetch('/api/stores');
@@ -688,10 +701,9 @@
       }
     }
 
+    // Render pickup store selection
     async function renderPickupStores() {
       const container = document.getElementById('pickup-stores');
-      if (!container) return;
-
       let html = '';
 
       for (const store of allStores) {
@@ -703,7 +715,7 @@
 
         html += `
           <label class="store-option">
-            <input type="radio" name="store_pickup" value="${store.name}" ${store === allStores[0] ? 'checked' : ''}>
+            <input type="radio" name="store_pickup" value="${store.name}" ${store.id === allStores[0].id ? 'checked' : ''}>
             <div class="store-header">
               <div class="store-name">${store.name}</div>
               <span class="availability ${isAvailable ? 'available' : 'unavailable'}">
@@ -718,6 +730,7 @@
 
       container.innerHTML = html;
 
+      // Add event listeners
       document.querySelectorAll('input[name="store_pickup"]').forEach(radio => {
         radio.addEventListener('change', async (e) => {
           selectedStore = e.target.value;
@@ -726,6 +739,7 @@
       });
     }
 
+    // Check inventory for store
     async function getStoreAvailability(storeName) {
       if (cartProductIds.length === 0) return {};
 
@@ -747,6 +761,7 @@
       }
     }
 
+    // Display inventory check results
     async function checkInventoryForStore(storeName) {
       const availability = await getStoreAvailability(storeName);
       const unavailable = Object.entries(availability)
@@ -755,7 +770,6 @@
         .filter(i => i !== -1);
 
       const notice = document.getElementById('pickup-availability-notice');
-      if (!notice) return;
 
       if (unavailable.length > 0) {
         notice.innerHTML = `⚠️ ${unavailable.length} item(s) not available at ${storeName}`;
@@ -765,7 +779,7 @@
       }
     }
 
-    // -------------------- Delivery method toggle --------------------
+    // Handle delivery method toggle
     (function(){
       const radios = document.querySelectorAll('input[name="delivery_method"]');
       const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
@@ -777,10 +791,12 @@
         const method = (document.querySelector('input[name="delivery_method"]:checked')||{}).value;
         const isDelivery = method === 'uber';
 
+        // Toggle visibility
         pickupSection.style.display = isDelivery ? 'none' : 'block';
         deliverySection.style.display = isDelivery ? 'block' : 'none';
         addressSection.style.display = isDelivery ? 'block' : 'none';
 
+        // Toggle address fields
         addressInputs.forEach(i=>{
           i.disabled = !isDelivery;
           i.required = isDelivery;
@@ -797,7 +813,9 @@
         } else {
           setDeliveryFee(0);
           const deliveryNotice = document.getElementById('delivery-availability-notice');
-          if (deliveryNotice) deliveryNotice.style.display = 'none';
+          if (deliveryNotice) {
+            deliveryNotice.style.display = 'none';
+          }
         }
       }
 
@@ -805,7 +823,7 @@
       update();
     })();
 
-    // -------------------- Delivery address debounce -> geocode -> store options --------------------
+    // Handle delivery address input - find closest store
     (function(){
       const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
       const debounceDelay = 1500;
@@ -836,7 +854,9 @@
           const coords = await geocodeAddressWithFallback(street, city, state, zip);
 
           if (!coords) {
-            if (helper) helper.textContent = 'Could not locate that address. Double-check the details.';
+            if (helper) {
+              helper.textContent = 'Could not locate that address. Double-check the details.';
+            }
             clearDeliveryOptions();
             return;
           }
@@ -845,7 +865,9 @@
           await buildDeliveryStoreOptions(coords.lat, coords.lng);
         } catch (err) {
           console.error('Error finding closest store:', err);
-          if (helper) helper.textContent = 'Something went wrong while finding nearby stores.';
+          if (helper) {
+            helper.textContent = 'Something went wrong while finding nearby stores.';
+          }
           clearDeliveryOptions();
         }
       }
@@ -858,7 +880,6 @@
       });
     })();
 
-    // -------------------- Policy modal --------------------
     const policyModal = document.getElementById('policy-modal');
     const policyModalContent = document.getElementById('policy-modal-content');
     const policyModalClose = document.getElementById('policy-modal-close');
@@ -867,7 +888,6 @@
       if (!policyModal || !policyModalContent) return;
       policyModal.classList.add('show');
       policyModalContent.innerHTML = `<p class="policy-modal__loading">Loading ${label}…</p>`;
-
       fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
         .then((res) => res.text())
         .then((html) => {
@@ -906,14 +926,20 @@
           openPolicyModal(link.href, link.textContent.trim());
         });
       });
-      if (policyModalClose) policyModalClose.addEventListener('click', closePolicyModal);
+      if (policyModalClose) {
+        policyModalClose.addEventListener('click', closePolicyModal);
+      }
       if (policyModal) {
         policyModal.addEventListener('click', (event) => {
-          if (event.target === policyModal) closePolicyModal();
+          if (event.target === policyModal) {
+            closePolicyModal();
+          }
         });
       }
       document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') closePolicyModal();
+        if (event.key === 'Escape') {
+          closePolicyModal();
+        }
       });
     }
 
@@ -922,11 +948,7 @@
       setupPolicyLinks();
     });
 
-
-    /* ---------------- Authorize.Net Accept.js init ---------------- */
-    // IMPORTANT: These come from the server render (index.js -> res.render('checkout', {...}))
-    const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
-    const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
+    /* ---------------- Authorize.Net Accept.js ---------------- */
 
     function paySetError(msg) {
       const el = document.getElementById('pay-error');
@@ -972,6 +994,7 @@
     }
 
     function parseExp(exp) {
+      // Accepts "MM/YY" or "MMYY" or "MM/YYYY"
       const raw = String(exp || '').replace(/\s+/g, '');
       const m = raw.match(/^(\d{2})\s*\/?\s*(\d{2}|\d{4})$/);
       if (!m) return null;
@@ -1011,12 +1034,12 @@
       const btn = document.getElementById('zp-pay-btn');
       if (!btn) return;
 
-      paySetError('');
-
       if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
         paySetError('Payment configuration missing (Authorize.net keys not set).');
         return;
       }
+
+      paySetError('');
 
       if (!window.Accept || typeof window.Accept.dispatchData !== 'function') {
         paySetError('Authorize.Net Accept.js failed to load. Refresh and try again.');
@@ -1033,7 +1056,8 @@
         cardNumber: (document.getElementById('cardNumber')?.value || '').replace(/\s+/g, ''),
         month: expObj.month,
         year: expObj.year,
-        cardCode: (document.getElementById('cardCvv')?.value || '').trim()
+        cardCode: (document.getElementById('cardCvv')?.value || '').trim(),
+        fullName: (document.getElementById('cardName')?.value || '').trim()
       };
 
       if (!cardData.cardNumber || !cardData.cardCode || !cardData.month || !cardData.year) {
@@ -1091,15 +1115,12 @@
 
       btn.addEventListener('click', (e) => {
         e.preventDefault();
+        console.log('[checkout] Complete Order clicked');
         tokenizeAndPay();
       });
-
-      // Optional: if config missing, show it immediately
-      if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
-        paySetError('Payment configuration missing (Authorize.net keys not set).');
-      }
     }
 
+    // Bind now (script is at bottom of body), and also on DOMContentLoaded just in case
     bindPayButton();
     document.addEventListener('DOMContentLoaded', bindPayButton);
   </script>
