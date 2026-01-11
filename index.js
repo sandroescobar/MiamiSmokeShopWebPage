@@ -197,6 +197,10 @@ function getStoreChoice(id = DEFAULT_SHOP) {
   return STORE_CHOICE_MAP.get(id) || STORE_CHOICE_MAP.get(DEFAULT_SHOP);
 }
 
+function getStoreMetadata(id = DEFAULT_SHOP) {
+  return getStoreChoice(id);
+}
+
 function containsExcludedKeyword(value = '') {
   const upperValue = value.toUpperCase();
   return PRODUCT_EXCLUSION_KEYWORDS.some((keyword) => upperValue.includes(keyword));
