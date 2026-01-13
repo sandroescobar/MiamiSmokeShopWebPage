@@ -5,6 +5,7 @@ import fs from 'fs';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
+import https from 'https';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2260,6 +2261,65 @@ app.get('/checkout', (req, res) => {
  * Right now the client sends totals computed from localStorage. That's not secure.
  * For production, compute the amount on the server from your cart/order items.
  */
+const hasGlobalFetch = typeof fetch === 'function';
+
+async function sendAuthorizeNetRequest(endpoint, payload) {
+  const body = JSON.stringify(payload);
+  if (hasGlobalFetch) {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body,
+    });
+    const text = await resp.text();
+    const headers = {};
+    resp.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+    return { status: resp.status, headers, body: text };
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      const url = new URL(endpoint);
+      const req = https.request(
+        {
+          hostname: url.hostname,
+          port: url.port || 443,
+          path: `${url.pathname}${url.search || ''}`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+          },
+        },
+        (resp) => {
+          let data = '';
+          resp.on('data', (chunk) => {
+            data += chunk;
+          });
+          resp.on('end', () => {
+            resolve({ status: resp.statusCode || 0, headers: resp.headers || {}, body: data });
+          });
+        }
+      );
+
+      req.on('error', (err) => reject(err));
+      req.setTimeout(15000, () => {
+        req.destroy(new Error('Authorize.Net request timed out'));
+      });
+      req.write(body);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 app.post('/api/authorize/charge', async (req, res) => {
   // Robust Authorize.Net charge handler (handles BOM responses + trims env vars)
   try {
