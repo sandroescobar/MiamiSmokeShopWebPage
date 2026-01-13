@@ -24,6 +24,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 /* --------------------  JSON parsing  -------------------- */
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 /* --------------------  Config resolve  -------------------- */
 const clean = (v) => (typeof v === 'string' ? v.trim() : v);
@@ -2327,20 +2328,39 @@ app.post('/api/authorize/charge', async (req, res) => {
     }
 
     // Expect Accept.js opaqueData from client
-    const {
-      opaqueDataDescriptor,
-      opaqueDataValue,
-      amount,
-      order,
-      billing,
-      customer,
-    } = req.body || {};
+    // Accept.js payloads can arrive in a couple shapes.
+// We accept either:
+//   A) { opaqueData: { dataDescriptor, dataValue }, totals: { total }, billing, customer, ... }
+//   B) { opaqueDataDescriptor, opaqueDataValue, amount, billing, customer, ... } (older client code)
+const body = req.body || {};
+const opaque = body.opaqueData || {};
+const opaqueDataDescriptor =
+  body.opaqueDataDescriptor ||
+  opaque.dataDescriptor ||
+  opaque.opaqueDataDescriptor ||
+  '';
+const opaqueDataValue =
+  body.opaqueDataValue ||
+  opaque.dataValue ||
+  opaque.opaqueDataValue ||
+  '';
+
+const amount = body.amount;
+const totals = body.totals || {};
+const order = body.order || {};
+const billing = body.billing || {};
+const customer = body.customer || {};
 
     if (!opaqueDataDescriptor || !opaqueDataValue) {
-      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+      console.error('[Authorize.Net] Missing opaqueData on request body', {
+  hasOpaqueObject: !!body.opaqueData,
+  keys: Object.keys(body || {}),
+  opaqueKeys: Object.keys(opaque || {}),
+});
+return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
     }
 
-    const numericAmount = Number(amount ?? order?.total ?? order?.totalAmount ?? order?.amount ?? 0);
+    const numericAmount = Number(amount ?? totals?.total ?? order?.total ?? order?.totalAmount ?? order?.amount ?? 0);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ error: 'Invalid charge amount.' });
     }
@@ -2379,7 +2399,7 @@ app.post('/api/authorize/charge', async (req, res) => {
         state: billing?.state ? String(billing.state).slice(0, 40) : undefined,
         zip: billing?.zip ? String(billing.zip).slice(0, 20) : undefined,
         country: billing?.country ? String(billing.country).slice(0, 60) : undefined,
-        phoneNumber: billing?.phone ? String(billing.phone).slice(0, 25) : undefined,
+        phoneNumber: (billing?.phoneNumber || billing?.phone) ? String(billing.phoneNumber || billing.phone).slice(0, 25) : undefined,
       };
     }
 
