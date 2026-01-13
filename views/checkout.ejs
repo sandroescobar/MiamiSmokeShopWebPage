@@ -367,7 +367,7 @@
     </div>
   </div>
 
-  <script src="https://js.authorize.net/v1/Accept.js"></script>
+  <script src="<%= (authorizeEnv === 'sandbox' || authorizeEnv === 'test' || authorizeEnv === 'apitest') ? 'https://jstest.authorize.net/v1/Accept.js' : 'https://js.authorize.net/v1/Accept.js' %>"></script>
 
   <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
     <div class="policy-modal__dialog">
@@ -381,7 +381,7 @@
     // NOTE: Using typeof checks prevents EJS ReferenceError if a variable wasn't passed.
     const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
     const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
-    const AUTH_NET_ENV = <%- JSON.stringify((typeof authNetEnv !== 'undefined') ? authNetEnv : '') %>;
+    const AUTH_NET_ENV = <%- JSON.stringify((typeof authorizeEnv !== 'undefined') ? authorizeEnv : ((typeof authNetEnv !== 'undefined') ? authNetEnv : '')) %>;
 
     console.log('[checkout] authnet config', {
       loginIdPresent: !!AUTH_NET_LOGIN_ID,
@@ -1008,14 +1008,21 @@
       const { customer, billing } = buildBillingFromForm();
 
       const payload = {
-        opaqueData,
-        totals: checkoutTotals,
-        customer: { email: customer.email },
-        billing,
-        deliveryMethod: getSelectedDeliveryMethod(),
-        pickupStore: selectedStore,
-        selectedDeliveryStore
-      };
+    // Send both nested and flattened opaqueData so the server can accept either shape.
+    opaqueData,
+    opaqueDataDescriptor: opaqueData?.dataDescriptor,
+    opaqueDataValue: opaqueData?.dataValue,
+
+    // Explicit amount (server still recomputes totals, but needs a number to charge)
+    amount: checkoutTotals?.total,
+
+    totals: checkoutTotals,
+    customer: { email: customer.email },
+    billing,
+    deliveryMethod: getSelectedDeliveryMethod(),
+    pickupStore: selectedStore,
+    selectedDeliveryStore
+  };
 
       const resp = await fetch('/api/authorize/charge', {
         method: 'POST',

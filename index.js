@@ -2400,6 +2400,18 @@ app.post('/api/authorize/charge', async (req, res) => {
 //   A) { opaqueData: { dataDescriptor, dataValue }, totals: { total }, billing, customer, ... }
 //   B) { opaqueDataDescriptor, opaqueDataValue, amount, billing, customer, ... } (older client code)
 const body = req.body || {};
+    // Lightweight request-shape debug (does not log sensitive values)
+    try {
+      console.log('[Authorize.Net] /api/authorize/charge payload keys', {
+        keys: Object.keys(body || {}),
+        hasOpaqueData: !!body?.opaqueData,
+        hasOpaqueFlat: !!(body?.opaqueDataDescriptor && body?.opaqueDataValue),
+        hasTotals: !!body?.totals,
+        amount: body?.amount,
+        totalsTotal: body?.totals?.total,
+      });
+    } catch (_) {}
+
 const opaque = body.opaqueData || {};
 const opaqueDataDescriptor =
   body.opaqueDataDescriptor ||
@@ -2540,77 +2552,7 @@ return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
 
 
 
-/* --------------------  ZenPayments Hosted Fields  -------------------- */
-/**
- * NOTE:
- * - Keep your ZenPayments API token on the server (NEVER in the browser).
- * - The Hosted Fields flow is: browser asks your server for a short-lived Hosted Fields access token,
- *   then ZenPayments' HostedFields.js renders secure iframes for card entry.
- */
-const ZENPAYMENTS_API_BASE = process.env.ZENPAYMENTS_API_BASE || 'https://zendashboard.com';
-const ZENPAYMENTS_API_TOKEN = process.env.ZENPAYMENTS_API_TOKEN;          // Required
-const ZENPAYMENTS_TERMINAL_ID = process.env.ZENPAYMENTS_TERMINAL_ID;      // Required (unless you pass terminalId from client)
-const ZENPAYMENTS_DOMAIN = process.env.ZENPAYMENTS_DOMAIN || null;        // Optional override (e.g. miamivapesmoke.com)
 
-const _fetch = (typeof fetch === 'function') ? fetch : null;
-
-app.post('/api/zen/hosted-fields/token', async (req, res) => {
-  try {
-    if (!_fetch) {
-      return res.status(500).json({ error: 'Server fetch() is not available. Upgrade Node to v18+ (or install a fetch polyfill).' });
-    }
-    if (!ZENPAYMENTS_API_TOKEN) {
-      return res.status(500).json({ error: 'Missing ZENPAYMENTS_API_TOKEN environment variable.' });
-    }
-
-    const terminalId = (req.body && req.body.terminalId) || ZENPAYMENTS_TERMINAL_ID;
-    if (!terminalId) {
-      return res.status(400).json({ error: 'Missing terminalId. Set ZENPAYMENTS_TERMINAL_ID on the server.' });
-    }
-
-    // ZenPayments expects a domain value that matches the site where Hosted Fields will be embedded.
-    const domain = ZENPAYMENTS_DOMAIN || (req.headers.host || '').replace(/^https?:\/\//, '');
-
-    const zenResp = await _fetch(`${ZENPAYMENTS_API_BASE}/api/hosted-fields/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${ZENPAYMENTS_API_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        terminal: { id: terminalId },
-        domain
-      })
-    });
-
-    const data = await zenResp.json().catch(() => ({}));
-
-    if (!zenResp.ok) {
-      return res.status(zenResp.status).json({
-        error: 'ZenPayments token request failed',
-        status: zenResp.status,
-        details: data
-      });
-    }
-
-    const accessToken = data.access_token || data.accessToken || data.token;
-    if (!accessToken) {
-      return res.status(500).json({ error: 'ZenPayments did not return an access token.', details: data });
-    }
-
-    return res.json({ accessToken });
-  } catch (err) {
-    console.error('[ZenPayments] hosted-fields token error:', err);
-    return res.status(500).json({ error: 'Server error requesting Hosted Fields token.' });
-  }
-});
-app.get('/faq', (_req, res) => {
-  res.render('faq', {
-    title: 'FAQ • Miami Vape Smoke Shop',
-    description: 'Delivery, THCa, payments, and policies explained.',
-    contact: CONTACT_INFO,
-  });
-});
 
 /* --------------------  Products (SSR)  -------------------- */
 app.get('/products', async (req, res) => {
