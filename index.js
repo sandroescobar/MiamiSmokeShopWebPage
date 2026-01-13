@@ -2376,6 +2376,13 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const { endpoint, env, apiLoginId, transactionKey } = getAuthNetConfig();
 
+    console.log('[AUTHNET CONFIG]', {
+      env,
+      endpoint,
+      loginId_last4: apiLoginId ? apiLoginId.slice(-4) : null,
+      txnKey_last4: transactionKey ? transactionKey.slice(-4) : null,
+    });
+
     if (!apiLoginId || !transactionKey) {
       console.error('[Authorize.Net] Missing credentials', {
         env,
