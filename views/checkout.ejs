@@ -33,7 +33,8 @@
       <h2>Contact</h2>
 
       <label>Email address</label>
-      <input id="email" type="email" value="<%= (user && user.email) ? user.email : '' %>" placeholder="you@example.com" />
+      <input id="email" type="email" value="<%= (typeof user !== 'undefined' && user && user.email) ? user.email : '' %>
+" placeholder="you@example.com" />
 
       <div class="row">
         <div>

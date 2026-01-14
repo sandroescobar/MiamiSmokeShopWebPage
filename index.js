@@ -2236,6 +2236,7 @@ app.get('/checkout', (req, res) => {
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
+    user: (req.user || null),
     selectedShop,
     storeMeta: getStoreChoice(selectedShop),
     storeOptions: STORE_CHOICES,
