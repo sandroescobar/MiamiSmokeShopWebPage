@@ -5,7 +5,6 @@ import fs from 'fs';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
-import https from 'https';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2261,65 +2260,6 @@ app.get('/checkout', (req, res) => {
  * Right now the client sends totals computed from localStorage. That's not secure.
  * For production, compute the amount on the server from your cart/order items.
  */
-const hasGlobalFetch = typeof fetch === 'function';
-
-async function sendAuthorizeNetRequest(endpoint, payload) {
-  const body = JSON.stringify(payload);
-  if (hasGlobalFetch) {
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body,
-    });
-    const text = await resp.text();
-    const headers = {};
-    resp.headers.forEach((value, key) => {
-      headers[key.toLowerCase()] = value;
-    });
-    return { status: resp.status, headers, body: text };
-  }
-
-  return new Promise((resolve, reject) => {
-    try {
-      const url = new URL(endpoint);
-      const req = https.request(
-        {
-          hostname: url.hostname,
-          port: url.port || 443,
-          path: `${url.pathname}${url.search || ''}`,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-          },
-        },
-        (resp) => {
-          let data = '';
-          resp.on('data', (chunk) => {
-            data += chunk;
-          });
-          resp.on('end', () => {
-            resolve({ status: resp.statusCode || 0, headers: resp.headers || {}, body: data });
-          });
-        }
-      );
-
-      req.on('error', (err) => reject(err));
-      req.setTimeout(15000, () => {
-        req.destroy(new Error('Authorize.Net request timed out'));
-      });
-      req.write(body);
-      req.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
 app.post('/api/authorize/charge', async (req, res) => {
   // Robust Authorize.Net charge handler (handles BOM responses + trims env vars)
   try {
@@ -2376,13 +2316,6 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const { endpoint, env, apiLoginId, transactionKey } = getAuthNetConfig();
 
-    console.log('[AUTHNET CONFIG]', {
-      env,
-      endpoint,
-      loginId_last4: apiLoginId ? apiLoginId.slice(-4) : null,
-      txnKey_last4: transactionKey ? transactionKey.slice(-4) : null,
-    });
-
     if (!apiLoginId || !transactionKey) {
       console.error('[Authorize.Net] Missing credentials', {
         env,
@@ -2395,51 +2328,20 @@ app.post('/api/authorize/charge', async (req, res) => {
     }
 
     // Expect Accept.js opaqueData from client
-    // Accept.js payloads can arrive in a couple shapes.
-// We accept either:
-//   A) { opaqueData: { dataDescriptor, dataValue }, totals: { total }, billing, customer, ... }
-//   B) { opaqueDataDescriptor, opaqueDataValue, amount, billing, customer, ... } (older client code)
-const body = req.body || {};
-    // Lightweight request-shape debug (does not log sensitive values)
-    try {
-      console.log('[Authorize.Net] /api/authorize/charge payload keys', {
-        keys: Object.keys(body || {}),
-        hasOpaqueData: !!body?.opaqueData,
-        hasOpaqueFlat: !!(body?.opaqueDataDescriptor && body?.opaqueDataValue),
-        hasTotals: !!body?.totals,
-        amount: body?.amount,
-        totalsTotal: body?.totals?.total,
-      });
-    } catch (_) {}
-
-const opaque = body.opaqueData || {};
-const opaqueDataDescriptor =
-  body.opaqueDataDescriptor ||
-  opaque.dataDescriptor ||
-  opaque.opaqueDataDescriptor ||
-  '';
-const opaqueDataValue =
-  body.opaqueDataValue ||
-  opaque.dataValue ||
-  opaque.opaqueDataValue ||
-  '';
-
-const amount = body.amount;
-const totals = body.totals || {};
-const order = body.order || {};
-const billing = body.billing || {};
-const customer = body.customer || {};
+    const {
+      opaqueDataDescriptor,
+      opaqueDataValue,
+      amount,
+      order,
+      billing,
+      customer,
+    } = req.body || {};
 
     if (!opaqueDataDescriptor || !opaqueDataValue) {
-      console.error('[Authorize.Net] Missing opaqueData on request body', {
-  hasOpaqueObject: !!body.opaqueData,
-  keys: Object.keys(body || {}),
-  opaqueKeys: Object.keys(opaque || {}),
-});
-return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
     }
 
-    const numericAmount = Number(amount ?? totals?.total ?? order?.total ?? order?.totalAmount ?? order?.amount ?? 0);
+    const numericAmount = Number(amount ?? order?.total ?? order?.totalAmount ?? order?.amount ?? 0);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({ error: 'Invalid charge amount.' });
     }
@@ -2478,7 +2380,7 @@ return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
         state: billing?.state ? String(billing.state).slice(0, 40) : undefined,
         zip: billing?.zip ? String(billing.zip).slice(0, 20) : undefined,
         country: billing?.country ? String(billing.country).slice(0, 60) : undefined,
-        phoneNumber: (billing?.phoneNumber || billing?.phone) ? String(billing.phoneNumber || billing.phone).slice(0, 25) : undefined,
+        phoneNumber: billing?.phone ? String(billing.phone).slice(0, 25) : undefined,
       };
     }
 
@@ -2552,7 +2454,241 @@ return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
 
 
 
+/* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
+/**
+ * Client: checkout.ejs tokenizes card details via Accept.js -> opaqueData
+ * Server: uses opaqueData + merchant auth to create an authCaptureTransaction.
+ *
+ * SECURITY NOTE:
+ * The browser currently sends totals computed client-side. For a real production checkout,
+ * compute the final amount on the server from your cart/order items to prevent tampering.
+ */
 
+function _cleanEnvVal(v) {
+  if (v === undefined || v === null) return '';
+  return String(v)
+    .replace(/\uFEFF/g, '')         // strip BOM
+    .replace(/[\r\n]+/g, '')        // strip newlines
+    .trim()
+    .replace(/^['"]|['"]$/g, '')    // strip surrounding quotes
+    .trim();
+}
+
+function _getAuthNetConfig() {
+  const rawEnv =
+    _cleanEnvVal(process.env.AUTH_NET_ENV) ||
+    (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
+
+  const envNorm = String(rawEnv).toLowerCase();
+  const isProd = envNorm === 'production' || envNorm === 'prod' || envNorm === 'live';
+
+  const apiLoginId = _cleanEnvVal(process.env.AUTH_NET_LOGIN_ID);
+  const transactionKey = _cleanEnvVal(process.env.AUTH_NET_TRANSACTION_KEY);
+  const clientKey = _cleanEnvVal(process.env.AUTH_NET_CLIENT_KEY);
+
+  const endpoint = isProd
+    ? 'https://api.authorize.net/xml/v1/request.api'
+    : 'https://apitest.authorize.net/xml/v1/request.api';
+
+  return {
+    env: isProd ? 'production' : 'sandbox',
+    endpoint,
+    apiLoginId,
+    transactionKey,
+    clientKey,
+  };
+}
+
+// Quick sanity-check endpoint (does NOT charge)
+// Visit /api/authorize/test-auth in your browser or curl it.
+app.get('/api/authorize/test-auth', async (req, res) => {
+  try {
+    const { endpoint, env, apiLoginId, transactionKey } = _getAuthNetConfig();
+
+    if (!apiLoginId || !transactionKey) {
+      return res.status(500).json({
+        error: 'Missing AUTH_NET_LOGIN_ID or AUTH_NET_TRANSACTION_KEY on server.',
+        debug: { env, endpoint, loginIdPresent: !!apiLoginId, transactionKeyPresent: !!transactionKey },
+      });
+    }
+
+    const payload = {
+      authenticateTestRequest: {
+        merchantAuthentication: { name: apiLoginId, transactionKey },
+      },
+    };
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const rawText = await resp.text();
+    const cleanedText = String(rawText).replace(/^\uFEFF/, '').trim();
+
+    let result;
+    try {
+      result = JSON.parse(cleanedText);
+    } catch {
+      return res.status(502).json({
+        error: 'Authorize.Net returned an invalid response.',
+        debug: { status: resp.status, contentType: resp.headers.get('content-type'), bodyPreview: cleanedText.slice(0, 300) },
+      });
+    }
+
+    return res.json({
+      ok: true,
+      env,
+      endpoint,
+      messages: result?.messages,
+    });
+  } catch (err) {
+    console.error('[Authorize.Net] test-auth exception', err);
+    return res.status(500).json({ error: 'Server error while testing gateway auth.' });
+  }
+});
+
+app.post('/api/authorize/charge', async (req, res) => {
+  try {
+    const { endpoint, env, apiLoginId, transactionKey } = _getAuthNetConfig();
+
+    if (!apiLoginId || !transactionKey) {
+      console.error('[Authorize.Net] Missing credentials', {
+        env,
+        loginIdPresent: !!apiLoginId,
+        transactionKeyPresent: !!transactionKey,
+      });
+      return res.status(500).json({ error: 'Payment configuration missing on server.' });
+    }
+
+    // Accept.js typically sends: { opaqueData: { dataDescriptor, dataValue }, totals: { total }, ... }
+    const body = req.body || {};
+    const opaque = body.opaqueData || {};
+    const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
+    const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
+
+    if (!opaqueDataDescriptor || !opaqueDataValue) {
+      return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
+    }
+
+    const numericAmount = Number(
+      body.amount ??
+      body.totals?.total ??
+      body.order?.total ??
+      body.order?.totalAmount ??
+      body.order?.amount ??
+      0
+    );
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid charge amount.' });
+    }
+    const amountStr = numericAmount.toFixed(2);
+
+    const payload = {
+      createTransactionRequest: {
+        merchantAuthentication: { name: apiLoginId, transactionKey },
+        refId: String(Date.now()),
+        transactionRequest: {
+          transactionType: 'authCaptureTransaction',
+          amount: amountStr,
+          payment: {
+            opaqueData: {
+              dataDescriptor: opaqueDataDescriptor,
+              dataValue: opaqueDataValue,
+            },
+          },
+        },
+      },
+    };
+
+    // Optional data (kept minimal, but useful)
+    const customerEmail = body.customer?.email || body.email;
+    if (customerEmail) {
+      payload.createTransactionRequest.transactionRequest.customer = { email: String(customerEmail).slice(0, 255) };
+    }
+
+    const billing = body.billing || {};
+    if (billing.firstName || billing.lastName || billing.address || billing.city || billing.state || billing.zip) {
+      payload.createTransactionRequest.transactionRequest.billTo = {
+        firstName: billing.firstName ? String(billing.firstName).slice(0, 50) : undefined,
+        lastName: billing.lastName ? String(billing.lastName).slice(0, 50) : undefined,
+        address: billing.address ? String(billing.address).slice(0, 60) : undefined,
+        city: billing.city ? String(billing.city).slice(0, 40) : undefined,
+        state: billing.state ? String(billing.state).slice(0, 40) : undefined,
+        zip: billing.zip ? String(billing.zip).slice(0, 20) : undefined,
+        country: billing.country ? String(billing.country).slice(0, 60) : undefined,
+        phoneNumber: (billing.phoneNumber || billing.phone) ? String(billing.phoneNumber || billing.phone).slice(0, 25) : undefined,
+      };
+    }
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const rawText = await resp.text();
+    const cleanedText = String(rawText).replace(/^\uFEFF/, '').trim();
+
+    let result;
+    try {
+      result = JSON.parse(cleanedText);
+    } catch (e) {
+      console.error('[Authorize.Net] Returned invalid JSON', {
+        status: resp.status,
+        contentType: resp.headers.get('content-type'),
+        bodyPreview: cleanedText.slice(0, 300),
+      });
+      return res.status(502).json({ error: 'Authorize.Net returned an invalid response.' });
+    }
+
+    const msg = result?.messages;
+    if (msg?.resultCode === 'Error') {
+      const err = msg?.message?.[0] || {};
+      const code = err.code;
+      const text = err.text || 'Payment was declined.';
+      console.error('[Authorize.Net] API error', { code, text });
+
+      if (code === 'E00007') {
+        // Most common causes:
+        // - wrong Transaction Key (people paste the Signature Key)
+        // - sandbox vs production mismatch
+        // - key regenerated but env not updated/redeployed
+        return res.status(500).json({
+          error: 'Payment gateway authentication failed (check API Login ID / Transaction Key and sandbox vs production).',
+          code,
+          debug: { env, endpoint, loginIdLen: apiLoginId.length, transactionKeyLen: transactionKey.length },
+        });
+      }
+
+      return res.status(402).json({ error: text, code });
+    }
+
+    const trx = result?.transactionResponse;
+    const transId = trx?.transId;
+
+    if (!transId) {
+      console.error('[Authorize.Net] Missing transaction id', {
+        responseCode: trx?.responseCode,
+        errors: trx?.errors,
+        messages: msg,
+      });
+      return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
+    }
+
+    return res.json({
+      ok: true,
+      transactionId: transId,
+      authCode: trx?.authCode,
+      responseCode: trx?.responseCode,
+    });
+  } catch (err) {
+    console.error('[Authorize.Net] charge exception', err);
+    return res.status(500).json({ error: 'Server error while charging card.' });
+  }
+});
 
 /* --------------------  Products (SSR)  -------------------- */
 app.get('/products', async (req, res) => {
