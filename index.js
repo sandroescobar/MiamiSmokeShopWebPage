@@ -2261,6 +2261,72 @@ app.get('/checkout', (req, res) => {
  * Right now the client sends totals computed from localStorage. That's not secure.
  * For production, compute the amount on the server from your cart/order items.
  */
+ app.get('/api/authorize/auth-test', async (req, res) => {
+  try {
+    const clean = (v) =>
+      String(v ?? '')
+        .replace(/\uFEFF/g, '')
+        .replace(/[\r\n]+/g, '')
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+        .trim();
+
+    const envRaw = clean(process.env.AUTH_NET_ENV);
+    const isProd = ['production', 'prod', 'live'].includes(envRaw.toLowerCase());
+    const endpoint = isProd
+      ? 'https://api.authorize.net/xml/v1/request.api'
+      : 'https://apitest.authorize.net/xml/v1/request.api';
+
+    const apiLoginId = clean(process.env.AUTH_NET_LOGIN_ID);
+    const transactionKey = clean(process.env.AUTH_NET_TRANSACTION_KEY);
+
+    // Log only safe metadata (NO secrets)
+    console.log('[auth-test]', {
+      endpoint,
+      env: isProd ? 'production' : 'sandbox',
+      loginIdPresent: !!apiLoginId,
+      loginIdLen: apiLoginId.length,
+      transactionKeyPresent: !!transactionKey,
+      transactionKeyLen: transactionKey.length,
+      transactionKeyLast4: transactionKey.slice(-4),
+    });
+
+    const payload = {
+      authenticateTestRequest: {
+        merchantAuthentication: {
+          name: apiLoginId,
+          transactionKey,
+        },
+      },
+    };
+
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const raw = await r.text();
+    const cleaned = raw.replace(/^\uFEFF/, '').trim();
+    let json;
+    try { json = JSON.parse(cleaned); } catch { json = { raw: cleaned.slice(0, 500) }; }
+
+    return res.status(200).json({
+      endpoint,
+      env: isProd ? 'production' : 'sandbox',
+      httpStatus: r.status,
+      result: json,
+    });
+  } catch (e) {
+    console.error('[auth-test] exception', e);
+    return res.status(500).json({ error: 'auth-test failed' });
+  }
+});
+
+
+
+
+
 app.post('/api/authorize/charge', async (req, res) => {
   // Robust Authorize.Net charge handler (handles BOM responses + trims env vars)
   try {
