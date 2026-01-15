@@ -105,7 +105,7 @@ const STORE_CHOICES = [
 
 const STORE_CHOICE_MAP = new Map(STORE_CHOICES.map((choice) => [choice.id, choice]));
 const STORE_NAME_BY_ID = Object.fromEntries(STORE_CHOICES.map((choice) => [choice.id, choice.label]));
-const DEFAULT_SHOP = 'either';
+const DEFAULT_SHOP = 'calle8';
 
 const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
@@ -171,6 +171,18 @@ const SHOP_ALIAS_MAP = new Map([
   ['79th street', '79th']
 ]);
 
+const STORE_SNAPSHOT_TABLE_BY_SLUG = Object.fromEntries(
+  Object.entries(SHOP_TABLES)
+    .filter(([slug]) => slug !== 'either')
+    .map(([slug, tables]) => [slug, tables[0]])
+);
+const STORE_LABEL_BY_SLUG = STORE_CHOICES.reduce((acc, choice) => {
+  if (choice.id === 'either') return acc;
+  acc[choice.id] = choice.label;
+  return acc;
+}, {});
+const DEFAULT_FULFILLMENT_STORE = STORE_LABEL_BY_SLUG.calle8 || Object.keys(STORE_SNAPSHOT_TABLE_BY_SLUG)[0] || 'calle8';
+
 function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
   const list = Array.isArray(tables) && tables.length ? tables : SNAPSHOT_TABLES;
   const rowsSql = list
@@ -191,6 +203,14 @@ function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
 function normalizeShop(value = '') {
   const key = String(value || '').trim().toLowerCase();
   return SHOP_ALIAS_MAP.get(key) || DEFAULT_SHOP;
+}
+
+function resolveCheckoutShop(value = '') {
+  const slug = normalizeShop(value);
+  if (!STORE_SNAPSHOT_TABLE_BY_SLUG[slug]) {
+    return DEFAULT_FULFILLMENT_STORE;
+  }
+  return slug;
 }
 
 function getStoreChoice(id = DEFAULT_SHOP) {
@@ -1708,6 +1728,109 @@ async function queryWithRetry(sql, params = [], attempt = 0) {
   }
 }
 
+const STORE_ID_CACHE = new Map();
+
+async function getStoreIdBySlug(slug) {
+  const resolved = STORE_LABEL_BY_SLUG[slug] ? slug : DEFAULT_FULFILLMENT_STORE;
+  const cached = STORE_ID_CACHE.get(resolved);
+  if (cached) return cached;
+  const storeName = STORE_LABEL_BY_SLUG[resolved];
+  if (!storeName) return null;
+  const [rows] = await queryWithRetry('SELECT id FROM stores WHERE name = ? LIMIT 1', [storeName]);
+  if (!rows.length) return null;
+  STORE_ID_CACHE.set(resolved, rows[0].id);
+  return rows[0].id;
+}
+
+function sanitizeLineItems(rawItems = []) {
+  if (!Array.isArray(rawItems)) return [];
+  return rawItems.reduce((acc, raw) => {
+    const productId = Number(raw?.id ?? raw?.productId ?? raw?.product_id);
+    const quantityRaw = Number(raw?.quantity ?? raw?.qty ?? 0);
+    const priceRaw = Number(raw?.price ?? raw?.unitPrice ?? 0);
+    const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
+    if (!productId || !Number.isFinite(quantityRaw) || quantityRaw <= 0) {
+      return acc;
+    }
+    const quantity = Math.max(1, Math.floor(quantityRaw));
+    const price = Number.isFinite(priceRaw) ? Number(priceRaw) : 0;
+    acc.push({ productId, quantity, price, name });
+    return acc;
+  }, []);
+}
+
+function aggregateLineItems(items = []) {
+  const map = new Map();
+  for (const item of items) {
+    if (!item?.productId || !item.quantity) continue;
+    const existing = map.get(item.productId);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      map.set(item.productId, { productId: item.productId, quantity: item.quantity, name: item.name || '' });
+    }
+  }
+  return map;
+}
+
+async function updateInventoryForSale(storeSlug, lineItems = []) {
+  const snapshotTable = STORE_SNAPSHOT_TABLE_BY_SLUG[storeSlug];
+  if (!snapshotTable || !lineItems.length) return;
+  const storeId = await getStoreIdBySlug(storeSlug);
+  if (!storeId) return;
+  const aggregated = aggregateLineItems(lineItems);
+  if (!aggregated.size) return;
+  const productIds = [...aggregated.keys()];
+  const placeholders = productIds.map(() => '?').join(',');
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [products] = await conn.query(
+      `SELECT id, name, COALESCE(NULLIF(upc,''), CONCAT('SKU-', id)) AS upc
+       FROM products
+       WHERE id IN (${placeholders})`,
+      productIds
+    );
+    const productMap = new Map(products.map((row) => [row.id, row]));
+    for (const [productId, item] of aggregated.entries()) {
+      const productRow = productMap.get(productId);
+      if (!productRow) continue;
+      const qty = item.quantity;
+      await conn.query(
+        `UPDATE product_inventory
+         SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0),
+             last_synced_at = CURRENT_TIMESTAMP
+         WHERE product_id = ? AND store_id = ?`,
+        [qty, productId, storeId]
+      );
+      const [remainingRows] = await conn.query(
+        `SELECT COALESCE(SUM(quantity_on_hand), 0) AS qty
+         FROM product_inventory
+         WHERE product_id = ? AND store_id = ?`,
+        [productId, storeId]
+      );
+      const qtyLeft = Number(remainingRows?.[0]?.qty || 0);
+      const upperName = (productRow.name || '').trim().toUpperCase();
+      if (!upperName) continue;
+      await conn.query(
+        `DELETE FROM \`${snapshotTable}\` WHERE UPPER(name) = ?`,
+        [upperName]
+      );
+      await conn.query(
+        `INSERT INTO \`${snapshotTable}\` (name, upc, quantity, is_active)
+         VALUES (?, ?, ?, ?)`,
+        [productRow.name, productRow.upc || '', qtyLeft, qtyLeft > 0 ? 1 : 0]
+      );
+    }
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 /* --------------------  Health  -------------------- */
 app.get('/health', async (_req, res) => {
   try {
@@ -2232,7 +2355,7 @@ async function seedVariantImages() {
 
 /* --------------------  Checkout  -------------------- */
 app.get('/checkout', (req, res) => {
-  const selectedShop = normalizeShop(req.query.shop);
+  const selectedShop = resolveCheckoutShop(req.query.shop);
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',

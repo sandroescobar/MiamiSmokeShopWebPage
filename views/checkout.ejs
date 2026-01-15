@@ -15,7 +15,7 @@
     .card{background:#fff;border:1px solid #e6e6ef;border-radius:12px;padding:16px}
     h2{margin:0 0 12px 0;font-size:18px}
     label{display:block;font-size:12px;color:#444;margin:10px 0 6px}
-    input{width:100%;padding:10px 12px;border:1px solid #d6d6e6;border-radius:10px;font-size:14px}
+    input,select{width:100%;padding:10px 12px;border:1px solid #d6d6e6;border-radius:10px;font-size:14px}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .btn{width:100%;padding:12px 14px;border:0;border-radius:10px;background:#4fc3df;color:#fff;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
@@ -23,10 +23,61 @@
     .err{color:#b00020;font-size:13px;margin-top:10px;white-space:pre-wrap}
     .sumrow{display:flex;justify-content:space-between;margin:8px 0;font-size:14px}
     .sumrow.total{font-weight:800;font-size:16px}
+    .fulfillment-hero{max-width:980px;margin:24px auto 8px auto;padding:0 16px}
+    .fulfillment-hero__shell{background:linear-gradient(120deg,#10131a,#1b2f60 55%,#2f7cc6);border-radius:20px;padding:26px;display:flex;flex-wrap:wrap;gap:24px;align-items:center;box-shadow:0 15px 35px rgba(16,19,26,.35)}
+    .fulfillment-hero__copy{flex:1 1 260px;color:#f2f7ff}
+    .fulfillment-hero__eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;margin-bottom:12px;color:#c8d9ff}
+    .fulfillment-hero__title{font-size:26px;margin:0 0 8px 0;color:#fff}
+    .fulfillment-hero__text{margin:0;font-size:15px;color:rgba(255,255,255,.85);line-height:1.5}
+    .fulfillment-hero__store{margin-top:14px;font-size:13px;color:#c8d9ff}
+    .fulfillment-options{flex:1 1 320px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+    .fulfillment-tile{position:relative;display:block}
+    .fulfillment-tile input{position:absolute;inset:0;opacity:0;pointer-events:none}
+    .fulfillment-card{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.25);border-radius:18px;padding:18px;min-height:130px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease}
+    .fulfillment-card__title{font-size:18px;font-weight:700;color:#fff;margin:0 0 6px 0}
+    .fulfillment-card__desc{font-size:14px;color:rgba(255,255,255,.8);margin:0}
+    .fulfillment-card__tag{font-size:13px;color:#4fc3df;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+    .fulfillment-tile input:checked + .fulfillment-card{border-color:#4fc3df;box-shadow:0 12px 28px rgba(79,195,223,.35);transform:translateY(-4px)}
+    .fulfillment-summary{margin-top:18px;font-size:14px;color:#dbe9ff}
+    @media(max-width:720px){.fulfillment-hero__shell{flex-direction:column;padding:22px}.fulfillment-options{width:100%;grid-template-columns:1fr}}
   </style>
 </head>
 
 <body>
+  <section class="fulfillment-hero">
+    <div class="fulfillment-hero__shell">
+      <div class="fulfillment-hero__copy">
+        <span class="fulfillment-hero__eyebrow">Step 1 · Fulfillment</span>
+        <h1 class="fulfillment-hero__title">Pickup or delivery?</h1>
+        <p class="fulfillment-hero__text">Choose how you'd like to get your order. We'll keep everything synced with Authorize.Net so you only enter your details once.</p>
+        <div class="fulfillment-hero__store">Items prepared at <strong><%= (storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop' %></strong>. Need another location? Switch stores from the product catalog.</div>
+        <div class="fulfillment-summary" id="deliveryNote"></div>
+      </div>
+      <div class="fulfillment-options">
+        <label class="fulfillment-tile">
+          <input type="radio" name="fulfillmentMethod" value="pickup" checked>
+          <div class="fulfillment-card">
+            <div>
+              <p class="fulfillment-card__title">In-store pickup</p>
+              <p class="fulfillment-card__desc">Pay online, grab it curbside or at the counter. We'll text you when it's ready.</p>
+            </div>
+            <span class="fulfillment-card__tag">Fastest</span>
+          </div>
+        </label>
+        <label class="fulfillment-tile">
+          <input type="radio" name="fulfillmentMethod" value="delivery">
+          <div class="fulfillment-card">
+            <div>
+              <p class="fulfillment-card__title">Local delivery</p>
+              <p class="fulfillment-card__desc">We’ll hand off to our runner and keep you updated every step of the way.</p>
+            </div>
+            <span class="fulfillment-card__tag">We drive it</span>
+          </div>
+        </label>
+      </div>
+    </div>
+  </section>
+
   <div class="wrap">
     <!-- Left: Contact + Payment -->
     <div class="card">
@@ -101,6 +152,8 @@
       clientKey: "<%= (authorizeClientKey || '') %>",
       env: "<%= (authorizeEnv || '') %>"
     };
+    const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : (selectedShop || 'Calle 8')) %>;
+    const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
 
     // Basic totals calculation from localStorage cart (adjust if your cart schema differs)
     // Expected cart item shape examples:
@@ -136,6 +189,29 @@
       document.getElementById('delivery').textContent = money(t.delivery);
       document.getElementById('total').textContent = money(t.total);
       return t;
+    }
+
+    function getFulfillmentMethod() {
+      const checked = document.querySelector('input[name="fulfillmentMethod"]:checked');
+      return checked ? checked.value : 'pickup';
+    }
+
+    function getPickupStoreLabel() {
+      return DEFAULT_STORE_LABEL;
+    }
+
+    function getPickupStoreId() {
+      return DEFAULT_STORE_ID;
+    }
+
+    function updateFulfillmentNote() {
+      const note = document.getElementById('deliveryNote');
+      if (!note) return;
+      const method = getFulfillmentMethod();
+      const storeLabel = getPickupStoreLabel();
+      note.textContent = method === 'pickup'
+        ? `Pickup from ${storeLabel}. You'll get a text when it's ready.`
+        : `Delivery from ${storeLabel}. We'll confirm the drop-off after payment.`;
     }
 
     function showErr(msg) {
@@ -174,9 +250,9 @@
       };
       const customer = { email: document.getElementById('email').value.trim() };
 
-      // If you have delivery logic, set these appropriately
-      const deliveryMethod = 'pickup';
-      const pickupStore = "<%= (storeMeta && storeMeta.label) ? storeMeta.label : (selectedShop || 'Calle 8') %>";
+      const deliveryMethod = getFulfillmentMethod();
+      const pickupStore = getPickupStoreLabel();
+      const pickupStoreId = getPickupStoreId();
 
       const payload = {
         opaqueData,               // { dataDescriptor, dataValue }
@@ -184,7 +260,8 @@
         customer,
         deliveryMethod,
         pickupStore,
-        selectedDeliveryStore: null,
+        pickupStoreId,
+        selectedDeliveryStore: deliveryMethod === 'delivery' ? pickupStoreId : null,
         totals
       };
 
@@ -258,9 +335,8 @@
 
           const result = await submitCharge(opaqueData, totals);
 
-          // Success: you can redirect to an order confirmation page if you have one
-          // window.location.href = '/order-confirmation?tx=' + encodeURIComponent(result.transactionId);
           alert('Payment successful! Transaction ID: ' + result.transactionId);
+          window.location.href = '/';
 
         } catch (e) {
           showErr(e.message || 'Payment failed.');
@@ -276,6 +352,10 @@
 
       Accept.dispatchData(secureData, responseHandler);
     }
+
+    const fulfillmentRadios = document.querySelectorAll('input[name="fulfillmentMethod"]');
+    fulfillmentRadios.forEach(radio => radio.addEventListener('change', updateFulfillmentNote));
+    updateFulfillmentNote();
 
     document.getElementById('completeOrderBtn').addEventListener('click', tokenizeAndPay);
     renderTotals();

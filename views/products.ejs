@@ -208,6 +208,11 @@
   </div>
 </header>
 
+<%
+  const filteredStoreOptions = (storeOptions || []).filter(option => option.id !== 'either');
+  const visibleStoreOptions = filteredStoreOptions.length ? filteredStoreOptions : (storeOptions || []);
+%>
+
 <div class="store-selector-overlay" data-store-selector hidden>
   <div class="store-selector-modal" role="dialog" aria-modal="true" aria-labelledby="store-selector-title">
     <button type="button" class="store-selector-close" aria-label="Close store selector" data-close-store-selector>&times;</button>
@@ -217,7 +222,7 @@
       <p>Tell us the closest shop so we can filter inventory and quotes for that location.</p>
     </div>
     <div class="store-selector-grid">
-      <% (storeOptions || []).forEach(option => { %>
+      <% (visibleStoreOptions || []).forEach(option => { %>
         <button type="button"
                 class="store-card <%= (selectedShop === option.id) ? 'is-active' : '' %>"
                 data-store-choice="<%= option.id %>">
@@ -238,7 +243,7 @@
   <form method="get" class="toolbar-desktop" role="search" aria-label="Filter products">
     <div class="store-filter">
       <select name="shop" aria-label="Preferred location" data-store-select>
-        <% (storeOptions || []).forEach(option => { %>
+        <% (visibleStoreOptions || []).forEach(option => { %>
           <option value="<%= option.id %>" <%= (selectedShop === option.id) ? 'selected' : '' %>><%= option.label %></option>
         <% }) %>
       </select>
@@ -279,7 +284,7 @@
       <div class="sheet">
         <div class="store-filter">
           <select name="shop" form="mobile-filters" aria-label="Preferred location" data-store-select>
-            <% (storeOptions || []).forEach(option => { %>
+            <% (visibleStoreOptions || []).forEach(option => { %>
               <option value="<%= option.id %>" <%= (selectedShop === option.id) ? 'selected' : '' %>><%= option.label %></option>
             <% }) %>
           </select>
