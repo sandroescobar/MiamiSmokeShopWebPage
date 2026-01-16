@@ -478,6 +478,8 @@
       const storeLabel = getPickupStoreLabel();
       const storeId = getPickupStoreId();
       const deliveryDetails = fulfillmentMethod === 'delivery' ? getDeliveryPayloadForServer() : null;
+      const serverDelivery = result.delivery || null;
+      const deliveryWarning = result.deliveryWarning || null;
       return {
         transactionId: result.transactionId,
         authCode: result.authCode || '',
@@ -497,6 +499,8 @@
           phoneNumber
         },
         deliveryDetails,
+        serverDelivery,
+        deliveryWarning,
         timestamp: Date.now()
       };
     }

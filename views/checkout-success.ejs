@@ -39,6 +39,9 @@
     .btn:active{transform:scale(.98)}
     .btn-primary{background:#2565c4;color:#fff;box-shadow:0 10px 20px rgba(37,101,196,.35)}
     .btn-outline{background:#fff;color:#2565c4;border:1px solid #c7d7f5}
+    .tracking-card .btn{width:100%;text-align:center;margin-top:12px}
+    .warning-card{background:#fff8ef;border:1px solid #ffd9b8}
+    .warning-card p{color:#8a4b16}
     .fallback{margin-top:24px;padding:20px;background:#fff0f0;border-radius:16px;color:#7a1f1f;border:1px solid #ffd8d8}
   </style>
 </head>
@@ -87,6 +90,15 @@
               <p class="meta-value" id="authCode">—</p>
             </div>
           </div>
+        </div>
+        <div class="card tracking-card" id="trackingCard" hidden>
+          <h2>Courier Tracking</h2>
+          <p class="muted" id="trackingStatusText">Waiting for courier assignment.</p>
+          <a class="btn btn-primary" id="trackingLink" href="#" target="_blank" rel="noopener noreferrer">Open Tracking</a>
+        </div>
+        <div class="card warning-card" id="deliveryWarningCard" hidden>
+          <h2>Delivery Update</h2>
+          <p class="muted" id="deliveryWarningText"></p>
         </div>
       </div>
     </section>
@@ -174,11 +186,43 @@
       const heroSubtitle = document.getElementById('heroSubtitle');
       const heroNote = document.getElementById('heroNote');
       const firstName = payload.customer && payload.customer.firstName ? payload.customer.firstName : '';
+      const hasTracking = !!(payload.serverDelivery && (payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl));
       heroTitle.textContent = firstName ? `Thanks, ${firstName}!` : 'Order confirmed';
       heroSubtitle.textContent = payload.transactionId ? `Transaction ${payload.transactionId}` : 'Receipt saved';
       heroNote.textContent = method === 'Delivery'
-        ? `On the way from ${storeLabel}`
+        ? (hasTracking ? 'Tracking link ready below.' : `On the way from ${storeLabel}`)
         : `Ready soon at ${storeLabel}`;
+      const trackingCard = document.getElementById('trackingCard');
+      if (trackingCard) {
+        if (method === 'Delivery' && hasTracking) {
+          trackingCard.hidden = false;
+          const trackingLink = document.getElementById('trackingLink');
+          const trackingStatusText = document.getElementById('trackingStatusText');
+          const trackingUrl = payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl;
+          if (trackingLink && trackingUrl) {
+            trackingLink.href = trackingUrl;
+          }
+          if (trackingStatusText) {
+            trackingStatusText.textContent = payload.serverDelivery.status
+              ? `Status: ${payload.serverDelivery.status}`
+              : 'Courier assigned.';
+          }
+        } else {
+          trackingCard.hidden = true;
+        }
+      }
+      const deliveryWarningCard = document.getElementById('deliveryWarningCard');
+      if (deliveryWarningCard) {
+        if (method === 'Delivery' && payload.deliveryWarning) {
+          deliveryWarningCard.hidden = false;
+          const deliveryWarningText = document.getElementById('deliveryWarningText');
+          if (deliveryWarningText) {
+            deliveryWarningText.textContent = payload.deliveryWarning;
+          }
+        } else {
+          deliveryWarningCard.hidden = true;
+        }
+      }
     }
 
     function showFallback() {

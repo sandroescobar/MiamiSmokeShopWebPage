@@ -316,6 +316,16 @@ function buildUberAddressPayload(address) {
   return result;
 }
 
+function coerceCoordinates(source) {
+  if (!source) return null;
+  const lat = Number(source.lat ?? source.latitude);
+  const lng = Number(source.lng ?? source.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+  return { lat, lng };
+}
+
 function milesBetween(lat1, lon1, lat2, lon2) {
   const toRad = (deg) => (deg * Math.PI) / 180;
   const R = 3959;
@@ -355,6 +365,98 @@ async function getUberAccessToken() {
   const expiresInMs = Number(data.expires_in || 0) * 1000;
   uberAccessTokenExpiresAt = Date.now() + Math.max(expiresInMs - 60000, 0);
   return uberAccessToken;
+}
+
+async function createUberDeliveryFromQuote({ pickupStoreId, deliveryDetails, totals, transactionId }) {
+  if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
+    throw new Error('uber_not_configured');
+  }
+  const quoteId = deliveryDetails?.quote?.quoteId || deliveryDetails?.quote?.id;
+  if (!quoteId) {
+    throw new Error('missing_quote_id');
+  }
+  const storeSlug = resolveCheckoutShop(pickupStoreId || DEFAULT_SHOP);
+  const storeMeta = getStoreFulfillmentMeta(storeSlug);
+  if (!storeMeta) {
+    throw new Error('invalid_store');
+  }
+  const dropoff = deliveryDetails?.address || {};
+  if (!dropoff.street1 || !dropoff.city || !dropoff.state || !dropoff.zip) {
+    throw new Error('missing_dropoff_address');
+  }
+  const contactPhone = normalizePhoneE164(
+    deliveryDetails?.contactPhone ||
+      deliveryDetails?.contact?.phone ||
+      dropoff.contactPhone ||
+      '',
+    ''
+  );
+  if (!contactPhone) {
+    throw new Error('invalid_dropoff_phone');
+  }
+  const manifestValue = Number(totals?.subtotal ?? totals?.total ?? 0);
+  const manifestCents = Number.isFinite(manifestValue) ? Math.max(0, Math.round(manifestValue * 100)) : 0;
+  const payload = {
+    quote_id: quoteId,
+    pickup_address: JSON.stringify(buildUberAddressPayload(storeMeta)),
+    dropoff_address: JSON.stringify(buildUberAddressPayload(dropoff)),
+    pickup_phone_number: storeMeta.phone,
+    dropoff_phone_number: contactPhone,
+    manifest_total_value: manifestCents,
+    external_store_id: storeMeta.externalId,
+  };
+  const now = Date.now();
+  payload.pickup_ready_dt = new Date(now + 10 * 60000).toISOString();
+  payload.pickup_deadline_dt = new Date(now + 40 * 60000).toISOString();
+  payload.dropoff_ready_dt = new Date(now + 40 * 60000).toISOString();
+  payload.dropoff_deadline_dt = new Date(now + 120 * 60000).toISOString();
+  if (Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
+    payload.pickup_latitude = storeMeta.latitude;
+    payload.pickup_longitude = storeMeta.longitude;
+  }
+  const dropGeo = coerceCoordinates(deliveryDetails?.geo) || coerceCoordinates(dropoff);
+  if (dropGeo) {
+    payload.dropoff_latitude = dropGeo.lat;
+    payload.dropoff_longitude = dropGeo.lng;
+  }
+  const token = await getUberAccessToken();
+  const response = await fetch(`${UBER_DIRECT_CONFIG.apiBaseUrl}/customers/${UBER_DIRECT_CONFIG.customerId}/deliveries`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const rawText = await response.text();
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    data = null;
+  }
+  if (!response.ok) {
+    const detail = data?.message || data?.errors || rawText.slice(0, 200) || 'uber_delivery_failed';
+    const err = new Error(typeof detail === 'string' ? detail : 'uber_delivery_failed');
+    err.detail = detail;
+    throw err;
+  }
+  const result = {
+    id: data?.id || null,
+    status: data?.status || null,
+    trackingUrl: data?.tracking_url || data?.trackingUrl || data?.share_url || null,
+    shareUrl: data?.share_url || null,
+    quoteId,
+  };
+  console.log('[uber_delivery]', {
+    id: result.id,
+    status: result.status,
+    trackingUrl: result.trackingUrl,
+    quoteId,
+    transactionId: transactionId || null,
+  });
+  return result;
 }
 
 function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
@@ -2972,7 +3074,26 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const orderItems = Array.isArray(body.items) ? body.items : [];
     const deliveryDetails = body.deliveryDetails || {};
+    const orderTotals = body.totals || {};
     const contactName = [billing.firstName, billing.lastName].filter(Boolean).join(' ').trim() || null;
+    let uberDeliveryResult = null;
+    let uberDeliveryError = null;
+    if (body.deliveryMethod === 'delivery' && deliveryDetails?.quote?.quoteId) {
+      try {
+        uberDeliveryResult = await createUberDeliveryFromQuote({
+          pickupStoreId: body.pickupStoreId || body.pickupStore || DEFAULT_SHOP,
+          deliveryDetails,
+          totals: orderTotals,
+          transactionId: transId,
+        });
+      } catch (deliveryErr) {
+        uberDeliveryError = deliveryErr;
+        console.error('[uber_delivery] create_failed', {
+          message: deliveryErr.message,
+          detail: deliveryErr.detail || null,
+        });
+      }
+    }
     const fulfillmentLog = body.deliveryMethod === 'delivery'
       ? {
           type: 'delivery',
@@ -2981,7 +3102,15 @@ app.post('/api/authorize/charge', async (req, res) => {
           deliveryInstructions: deliveryDetails.instructions || null,
           uberQuoteId: deliveryDetails.quote?.quoteId || deliveryDetails.quote?.id || null,
           uberFee: deliveryDetails.quote?.fee || null,
-          uberLink: deliveryDetails.quote?.trackingUrl || deliveryDetails.quote?.shareUrl || null,
+          uberLink:
+            uberDeliveryResult?.trackingUrl ||
+            uberDeliveryResult?.shareUrl ||
+            deliveryDetails.quote?.trackingUrl ||
+            deliveryDetails.quote?.shareUrl ||
+            null,
+          uberDeliveryId: uberDeliveryResult?.id || null,
+          uberDeliveryStatus: uberDeliveryResult?.status || null,
+          uberDeliveryError: uberDeliveryError ? (uberDeliveryError.detail || uberDeliveryError.message || null) : null,
         }
       : {
           type: 'pickup',
@@ -2997,16 +3126,23 @@ app.post('/api/authorize/charge', async (req, res) => {
       authCode: trx?.authCode || null,
       customer: customerLog,
       fulfillment: fulfillmentLog,
-      totals: body.totals || null,
+      totals: orderTotals,
       items: orderItems,
     });
 
-    return res.json({
+    const responsePayload = {
       ok: true,
       transactionId: transId,
       authCode: trx?.authCode,
       responseCode: trx?.responseCode,
-    });
+    };
+    if (uberDeliveryResult) {
+      responsePayload.delivery = uberDeliveryResult;
+    }
+    if (uberDeliveryError) {
+      responsePayload.deliveryWarning = uberDeliveryError.detail || uberDeliveryError.message || 'Uber Direct delivery could not be created automatically.';
+    }
+    return res.json(responsePayload);
   } catch (err) {
     console.error('[Authorize.Net] charge exception', err);
     return res.status(500).json({ error: 'Server error while charging card.' });
