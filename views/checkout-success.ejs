@@ -1,0 +1,223 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title || 'Order confirmed' %></title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f7fb;color:#0f1828}
+    .wrap{max-width:1200px;margin:0 auto;padding:32px 18px 80px}
+    .hero{display:flex;align-items:center;gap:20px;padding:26px;border-radius:24px;background:linear-gradient(120deg,#0f1828,#142b58 60%,#2565c4);color:#f2f7ff;box-shadow:0 20px 45px rgba(15,24,40,.35)}
+    .hero-icon{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);font-size:26px;font-weight:700}
+    .hero-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.12em;margin:0 0 8px 0;color:rgba(255,255,255,.7)}
+    .hero-title{margin:0;font-size:30px}
+    .hero-sub{margin:6px 0 0 0;color:rgba(255,255,255,.85)}
+    .hero-note{margin:8px 0 0 0;color:rgba(255,255,255,.75)}
+    .layout{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-top:28px}
+    @media (max-width:900px){.layout{grid-template-columns:1fr}}
+    .card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 10px 30px rgba(15,24,40,.08);margin-bottom:20px}
+    .card h2{margin:0 0 14px 0;font-size:18px;color:#101a31}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .badge{background:#eef2ff;color:#4554d4;font-weight:600;padding:4px 12px;border-radius:999px;font-size:12px}
+    .items-list{display:flex;flex-direction:column;gap:14px}
+    .item-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding-bottom:14px;border-bottom:1px solid #edf0f6}
+    .item-row:last-child{border-bottom:0;padding-bottom:0}
+    .item-name{margin:0;font-weight:600;color:#111}
+    .item-note{display:block;margin-top:4px;font-size:13px;color:#657092}
+    .item-qty{font-weight:600;color:#4a5675}
+    .item-total{font-weight:700;color:#111}
+    .summary-row{display:flex;justify-content:space-between;margin-bottom:10px;font-size:15px}
+    .summary-row.total{font-size:18px;font-weight:700;margin-top:14px;padding-top:12px;border-top:1px solid #edf0f6}
+    .meta-card p{margin:6px 0}
+    .meta-value{font-weight:600;color:#0f1828}
+    .meta-note{color:#4a5675;font-size:14px}
+    .store-chip{display:inline-flex;align-items:center;gap:8px;background:#edf4ff;color:#164b97;padding:8px 14px;border-radius:999px;font-weight:600;margin:12px 0 2px 0;font-size:14px}
+    .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px}
+    .muted{color:#606a85;font-size:14px}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+    .btn{flex:0 0 auto;padding:12px 20px;border-radius:999px;border:none;font-weight:600;font-size:15px;cursor:pointer;transition:transform .1s ease,box-shadow .1s ease}
+    .btn:active{transform:scale(.98)}
+    .btn-primary{background:#2565c4;color:#fff;box-shadow:0 10px 20px rgba(37,101,196,.35)}
+    .btn-outline{background:#fff;color:#2565c4;border:1px solid #c7d7f5}
+    .fallback{margin-top:24px;padding:20px;background:#fff0f0;border-radius:16px;color:#7a1f1f;border:1px solid #ffd8d8}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-icon">✓</div>
+      <div>
+        <p class="hero-eyebrow">Checkout</p>
+        <h1 class="hero-title" id="heroTitle">Order confirmed</h1>
+        <p class="hero-sub" id="heroSubtitle"></p>
+        <p class="hero-note" id="heroNote"></p>
+      </div>
+    </section>
+
+    <section class="layout" data-success-shell>
+      <div class="column">
+        <div class="card">
+          <div class="card-header">
+            <h2>Items</h2>
+            <span class="badge" id="itemCount">0 items</span>
+          </div>
+          <div id="itemsList" class="items-list"></div>
+        </div>
+      </div>
+      <div class="column column-narrow">
+        <div class="card">
+          <h2>Totals</h2>
+          <div class="summary-row"><span>Subtotal</span><span id="subtotalValue">$0.00</span></div>
+          <div class="summary-row"><span>Tax</span><span id="taxValue">$0.00</span></div>
+          <div class="summary-row"><span>Delivery</span><span id="deliveryValue">$0.00</span></div>
+          <div class="summary-row total"><span>Total</span><span id="totalValue">$0.00</span></div>
+        </div>
+        <div class="card meta-card">
+          <h2>Fulfillment</h2>
+          <p class="meta-value" id="fulfillmentText">—</p>
+          <p class="meta-note" id="methodNote"></p>
+          <div class="store-chip" id="storeBadge">Miami Vape Smoke Shop</div>
+          <div class="meta-grid">
+            <div>
+              <p class="muted">Transaction ID</p>
+              <p class="meta-value" id="transactionId">—</p>
+            </div>
+            <div>
+              <p class="muted">Auth Code</p>
+              <p class="meta-value" id="authCode">—</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="fallback" id="fallbackSection" hidden>
+      <p id="fallbackMessage"></p>
+    </section>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" data-action="shop">Back to products</button>
+      <button type="button" class="btn btn-outline" data-action="home">Go to homepage</button>
+    </div>
+  </main>
+
+  <script>
+    const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
+    const CART_STORAGE_KEY = 'cart';
+    const CART_LAST_CLOSED_KEY = 'cartLastClosedAt';
+    const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop') %>;
+    const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
+
+    function money(value) {
+      const n = Number(value || 0);
+      return '$' + (Number.isFinite(n) ? n.toFixed(2) : '0.00');
+    }
+
+    function escapeHtml(value) {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(value || '').replace(/[&<>"']/g, (ch) => map[ch] || ch);
+    }
+
+    function loadPayload() {
+      try {
+        const raw = sessionStorage.getItem(SUCCESS_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function renderItems(items) {
+      const list = document.getElementById('itemsList');
+      if (!items.length) {
+        list.innerHTML = '<p class="muted">No items available.</p>';
+        return;
+      }
+      list.innerHTML = items.map((item) => {
+        const note = item.flavor ? `<span class="item-note">${escapeHtml(item.flavor)}</span>` : '';
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const total = Number.isFinite(item.total) ? item.total : Number(item.price || 0) * qty;
+        return `
+          <div class="item-row">
+            <div>
+              <p class="item-name">${escapeHtml(item.name)}</p>
+              ${note}
+            </div>
+            <div class="item-qty">x${qty}</div>
+            <div class="item-total">${money(total)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatMethod(method) {
+      return method === 'delivery' ? 'Delivery' : 'Pickup';
+    }
+
+    function renderSummary(payload) {
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const totalItems = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0);
+      document.getElementById('itemCount').textContent = totalItems === 1 ? '1 item' : totalItems + ' items';
+      renderItems(items);
+      document.getElementById('subtotalValue').textContent = money(payload.subtotal);
+      document.getElementById('taxValue').textContent = money(payload.tax);
+      document.getElementById('deliveryValue').textContent = money(payload.delivery);
+      document.getElementById('totalValue').textContent = money(payload.total);
+      const method = formatMethod(payload.fulfillmentMethod);
+      const storeLabel = payload.storeLabel || DEFAULT_STORE_LABEL;
+      document.getElementById('fulfillmentText').textContent = method;
+      document.getElementById('methodNote').textContent = method === 'Delivery' ? 'We will text courier updates shortly.' : 'We will let you know when pickup is ready.';
+      document.getElementById('storeBadge').textContent = storeLabel;
+      document.getElementById('transactionId').textContent = payload.transactionId || '—';
+      document.getElementById('authCode').textContent = payload.authCode || '—';
+      const heroTitle = document.getElementById('heroTitle');
+      const heroSubtitle = document.getElementById('heroSubtitle');
+      const heroNote = document.getElementById('heroNote');
+      const firstName = payload.customer && payload.customer.firstName ? payload.customer.firstName : '';
+      heroTitle.textContent = firstName ? `Thanks, ${firstName}!` : 'Order confirmed';
+      heroSubtitle.textContent = payload.transactionId ? `Transaction ${payload.transactionId}` : 'Receipt saved';
+      heroNote.textContent = method === 'Delivery'
+        ? `On the way from ${storeLabel}`
+        : `Ready soon at ${storeLabel}`;
+    }
+
+    function showFallback() {
+      document.querySelector('[data-success-shell]').style.display = 'none';
+      const fallback = document.getElementById('fallbackSection');
+      fallback.hidden = false;
+      const orderId = new URLSearchParams(window.location.search).get('order');
+      const storeLabel = DEFAULT_STORE_LABEL;
+      const message = orderId
+        ? `We could not load the receipt for transaction ${orderId}. Please contact the ${storeLabel} team if you need assistance.`
+        : `We could not find your checkout session. Head back to the store to start again.`;
+      document.getElementById('fallbackMessage').textContent = message;
+    }
+
+    function clearCartStorage() {
+      try {
+        localStorage.removeItem(CART_STORAGE_KEY);
+        localStorage.removeItem(CART_LAST_CLOSED_KEY);
+      } catch {}
+    }
+
+    function initSuccessPage() {
+      const payload = loadPayload();
+      if (!payload) {
+        showFallback();
+        return;
+      }
+      try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
+      renderSummary(payload);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initSuccessPage();
+      clearCartStorage();
+      const shopBtn = document.querySelector('[data-action="shop"]');
+      const homeBtn = document.querySelector('[data-action="home"]');
+      if (shopBtn) shopBtn.addEventListener('click', () => { window.location.href = '/products'; });
+      if (homeBtn) homeBtn.addEventListener('click', () => { window.location.href = '/'; });
+    });
+  </script>
+</body>
+</html>

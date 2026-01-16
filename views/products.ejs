@@ -103,6 +103,9 @@
   .product-name{font-size:.85rem;margin:0;color:#fff;line-height:1.12}
   .buy-row{display:flex;align-items:center;justify-content:space-between;gap:.25rem;margin-top:.05rem}
   .price{font-weight:600;font-size:.95rem}
+  #product-grabba-leaf-small .product-info{min-height:240px}
+  #product-grabba-leaf-small .product-spacer{flex:1}
+  #product-grabba-leaf-small .buy-row{margin-top:auto;padding-top:.35rem}
   .btn-accent{border:0;padding:.4rem .6rem;border-radius:10px;cursor:pointer;background:var(--accent);color:#0a1222;font-weight:600;font-size:.85rem}
   .sold-out,.product-card.sold-out .btn-accent{pointer-events:none;opacity:.6}
   
@@ -340,8 +343,10 @@
        const hasImage = !!displayVariant.has_image;
        const imgSrc = displayVariant.image_url || '/images/products/placeholder.webp';
        const alt = (displayVariant.image_alt || 'Image coming soon') + ' - ' + (displayVariant.name || p.name);
+       const baseName = (p.base_name || p.name || '').trim();
+       const isGrabbaLeafSmall = baseName.toUpperCase() === 'GRABBA LEAF SMALL';
   %>
-    <article class="product-card <%= !anyAvailable ? 'sold-out' : '' %>" data-product-id="<%= displayVariant.id || firstVariant.id %>" data-product-price="<%= firstVariant.price || 0 %>" data-product-name="<%= p.base_name || p.name %>" data-is-grouped="<%= isGrouped ? 'true' : 'false' %>">
+    <article class="product-card <%= !anyAvailable ? 'sold-out' : '' %>" <%= isGrabbaLeafSmall ? 'id="product-grabba-leaf-small"' : '' %> data-product-id="<%= displayVariant.id || firstVariant.id %>" data-product-price="<%= firstVariant.price || 0 %>" data-product-name="<%= baseName %>" data-is-grouped="<%= isGrouped ? 'true' : 'false' %>">
       <div class="product-media">
         <img src="<%= imgSrc %>" alt="<%= alt %>">
         <div class="no-image-badge <%= hasImage ? 'is-hidden' : '' %>"><%= (displayVariant.image_alt || firstVariant.image_alt || 'Image coming soon') %></div>
@@ -350,7 +355,7 @@
 
       <div class="product-info">
         <div class="product-name-section">
-          <h3 class="product-name"><%= p.base_name || p.name %></h3>
+          <h3 class="product-name"><%= baseName %></h3>
           <% if (isGrouped && variants.length > 1) { %>
             <div>
               <div class="flavor-label">Flavors</div>
@@ -375,6 +380,10 @@
             </div>
           <% } %>
         </div>
+
+        <% if (isGrabbaLeafSmall) { %>
+          <div class="product-spacer" aria-hidden="true"></div>
+        <% } %>
 
         <div class="buy-row">
           <span class="price"><%= price %></span>

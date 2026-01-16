@@ -44,6 +44,61 @@ function parseMysqlUrl(url) {
   }
 }
 
+const STORE_DEFAULT_CONTACTS = {
+  calle8: {
+    displayName: 'Miami Vape Smoke Shop #1',
+    street1: '6346 SW 8th St',
+    street2: '',
+    city: 'West Miami',
+    state: 'FL',
+    zip: '33144',
+    country: 'US',
+    phone: '(786) 206-0122',
+  },
+  '79th': {
+    displayName: 'Miami Vape Smoke Shop #2',
+    street1: '351 NE 79th St',
+    street2: 'Unit 101',
+    city: 'Miami',
+    state: 'FL',
+    zip: '33138',
+    country: 'US',
+    phone: '(786) 206-4552',
+  },
+};
+
+function buildStoreContact(prefix, defaults) {
+  const read = (suffix) => process.env[`${prefix}_${suffix}`];
+  const street1 = read('STREET1') || defaults.street1;
+  const street2Raw = read('STREET2');
+  const street2 = typeof street2Raw === 'string' ? street2Raw : defaults.street2 || '';
+  const city = read('CITY') || defaults.city;
+  const state = read('STATE') || defaults.state;
+  const zip = read('ZIP') || defaults.zip;
+  const country = read('COUNTRY') || defaults.country || 'US';
+  const displayName = read('DISPLAY_NAME') || defaults.displayName;
+  const phone = read('PHONE') || defaults.phone;
+  const addressFull =
+    read('ADDRESS_FULL') ||
+    `${displayName} • ${street1}${street2 ? ` ${street2}` : ''}, ${city}, ${state} ${zip}`;
+  return {
+    displayName,
+    street1,
+    street2,
+    city,
+    state,
+    zip,
+    country,
+    phone,
+    addressFull,
+  };
+}
+
+const STORE_CONTACTS = {
+  calle8: buildStoreContact('CALLE8', STORE_DEFAULT_CONTACTS.calle8),
+  '79th': buildStoreContact('STORE_79', STORE_DEFAULT_CONTACTS['79th']),
+};
+
 const urlCfg = process.env.MYSQL_PUBLIC_URL
   ? parseMysqlUrl(process.env.MYSQL_PUBLIC_URL)
   : null;
@@ -75,10 +130,10 @@ console.log(
 
 const CONTACT_INFO = {
   email: process.env.SUPPORT_EMAIL || 'support@miamivapesmokeshop.com',
-  phone: process.env.SALES_PHONE || '(305) 555-1212',
+  phone: process.env.SALES_PHONE || STORE_CONTACTS.calle8.phone,
   addresses: [
-    'Miami Vape Smoke Shop #1 • 6346 SW 8th St, West Miami, FL 33144',
-    'Miami Vape Smoke Shop #2 • 351 NE 79th St Unit 101, Miami, FL 33138',
+    STORE_CONTACTS.calle8.addressFull,
+    STORE_CONTACTS['79th'].addressFull,
   ],
 };
 
@@ -182,6 +237,125 @@ const STORE_LABEL_BY_SLUG = STORE_CHOICES.reduce((acc, choice) => {
   return acc;
 }, {});
 const DEFAULT_FULFILLMENT_STORE = STORE_LABEL_BY_SLUG.calle8 || Object.keys(STORE_SNAPSHOT_TABLE_BY_SLUG)[0] || 'calle8';
+
+function normalizePhoneE164(value, fallback = '+13055551212') {
+  const digits = String(value || '').replace(/\D+/g, '');
+  if (!digits) return fallback;
+  if (digits.startsWith('1') && digits.length === 11) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length > 11) return `+${digits}`;
+  return fallback;
+}
+
+const numberOrFallback = (value, fallback) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const STORE_FULFILLMENT_META = {
+  calle8: {
+    id: 'calle8',
+    label: 'Calle 8',
+    street1: STORE_CONTACTS.calle8.street1,
+    street2: STORE_CONTACTS.calle8.street2 || undefined,
+    city: STORE_CONTACTS.calle8.city,
+    state: STORE_CONTACTS.calle8.state,
+    zip: STORE_CONTACTS.calle8.zip,
+    country: STORE_CONTACTS.calle8.country,
+    latitude: numberOrFallback(process.env.CALLE8_LATITUDE, 25.7635),
+    longitude: numberOrFallback(process.env.CALLE8_LONGITUDE, -80.3103),
+    phone: normalizePhoneE164(STORE_CONTACTS.calle8.phone || CONTACT_INFO.phone),
+    externalId: 'calle8',
+  },
+  '79th': {
+    id: '79th',
+    label: '79th Street',
+    street1: STORE_CONTACTS['79th'].street1,
+    street2: STORE_CONTACTS['79th'].street2 || undefined,
+    city: STORE_CONTACTS['79th'].city,
+    state: STORE_CONTACTS['79th'].state,
+    zip: STORE_CONTACTS['79th'].zip,
+    country: STORE_CONTACTS['79th'].country,
+    latitude: numberOrFallback(process.env.STORE_79_LATITUDE, 25.8389),
+    longitude: numberOrFallback(process.env.STORE_79_LONGITUDE, -80.1893),
+    phone: normalizePhoneE164(STORE_CONTACTS['79th'].phone || CONTACT_INFO.phone),
+    externalId: '79th',
+  },
+};
+
+STORE_FULFILLMENT_META.either = STORE_FULFILLMENT_META.calle8;
+
+const DELIVERY_MAX_RADIUS_MILES = 10;
+
+const UBER_DIRECT_CONFIG = {
+  customerId: process.env.UBER_DIRECT_CUSTOMER_ID || process.env.UBER_CUSTOMER_ID || '',
+  clientId: process.env.UBER_DIRECT_CLIENT_ID || '',
+  clientSecret: process.env.UBER_DIRECT_CLIENT_SECRET || '',
+  authUrl: process.env.UBER_DIRECT_AUTH_URL || 'https://auth.uber.com/oauth/v2/token',
+  apiBaseUrl: process.env.UBER_DIRECT_API_BASE_URL || 'https://api.uber.com/v1',
+};
+
+let uberAccessToken = null;
+let uberAccessTokenExpiresAt = 0;
+
+function getStoreFulfillmentMeta(storeId = DEFAULT_SHOP) {
+  return STORE_FULFILLMENT_META[storeId] || STORE_FULFILLMENT_META[DEFAULT_SHOP];
+}
+
+function buildUberAddressPayload(address) {
+  const lines = [];
+  if (address.street1) lines.push(address.street1);
+  if (address.street2) lines.push(address.street2);
+  const result = {
+    street_address: lines.length ? lines : [address.street1 || ''],
+    city: address.city || '',
+    state: address.state || '',
+    zip_code: address.zip || '',
+    country: address.country || 'US',
+  };
+  return result;
+}
+
+function milesBetween(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 3959;
+  const dLat = toRad((lat2 || 0) - (lat1 || 0));
+  const dLon = toRad((lon2 || 0) - (lon1 || 0));
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1 || 0)) *
+      Math.cos(toRad(lat2 || 0)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function getUberAccessToken() {
+  if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
+    throw new Error('uber_direct_config_missing');
+  }
+  if (uberAccessToken && Date.now() < uberAccessTokenExpiresAt - 5000) {
+    return uberAccessToken;
+  }
+  const params = new URLSearchParams();
+  params.set('client_id', UBER_DIRECT_CONFIG.clientId);
+  params.set('client_secret', UBER_DIRECT_CONFIG.clientSecret);
+  params.set('grant_type', 'client_credentials');
+  params.set('scope', 'eats.deliveries');
+  const resp = await fetch(UBER_DIRECT_CONFIG.authUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data.access_token) {
+    throw new Error('uber_auth_failed');
+  }
+  uberAccessToken = data.access_token;
+  const expiresInMs = Number(data.expires_in || 0) * 1000;
+  uberAccessTokenExpiresAt = Date.now() + Math.max(expiresInMs - 60000, 0);
+  return uberAccessToken;
+}
 
 function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
   const list = Array.isArray(tables) && tables.length ? tables : SNAPSHOT_TABLES;
@@ -1964,6 +2138,102 @@ app.get('/api/closest-store', async (req, res) => {
   }
 });
 
+
+app.post('/api/uber/quote', async (req, res) => {
+  try {
+    if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
+      return res.status(503).json({ error: 'uber_not_configured' });
+    }
+    const body = req.body || {};
+    const storeMeta = getStoreFulfillmentMeta(resolveCheckoutShop(body.pickupStoreId));
+    if (!storeMeta) {
+      return res.status(400).json({ error: 'invalid_store' });
+    }
+    const dropoff = body.dropoff || {};
+    if (!dropoff.street1 || !dropoff.city || !dropoff.state || !dropoff.zip) {
+      return res.status(400).json({ error: 'missing_dropoff_address' });
+    }
+    dropoff.country = dropoff.country || 'US';
+    const contactPhone = normalizePhoneE164(dropoff.contactPhone || body.contactPhone || body.phoneNumber, '');
+    if (!contactPhone) {
+      return res.status(400).json({ error: 'invalid_dropoff_phone' });
+    }
+    const dropLat = Number(dropoff.lat);
+    const dropLng = Number(dropoff.lng);
+    if (Number.isFinite(dropLat) && Number.isFinite(dropLng) && Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
+      const distance = milesBetween(storeMeta.latitude, storeMeta.longitude, dropLat, dropLng);
+      if (distance > DELIVERY_MAX_RADIUS_MILES) {
+        return res.status(400).json({
+          error: 'distance_exceeded',
+          maxMiles: DELIVERY_MAX_RADIUS_MILES,
+          distance: Number(distance.toFixed(2)),
+        });
+      }
+    }
+    const manifestValue = Number(body.manifestValue ?? body.subtotal ?? 0);
+    const manifestCents = Number.isFinite(manifestValue) ? Math.max(0, Math.round(manifestValue * 100)) : 0;
+    const payload = {
+      pickup_address: JSON.stringify(buildUberAddressPayload(storeMeta)),
+      dropoff_address: JSON.stringify(buildUberAddressPayload(dropoff)),
+      pickup_phone_number: storeMeta.phone,
+      dropoff_phone_number: contactPhone,
+      manifest_total_value: manifestCents,
+      external_store_id: storeMeta.externalId,
+    };
+    if (Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
+      payload.pickup_latitude = storeMeta.latitude;
+      payload.pickup_longitude = storeMeta.longitude;
+    }
+    if (Number.isFinite(dropLat) && Number.isFinite(dropLng)) {
+      payload.dropoff_latitude = dropLat;
+      payload.dropoff_longitude = dropLng;
+    }
+    const now = Date.now();
+    payload.pickup_ready_dt = new Date(now + 10 * 60000).toISOString();
+    payload.pickup_deadline_dt = new Date(now + 40 * 60000).toISOString();
+    payload.dropoff_ready_dt = new Date(now + 40 * 60000).toISOString();
+    payload.dropoff_deadline_dt = new Date(now + 120 * 60000).toISOString();
+    const token = await getUberAccessToken();
+    const response = await fetch(`${UBER_DIRECT_CONFIG.apiBaseUrl}/customers/${UBER_DIRECT_CONFIG.customerId}/delivery_quotes`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const rawText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = null;
+    }
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: 'uber_quote_failed',
+        detail: data?.message || data?.errors || rawText.slice(0, 200),
+      });
+    }
+    const feeCents = Number(data?.fee || 0);
+    return res.json({
+      ok: true,
+      quoteId: data?.id || null,
+      fee: Number.isFinite(feeCents) ? feeCents / 100 : 0,
+      feeCents: Number.isFinite(feeCents) ? feeCents : 0,
+      currency: (data?.currency || data?.currency_type || 'USD').toUpperCase(),
+      expires: data?.expires || null,
+      dropoffEta: data?.dropoff_eta || null,
+      raw: data,
+    });
+  } catch (err) {
+    console.error('Error creating Uber quote:', err);
+    return res.status(500).json({ error: 'uber_quote_exception' });
+  }
+});
+
+
 /* --------------------  Home  -------------------- */
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -2374,6 +2644,16 @@ app.get('/checkout', (req, res) => {
   });
 });
 
+app.get('/checkout/success', (req, res) => {
+  const selectedShop = resolveCheckoutShop(req.query.shop);
+  res.render('checkout-success', {
+    title: 'Order Confirmed • Miami Vape Smoke Shop',
+    description: 'Receipt and fulfillment details for your purchase',
+    selectedShop,
+    storeMeta: getStoreChoice(selectedShop),
+  });
+});
+
 
 /* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
 /**
@@ -2689,6 +2969,37 @@ app.post('/api/authorize/charge', async (req, res) => {
       });
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
+
+    const orderItems = Array.isArray(body.items) ? body.items : [];
+    const deliveryDetails = body.deliveryDetails || {};
+    const contactName = [billing.firstName, billing.lastName].filter(Boolean).join(' ').trim() || null;
+    const fulfillmentLog = body.deliveryMethod === 'delivery'
+      ? {
+          type: 'delivery',
+          store: body.pickupStore || body.pickupStoreId || null,
+          deliveryAddress: deliveryDetails.address || null,
+          deliveryInstructions: deliveryDetails.instructions || null,
+          uberQuoteId: deliveryDetails.quote?.quoteId || deliveryDetails.quote?.id || null,
+          uberFee: deliveryDetails.quote?.fee || null,
+          uberLink: deliveryDetails.quote?.trackingUrl || deliveryDetails.quote?.shareUrl || null,
+        }
+      : {
+          type: 'pickup',
+          store: body.pickupStore || body.pickupStoreId || null,
+        };
+    const customerLog = {
+      name: contactName,
+      phone: billing.phoneNumber || deliveryDetails.contact?.phone || deliveryDetails.contactPhone || null,
+      email: customerEmail || body.customer?.email || null,
+    };
+    console.log('[order]', {
+      transactionId: transId,
+      authCode: trx?.authCode || null,
+      customer: customerLog,
+      fulfillment: fulfillmentLog,
+      totals: body.totals || null,
+      items: orderItems,
+    });
 
     return res.json({
       ok: true,

@@ -31,6 +31,29 @@
     <%- body %>
   </main>
 
+  <div class="mini-cart-overlay" data-mini-cart-overlay hidden>
+    <div class="mini-cart-panel" role="dialog" aria-modal="true" aria-labelledby="mini-cart-title">
+      <button type="button" class="mini-cart-close" data-mini-cart-close aria-label="Close cart">&times;</button>
+      <div class="mini-cart-header">
+        <p class="mini-cart-eyebrow">Just added</p>
+        <h2 id="mini-cart-title">Ready to check out?</h2>
+        <p class="mini-cart-subhead">Review your cart and finish checkout in seconds.</p>
+      </div>
+      <div class="mini-cart-items" data-mini-cart-items></div>
+      <div class="mini-cart-footer">
+        <div class="mini-cart-row">
+          <span>Subtotal</span>
+          <span data-mini-cart-subtotal>$0.00</span>
+        </div>
+        <div class="mini-cart-row meta">
+          <span>Taxes and delivery calculated at checkout.</span>
+        </div>
+        <button type="button" class="mini-cart-checkout" data-mini-cart-checkout>Go to checkout</button>
+        <button type="button" class="mini-cart-continue" data-mini-cart-continue>Keep shopping</button>
+      </div>
+    </div>
+  </div>
+
   <%- include('../partials/footer') %>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/age_gate.js"></script>
