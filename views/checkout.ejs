@@ -473,27 +473,44 @@
         (match) => map[match.toLowerCase()] || match
       );
     }
-
     async function geocodeAddressWithFallback(street, city, state, zip) {
-      const normalizedStreet = normalizeStreetTokens(street);
-      const attempts = [];
-      const formattedOriginal = `${street}, ${city}, ${state} ${zip}`;
-      if (normalizedStreet && normalizedStreet !== street) attempts.push(`${normalizedStreet}, ${city}, ${state} ${zip}`);
-      attempts.push(formattedOriginal);
+      // IMPORTANT: Browser-to-Nominatim requests are blocked by CORS/403.
+      // We proxy geocoding through our own backend (/api/geocode), which adds
+      // the required User-Agent and avoids leaking third-party calls to the browser.
+      try {
+        const qs = new URLSearchParams({
+          street: (street || "").trim(),
+          city: (city || "").trim(),
+          state: (state || "").trim(),
+          zip: (zip || "").trim(),
+          country: "US",
+        });
 
-      for (const address of attempts) {
-        const geocodeRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
-        );
-        if (!geocodeRes.ok || geocodeRes.status === 429) return null;
-        const geocodeData = await geocodeRes.json();
-        if (geocodeData.length > 0) {
-          const lat = parseFloat(geocodeData[0].lat);
-          const lng = parseFloat(geocodeData[0].lon);
-          if (!Number.isNaN(lat) && !Number.isNaN(lng)) return { lat, lng };
+        const resp = await fetch(`/api/geocode?${qs.toString()}`, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+        });
+
+        if (!resp.ok) {
+          // 4xx/5xx: treat as no result, but surface debug text
+          let msg = "";
+          try { msg = await resp.text(); } catch {}
+          console.warn("[geocode] backend failed", resp.status, msg.slice(0, 200));
+          return null;
         }
+
+        const data = await resp.json();
+        if (!data || !data.lat || !data.lng) return null;
+
+        return {
+          lat: Number(data.lat),
+          lon: Number(data.lng),
+          display_name: data.display_name || "",
+        };
+      } catch (err) {
+        console.warn("[geocode] exception", err);
+        return null;
       }
-      return null;
     }
 
     function clearDeliveryOptions() {

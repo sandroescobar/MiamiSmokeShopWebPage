@@ -1,5 +1,4 @@
 // index.js (ESM)
-//update v2
 import 'dotenv/config';
 import path from 'path';
 import fs from 'fs';
@@ -2318,6 +2317,103 @@ function _getAuthNetConfig() {
 
 
 
+/* --------------------  Geocoding Proxy (Nominatim)  -------------------- */
+// Browsers calling Nominatim directly will often fail due to CORS / rate limits / missing UA.
+// We proxy geocoding through the server so the checkout page can safely obtain lat/lng.
+
+const GEOCODE_ENDPOINT = process.env.GEOCODE_ENDPOINT || 'https://nominatim.openstreetmap.org/search';
+const GEOCODE_USER_AGENT =
+  process.env.GEOCODE_USER_AGENT ||
+  'MiamiVapeSmokeShop/1.0 (contact: support@miamivapesmoke.com)';
+
+// Simple in-memory cache (query -> { lat, lng, ts })
+const __geocodeCache = new Map();
+const __GEOCODE_TTL_MS = 1000 * 60 * 60 * 24; // 24h
+
+async function geocodeNominatim(query) {
+  const q = String(query || '').trim();
+  if (!q) return null;
+
+  const now = Date.now();
+  const cached = __geocodeCache.get(q);
+  if (cached && cached.value && now - cached.ts < __GEOCODE_TTL_MS) return cached.value;
+  if (cached && cached.promise) return cached.promise;
+
+  const p = (async () => {
+    try {
+      const url = new URL(GEOCODE_ENDPOINT);
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('limit', '1');
+      url.searchParams.set('q', q);
+
+      const r = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'User-Agent': GEOCODE_USER_AGENT,
+          'Accept': 'application/json',
+          'Accept-Language': 'en',
+          // Some Nominatim instances like having a referer, too.
+          'Referer': 'https://www.miamivapesmoke.com',
+        },
+      });
+
+      const raw = await r.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = null; }
+
+      if (!r.ok) {
+        console.error('[geocode] nominatim error', {
+          status: r.status,
+          q: q.slice(0, 120),
+          body: (raw || '').slice(0, 200),
+        });
+        return null;
+      }
+
+      if (!Array.isArray(data) || data.length === 0) return null;
+
+      const lat = Number(data[0].lat);
+      const lng = Number(data[0].lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+      return { lat, lng, displayName: data[0].display_name || null };
+    } finally {
+      // Clear in-flight marker
+      const cur = __geocodeCache.get(q);
+      if (cur && cur.promise) __geocodeCache.set(q, { ts: Date.now(), value: cur.value || null });
+    }
+  })();
+
+  __geocodeCache.set(q, { ts: now, promise: p, value: null });
+  const value = await p;
+  __geocodeCache.set(q, { ts: Date.now(), value });
+  return value;
+}
+
+app.get('/api/geocode', async (req, res) => {
+  try {
+    const { q, street, street1, street2, city, state, zip, country } = req.query;
+
+    const query =
+      String(q || '') ||
+      [street || street1, street2, city, state, zip, country || 'US']
+        .filter(Boolean)
+        .join(', ');
+
+    if (!query || !String(query).trim()) {
+      return res.status(400).json({ error: 'Missing address query.' });
+    }
+
+    const r = await geocodeNominatim(query);
+    if (!r) return res.status(404).json({ error: 'No geocode result.' });
+
+    return res.json({ lat: r.lat, lng: r.lng, displayName: r.displayName });
+  } catch (e) {
+    console.error('[geocode] exception', e);
+    return res.status(500).json({ error: 'Geocoding failed.' });
+  }
+});
+
 /* --------------------  Uber Direct (Courier)  -------------------- */
 // NOTE: This section is additive and does not modify the Authorize.Net transaction payload.
 // It only:
@@ -2502,7 +2598,7 @@ async function uberCreateDelivery({ quoteId, pickupStoreId, dropoffName, dropoff
     dropoff_phone_number: toE164US(dropoffPhone),
     dropoff_address: uberAddressJsonString(dropoffAddress),
 
-    manifest_items: Array.isArray(manifestItems) && manifestItems.length ? manifestItems : [{ name: 'Order', quantity: 1, size: 'small' }],
+    manifest_items: Array.isArray(manifestItems) && manifestItems.length ? manifestItems : [{ name: 'Order', quantity: 1, size: 'small', price: 0 }],
     manifest_total_value: Number.isFinite(Number(manifestTotalValueCents)) ? Number(manifestTotalValueCents) : 0,
     manifest_reference: String(manifestReference || '').slice(0, 80) || undefined,
   };
