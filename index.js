@@ -1,4 +1,5 @@
 // index.js (ESM)
+//update v2
 import 'dotenv/config';
 import path from 'path';
 import fs from 'fs';
@@ -44,61 +45,6 @@ function parseMysqlUrl(url) {
   }
 }
 
-const STORE_DEFAULT_CONTACTS = {
-  calle8: {
-    displayName: 'Miami Vape Smoke Shop #1',
-    street1: '6346 SW 8th St',
-    street2: '',
-    city: 'West Miami',
-    state: 'FL',
-    zip: '33144',
-    country: 'US',
-    phone: '(786) 206-0122',
-  },
-  '79th': {
-    displayName: 'Miami Vape Smoke Shop #2',
-    street1: '351 NE 79th St',
-    street2: 'Unit 101',
-    city: 'Miami',
-    state: 'FL',
-    zip: '33138',
-    country: 'US',
-    phone: '(786) 206-4552',
-  },
-};
-
-function buildStoreContact(prefix, defaults) {
-  const read = (suffix) => process.env[`${prefix}_${suffix}`];
-  const street1 = read('STREET1') || defaults.street1;
-  const street2Raw = read('STREET2');
-  const street2 = typeof street2Raw === 'string' ? street2Raw : defaults.street2 || '';
-  const city = read('CITY') || defaults.city;
-  const state = read('STATE') || defaults.state;
-  const zip = read('ZIP') || defaults.zip;
-  const country = read('COUNTRY') || defaults.country || 'US';
-  const displayName = read('DISPLAY_NAME') || defaults.displayName;
-  const phone = read('PHONE') || defaults.phone;
-  const addressFull =
-    read('ADDRESS_FULL') ||
-    `${displayName} • ${street1}${street2 ? ` ${street2}` : ''}, ${city}, ${state} ${zip}`;
-  return {
-    displayName,
-    street1,
-    street2,
-    city,
-    state,
-    zip,
-    country,
-    phone,
-    addressFull,
-  };
-}
-
-const STORE_CONTACTS = {
-  calle8: buildStoreContact('CALLE8', STORE_DEFAULT_CONTACTS.calle8),
-  '79th': buildStoreContact('STORE_79', STORE_DEFAULT_CONTACTS['79th']),
-};
-
 const urlCfg = process.env.MYSQL_PUBLIC_URL
   ? parseMysqlUrl(process.env.MYSQL_PUBLIC_URL)
   : null;
@@ -130,10 +76,10 @@ console.log(
 
 const CONTACT_INFO = {
   email: process.env.SUPPORT_EMAIL || 'support@miamivapesmokeshop.com',
-  phone: process.env.SALES_PHONE || STORE_CONTACTS.calle8.phone,
+  phone: process.env.SALES_PHONE || '(305) 555-1212',
   addresses: [
-    STORE_CONTACTS.calle8.addressFull,
-    STORE_CONTACTS['79th'].addressFull,
+    'Miami Vape Smoke Shop #1 • 6346 SW 8th St, West Miami, FL 33144',
+    'Miami Vape Smoke Shop #2 • 351 NE 79th St Unit 101, Miami, FL 33138',
   ],
 };
 
@@ -160,7 +106,7 @@ const STORE_CHOICES = [
 
 const STORE_CHOICE_MAP = new Map(STORE_CHOICES.map((choice) => [choice.id, choice]));
 const STORE_NAME_BY_ID = Object.fromEntries(STORE_CHOICES.map((choice) => [choice.id, choice.label]));
-const DEFAULT_SHOP = 'calle8';
+const DEFAULT_SHOP = 'either';
 
 const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
@@ -226,239 +172,6 @@ const SHOP_ALIAS_MAP = new Map([
   ['79th street', '79th']
 ]);
 
-const STORE_SNAPSHOT_TABLE_BY_SLUG = Object.fromEntries(
-  Object.entries(SHOP_TABLES)
-    .filter(([slug]) => slug !== 'either')
-    .map(([slug, tables]) => [slug, tables[0]])
-);
-const STORE_LABEL_BY_SLUG = STORE_CHOICES.reduce((acc, choice) => {
-  if (choice.id === 'either') return acc;
-  acc[choice.id] = choice.label;
-  return acc;
-}, {});
-const DEFAULT_FULFILLMENT_STORE = STORE_LABEL_BY_SLUG.calle8 || Object.keys(STORE_SNAPSHOT_TABLE_BY_SLUG)[0] || 'calle8';
-
-function normalizePhoneE164(value, fallback = '+13055551212') {
-  const digits = String(value || '').replace(/\D+/g, '');
-  if (!digits) return fallback;
-  if (digits.startsWith('1') && digits.length === 11) return `+${digits}`;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length > 11) return `+${digits}`;
-  return fallback;
-}
-
-const numberOrFallback = (value, fallback) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
-};
-
-const STORE_FULFILLMENT_META = {
-  calle8: {
-    id: 'calle8',
-    label: 'Calle 8',
-    street1: STORE_CONTACTS.calle8.street1,
-    street2: STORE_CONTACTS.calle8.street2 || undefined,
-    city: STORE_CONTACTS.calle8.city,
-    state: STORE_CONTACTS.calle8.state,
-    zip: STORE_CONTACTS.calle8.zip,
-    country: STORE_CONTACTS.calle8.country,
-    latitude: numberOrFallback(process.env.CALLE8_LATITUDE, 25.7635),
-    longitude: numberOrFallback(process.env.CALLE8_LONGITUDE, -80.3103),
-    phone: normalizePhoneE164(STORE_CONTACTS.calle8.phone || CONTACT_INFO.phone),
-    externalId: 'calle8',
-  },
-  '79th': {
-    id: '79th',
-    label: '79th Street',
-    street1: STORE_CONTACTS['79th'].street1,
-    street2: STORE_CONTACTS['79th'].street2 || undefined,
-    city: STORE_CONTACTS['79th'].city,
-    state: STORE_CONTACTS['79th'].state,
-    zip: STORE_CONTACTS['79th'].zip,
-    country: STORE_CONTACTS['79th'].country,
-    latitude: numberOrFallback(process.env.STORE_79_LATITUDE, 25.8389),
-    longitude: numberOrFallback(process.env.STORE_79_LONGITUDE, -80.1893),
-    phone: normalizePhoneE164(STORE_CONTACTS['79th'].phone || CONTACT_INFO.phone),
-    externalId: '79th',
-  },
-};
-
-STORE_FULFILLMENT_META.either = STORE_FULFILLMENT_META.calle8;
-
-const DELIVERY_MAX_RADIUS_MILES = 10;
-
-const UBER_DIRECT_CONFIG = {
-  customerId: process.env.UBER_DIRECT_CUSTOMER_ID || process.env.UBER_CUSTOMER_ID || '',
-  clientId: process.env.UBER_DIRECT_CLIENT_ID || '',
-  clientSecret: process.env.UBER_DIRECT_CLIENT_SECRET || '',
-  authUrl: process.env.UBER_DIRECT_AUTH_URL || 'https://auth.uber.com/oauth/v2/token',
-  apiBaseUrl: process.env.UBER_DIRECT_API_BASE_URL || 'https://api.uber.com/v1',
-};
-
-let uberAccessToken = null;
-let uberAccessTokenExpiresAt = 0;
-
-function getStoreFulfillmentMeta(storeId = DEFAULT_SHOP) {
-  return STORE_FULFILLMENT_META[storeId] || STORE_FULFILLMENT_META[DEFAULT_SHOP];
-}
-
-function buildUberAddressPayload(address) {
-  const lines = [];
-  if (address.street1) lines.push(address.street1);
-  if (address.street2) lines.push(address.street2);
-  const result = {
-    street_address: lines.length ? lines : [address.street1 || ''],
-    city: address.city || '',
-    state: address.state || '',
-    zip_code: address.zip || '',
-    country: address.country || 'US',
-  };
-  return result;
-}
-
-function coerceCoordinates(source) {
-  if (!source) return null;
-  const lat = Number(source.lat ?? source.latitude);
-  const lng = Number(source.lng ?? source.longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return null;
-  }
-  return { lat, lng };
-}
-
-function milesBetween(lat1, lon1, lat2, lon2) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 3959;
-  const dLat = toRad((lat2 || 0) - (lat1 || 0));
-  const dLon = toRad((lon2 || 0) - (lon1 || 0));
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1 || 0)) *
-      Math.cos(toRad(lat2 || 0)) *
-      Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-async function getUberAccessToken() {
-  if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
-    throw new Error('uber_direct_config_missing');
-  }
-  if (uberAccessToken && Date.now() < uberAccessTokenExpiresAt - 5000) {
-    return uberAccessToken;
-  }
-  const params = new URLSearchParams();
-  params.set('client_id', UBER_DIRECT_CONFIG.clientId);
-  params.set('client_secret', UBER_DIRECT_CONFIG.clientSecret);
-  params.set('grant_type', 'client_credentials');
-  params.set('scope', 'eats.deliveries');
-  const resp = await fetch(UBER_DIRECT_CONFIG.authUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok || !data.access_token) {
-    throw new Error('uber_auth_failed');
-  }
-  uberAccessToken = data.access_token;
-  const expiresInMs = Number(data.expires_in || 0) * 1000;
-  uberAccessTokenExpiresAt = Date.now() + Math.max(expiresInMs - 60000, 0);
-  return uberAccessToken;
-}
-
-async function createUberDeliveryFromQuote({ pickupStoreId, deliveryDetails, totals, transactionId }) {
-  if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
-    throw new Error('uber_not_configured');
-  }
-  const quoteId = deliveryDetails?.quote?.quoteId || deliveryDetails?.quote?.id;
-  if (!quoteId) {
-    throw new Error('missing_quote_id');
-  }
-  const storeSlug = resolveCheckoutShop(pickupStoreId || DEFAULT_SHOP);
-  const storeMeta = getStoreFulfillmentMeta(storeSlug);
-  if (!storeMeta) {
-    throw new Error('invalid_store');
-  }
-  const dropoff = deliveryDetails?.address || {};
-  if (!dropoff.street1 || !dropoff.city || !dropoff.state || !dropoff.zip) {
-    throw new Error('missing_dropoff_address');
-  }
-  const contactPhone = normalizePhoneE164(
-    deliveryDetails?.contactPhone ||
-      deliveryDetails?.contact?.phone ||
-      dropoff.contactPhone ||
-      '',
-    ''
-  );
-  if (!contactPhone) {
-    throw new Error('invalid_dropoff_phone');
-  }
-  const manifestValue = Number(totals?.subtotal ?? totals?.total ?? 0);
-  const manifestCents = Number.isFinite(manifestValue) ? Math.max(0, Math.round(manifestValue * 100)) : 0;
-  const payload = {
-    quote_id: quoteId,
-    pickup_address: JSON.stringify(buildUberAddressPayload(storeMeta)),
-    dropoff_address: JSON.stringify(buildUberAddressPayload(dropoff)),
-    pickup_phone_number: storeMeta.phone,
-    dropoff_phone_number: contactPhone,
-    manifest_total_value: manifestCents,
-    external_store_id: storeMeta.externalId,
-  };
-  const now = Date.now();
-  payload.pickup_ready_dt = new Date(now + 10 * 60000).toISOString();
-  payload.pickup_deadline_dt = new Date(now + 40 * 60000).toISOString();
-  payload.dropoff_ready_dt = new Date(now + 40 * 60000).toISOString();
-  payload.dropoff_deadline_dt = new Date(now + 120 * 60000).toISOString();
-  if (Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
-    payload.pickup_latitude = storeMeta.latitude;
-    payload.pickup_longitude = storeMeta.longitude;
-  }
-  const dropGeo = coerceCoordinates(deliveryDetails?.geo) || coerceCoordinates(dropoff);
-  if (dropGeo) {
-    payload.dropoff_latitude = dropGeo.lat;
-    payload.dropoff_longitude = dropGeo.lng;
-  }
-  const token = await getUberAccessToken();
-  const response = await fetch(`${UBER_DIRECT_CONFIG.apiBaseUrl}/customers/${UBER_DIRECT_CONFIG.customerId}/deliveries`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const rawText = await response.text();
-  let data;
-  try {
-    data = JSON.parse(rawText);
-  } catch {
-    data = null;
-  }
-  if (!response.ok) {
-    const detail = data?.message || data?.errors || rawText.slice(0, 200) || 'uber_delivery_failed';
-    const err = new Error(typeof detail === 'string' ? detail : 'uber_delivery_failed');
-    err.detail = detail;
-    throw err;
-  }
-  const result = {
-    id: data?.id || null,
-    status: data?.status || null,
-    trackingUrl: data?.tracking_url || data?.trackingUrl || data?.share_url || null,
-    shareUrl: data?.share_url || null,
-    quoteId,
-  };
-  console.log('[uber_delivery]', {
-    id: result.id,
-    status: result.status,
-    trackingUrl: result.trackingUrl,
-    quoteId,
-    transactionId: transactionId || null,
-  });
-  return result;
-}
-
 function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
   const list = Array.isArray(tables) && tables.length ? tables : SNAPSHOT_TABLES;
   const rowsSql = list
@@ -479,14 +192,6 @@ function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
 function normalizeShop(value = '') {
   const key = String(value || '').trim().toLowerCase();
   return SHOP_ALIAS_MAP.get(key) || DEFAULT_SHOP;
-}
-
-function resolveCheckoutShop(value = '') {
-  const slug = normalizeShop(value);
-  if (!STORE_SNAPSHOT_TABLE_BY_SLUG[slug]) {
-    return DEFAULT_FULFILLMENT_STORE;
-  }
-  return slug;
 }
 
 function getStoreChoice(id = DEFAULT_SHOP) {
@@ -2004,109 +1709,6 @@ async function queryWithRetry(sql, params = [], attempt = 0) {
   }
 }
 
-const STORE_ID_CACHE = new Map();
-
-async function getStoreIdBySlug(slug) {
-  const resolved = STORE_LABEL_BY_SLUG[slug] ? slug : DEFAULT_FULFILLMENT_STORE;
-  const cached = STORE_ID_CACHE.get(resolved);
-  if (cached) return cached;
-  const storeName = STORE_LABEL_BY_SLUG[resolved];
-  if (!storeName) return null;
-  const [rows] = await queryWithRetry('SELECT id FROM stores WHERE name = ? LIMIT 1', [storeName]);
-  if (!rows.length) return null;
-  STORE_ID_CACHE.set(resolved, rows[0].id);
-  return rows[0].id;
-}
-
-function sanitizeLineItems(rawItems = []) {
-  if (!Array.isArray(rawItems)) return [];
-  return rawItems.reduce((acc, raw) => {
-    const productId = Number(raw?.id ?? raw?.productId ?? raw?.product_id);
-    const quantityRaw = Number(raw?.quantity ?? raw?.qty ?? 0);
-    const priceRaw = Number(raw?.price ?? raw?.unitPrice ?? 0);
-    const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
-    if (!productId || !Number.isFinite(quantityRaw) || quantityRaw <= 0) {
-      return acc;
-    }
-    const quantity = Math.max(1, Math.floor(quantityRaw));
-    const price = Number.isFinite(priceRaw) ? Number(priceRaw) : 0;
-    acc.push({ productId, quantity, price, name });
-    return acc;
-  }, []);
-}
-
-function aggregateLineItems(items = []) {
-  const map = new Map();
-  for (const item of items) {
-    if (!item?.productId || !item.quantity) continue;
-    const existing = map.get(item.productId);
-    if (existing) {
-      existing.quantity += item.quantity;
-    } else {
-      map.set(item.productId, { productId: item.productId, quantity: item.quantity, name: item.name || '' });
-    }
-  }
-  return map;
-}
-
-async function updateInventoryForSale(storeSlug, lineItems = []) {
-  const snapshotTable = STORE_SNAPSHOT_TABLE_BY_SLUG[storeSlug];
-  if (!snapshotTable || !lineItems.length) return;
-  const storeId = await getStoreIdBySlug(storeSlug);
-  if (!storeId) return;
-  const aggregated = aggregateLineItems(lineItems);
-  if (!aggregated.size) return;
-  const productIds = [...aggregated.keys()];
-  const placeholders = productIds.map(() => '?').join(',');
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [products] = await conn.query(
-      `SELECT id, name, COALESCE(NULLIF(upc,''), CONCAT('SKU-', id)) AS upc
-       FROM products
-       WHERE id IN (${placeholders})`,
-      productIds
-    );
-    const productMap = new Map(products.map((row) => [row.id, row]));
-    for (const [productId, item] of aggregated.entries()) {
-      const productRow = productMap.get(productId);
-      if (!productRow) continue;
-      const qty = item.quantity;
-      await conn.query(
-        `UPDATE product_inventory
-         SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0),
-             last_synced_at = CURRENT_TIMESTAMP
-         WHERE product_id = ? AND store_id = ?`,
-        [qty, productId, storeId]
-      );
-      const [remainingRows] = await conn.query(
-        `SELECT COALESCE(SUM(quantity_on_hand), 0) AS qty
-         FROM product_inventory
-         WHERE product_id = ? AND store_id = ?`,
-        [productId, storeId]
-      );
-      const qtyLeft = Number(remainingRows?.[0]?.qty || 0);
-      const upperName = (productRow.name || '').trim().toUpperCase();
-      if (!upperName) continue;
-      await conn.query(
-        `DELETE FROM \`${snapshotTable}\` WHERE UPPER(name) = ?`,
-        [upperName]
-      );
-      await conn.query(
-        `INSERT INTO \`${snapshotTable}\` (name, upc, quantity, is_active)
-         VALUES (?, ?, ?, ?)`,
-        [productRow.name, productRow.upc || '', qtyLeft, qtyLeft > 0 ? 1 : 0]
-      );
-    }
-    await conn.commit();
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
-}
-
 /* --------------------  Health  -------------------- */
 app.get('/health', async (_req, res) => {
   try {
@@ -2239,102 +1841,6 @@ app.get('/api/closest-store', async (req, res) => {
     res.status(500).json({ error: 'Failed to find closest store' });
   }
 });
-
-
-app.post('/api/uber/quote', async (req, res) => {
-  try {
-    if (!UBER_DIRECT_CONFIG.clientId || !UBER_DIRECT_CONFIG.clientSecret || !UBER_DIRECT_CONFIG.customerId) {
-      return res.status(503).json({ error: 'uber_not_configured' });
-    }
-    const body = req.body || {};
-    const storeMeta = getStoreFulfillmentMeta(resolveCheckoutShop(body.pickupStoreId));
-    if (!storeMeta) {
-      return res.status(400).json({ error: 'invalid_store' });
-    }
-    const dropoff = body.dropoff || {};
-    if (!dropoff.street1 || !dropoff.city || !dropoff.state || !dropoff.zip) {
-      return res.status(400).json({ error: 'missing_dropoff_address' });
-    }
-    dropoff.country = dropoff.country || 'US';
-    const contactPhone = normalizePhoneE164(dropoff.contactPhone || body.contactPhone || body.phoneNumber, '');
-    if (!contactPhone) {
-      return res.status(400).json({ error: 'invalid_dropoff_phone' });
-    }
-    const dropLat = Number(dropoff.lat);
-    const dropLng = Number(dropoff.lng);
-    if (Number.isFinite(dropLat) && Number.isFinite(dropLng) && Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
-      const distance = milesBetween(storeMeta.latitude, storeMeta.longitude, dropLat, dropLng);
-      if (distance > DELIVERY_MAX_RADIUS_MILES) {
-        return res.status(400).json({
-          error: 'distance_exceeded',
-          maxMiles: DELIVERY_MAX_RADIUS_MILES,
-          distance: Number(distance.toFixed(2)),
-        });
-      }
-    }
-    const manifestValue = Number(body.manifestValue ?? body.subtotal ?? 0);
-    const manifestCents = Number.isFinite(manifestValue) ? Math.max(0, Math.round(manifestValue * 100)) : 0;
-    const payload = {
-      pickup_address: JSON.stringify(buildUberAddressPayload(storeMeta)),
-      dropoff_address: JSON.stringify(buildUberAddressPayload(dropoff)),
-      pickup_phone_number: storeMeta.phone,
-      dropoff_phone_number: contactPhone,
-      manifest_total_value: manifestCents,
-      external_store_id: storeMeta.externalId,
-    };
-    if (Number.isFinite(storeMeta.latitude) && Number.isFinite(storeMeta.longitude)) {
-      payload.pickup_latitude = storeMeta.latitude;
-      payload.pickup_longitude = storeMeta.longitude;
-    }
-    if (Number.isFinite(dropLat) && Number.isFinite(dropLng)) {
-      payload.dropoff_latitude = dropLat;
-      payload.dropoff_longitude = dropLng;
-    }
-    const now = Date.now();
-    payload.pickup_ready_dt = new Date(now + 10 * 60000).toISOString();
-    payload.pickup_deadline_dt = new Date(now + 40 * 60000).toISOString();
-    payload.dropoff_ready_dt = new Date(now + 40 * 60000).toISOString();
-    payload.dropoff_deadline_dt = new Date(now + 120 * 60000).toISOString();
-    const token = await getUberAccessToken();
-    const response = await fetch(`${UBER_DIRECT_CONFIG.apiBaseUrl}/customers/${UBER_DIRECT_CONFIG.customerId}/delivery_quotes`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      data = null;
-    }
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: 'uber_quote_failed',
-        detail: data?.message || data?.errors || rawText.slice(0, 200),
-      });
-    }
-    const feeCents = Number(data?.fee || 0);
-    return res.json({
-      ok: true,
-      quoteId: data?.id || null,
-      fee: Number.isFinite(feeCents) ? feeCents / 100 : 0,
-      feeCents: Number.isFinite(feeCents) ? feeCents : 0,
-      currency: (data?.currency || data?.currency_type || 'USD').toUpperCase(),
-      expires: data?.expires || null,
-      dropoffEta: data?.dropoff_eta || null,
-      raw: data,
-    });
-  } catch (err) {
-    console.error('Error creating Uber quote:', err);
-    return res.status(500).json({ error: 'uber_quote_exception' });
-  }
-});
-
 
 /* --------------------  Home  -------------------- */
 app.get('/', (_req, res) => {
@@ -2727,7 +2233,7 @@ async function seedVariantImages() {
 
 /* --------------------  Checkout  -------------------- */
 app.get('/checkout', (req, res) => {
-  const selectedShop = resolveCheckoutShop(req.query.shop);
+  const selectedShop = normalizeShop(req.query.shop);
   res.render('checkout', {
     title: 'Checkout • Miami Vape Smoke Shop',
     description: 'Complete your purchase',
@@ -2740,20 +2246,27 @@ app.get('/checkout', (req, res) => {
     // ---- Authorize.Net (Accept.js) ----
     // These get injected into checkout.ejs so the browser can tokenize card data.
     // Make sure these env vars are set where your app runs.
-    authorizeLoginId: process.env.AUTH_NET_LOGIN_ID || '',
-    authorizeClientKey: process.env.AUTH_NET_CLIENT_KEY || '',
+    authorizeLoginId: _getAuthNetConfig().apiLoginId,
+    
+    authorizeClientKey: _getAuthNetConfig().clientKey,
+    
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
-});
 
-app.get('/checkout/success', (req, res) => {
-  const selectedShop = resolveCheckoutShop(req.query.shop);
+
+// Success page (client-side reads sessionStorage checkoutSuccessPayload)
+app.get('/checkout-success', (req, res) => {
+  const selectedShop = normalizeShop(req.query.shop);
   res.render('checkout-success', {
     title: 'Order Confirmed • Miami Vape Smoke Shop',
-    description: 'Receipt and fulfillment details for your purchase',
+    description: 'Thanks for your order',
+    user: (req.user || null),
     selectedShop,
     storeMeta: getStoreChoice(selectedShop),
+    storeOptions: STORE_CHOICES,
+    storeNameMap: STORE_NAME_BY_ID,
   });
+});
 });
 
 
@@ -2766,81 +2279,7 @@ app.get('/checkout/success', (req, res) => {
  * Right now the client sends totals computed from localStorage. That's not secure.
  * For production, compute the amount on the server from your cart/order items.
  */
- app.get('/api/authorize/auth-test', async (req, res) => {
-  try {
-    const clean = (v) =>
-      String(v ?? '')
-        .replace(/\uFEFF/g, '')
-        .replace(/[\r\n]+/g, '')
-        .trim()
-        .replace(/^['"]|['"]$/g, '')
-        .trim();
 
-    const envRaw = clean(process.env.AUTH_NET_ENV);
-    const isProd = ['production', 'prod', 'live'].includes(envRaw.toLowerCase());
-    const endpoint = isProd
-      ? 'https://api.authorize.net/xml/v1/request.api'
-      : 'https://apitest.authorize.net/xml/v1/request.api';
-
-    const apiLoginId = clean(process.env.AUTH_NET_LOGIN_ID);
-    const transactionKey = clean(process.env.AUTH_NET_TRANSACTION_KEY);
-
-    // Log only safe metadata (NO secrets)
-    console.log('[auth-test]', {
-      endpoint,
-      env: isProd ? 'production' : 'sandbox',
-      loginIdPresent: !!apiLoginId,
-      loginIdLen: apiLoginId.length,
-      transactionKeyPresent: !!transactionKey,
-      transactionKeyLen: transactionKey.length,
-      transactionKeyLast4: transactionKey.slice(-4),
-    });
-
-    const payload = {
-      authenticateTestRequest: {
-        merchantAuthentication: {
-          name: apiLoginId,
-          transactionKey,
-        },
-      },
-    };
-
-    const r = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const raw = await r.text();
-    const cleaned = raw.replace(/^\uFEFF/, '').trim();
-    let json;
-    try { json = JSON.parse(cleaned); } catch { json = { raw: cleaned.slice(0, 500) }; }
-
-    return res.status(200).json({
-      endpoint,
-      env: isProd ? 'production' : 'sandbox',
-      httpStatus: r.status,
-      result: json,
-    });
-  } catch (e) {
-    console.error('[auth-test] exception', e);
-    return res.status(500).json({ error: 'auth-test failed' });
-  }
-});
-
-
-
-
-
-/* --------------------  Authorize.Net Charge (Accept.js opaqueData)  -------------------- */
-/**
- * Client: checkout.ejs tokenizes card details via Accept.js -> opaqueData
- * Server: uses opaqueData + merchant auth to create an authCaptureTransaction.
- *
- * SECURITY NOTE:
- * The browser currently sends totals computed client-side. For a real production checkout,
- * compute the final amount on the server from your cart/order items to prevent tampering.
- */
 
 function _cleanEnvVal(v) {
   if (v === undefined || v === null) return '';
@@ -2855,30 +2294,14 @@ function _cleanEnvVal(v) {
 function _getAuthNetConfig() {
   const rawEnv =
     _cleanEnvVal(process.env.AUTH_NET_ENV) ||
-    _cleanEnvVal(process.env.AUTHORIZE_NET_ENV) ||
-    _cleanEnvVal(process.env.AUTHORIZe_NET_ENV) ||
     (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox');
 
   const envNorm = String(rawEnv).toLowerCase();
   const isProd = envNorm === 'production' || envNorm === 'prod' || envNorm === 'live';
 
-  const apiLoginId =
-    _cleanEnvVal(process.env.AUTH_NET_LOGIN_ID) ||
-    _cleanEnvVal(process.env.AUTH_NET_API_LOGIN_ID) ||
-    _cleanEnvVal(process.env.AUTHORIZE_NET_API_LOGIN_ID) ||
-    _cleanEnvVal(process.env.AUTHORIZE_NET_LOGIN_ID) ||
-    _cleanEnvVal(process.env.AUTHORIZe_NET_API_LOGIN_ID) ||
-    _cleanEnvVal(process.env.AUTHORIZe_NET_LOGIN_ID);
-
-  const transactionKey =
-    _cleanEnvVal(process.env.AUTH_NET_TRANSACTION_KEY) ||
-    _cleanEnvVal(process.env.AUTHORIZE_NET_TRANSACTION_KEY) ||
-    _cleanEnvVal(process.env.AUTHORIZe_NET_TRANSACTION_KEY);
-
-  const clientKey =
-    _cleanEnvVal(process.env.AUTH_NET_CLIENT_KEY) ||
-    _cleanEnvVal(process.env.AUTHORIZE_NET_CLIENT_KEY) ||
-    _cleanEnvVal(process.env.AUTHORIZe_NET_CLIENT_KEY);
+  const apiLoginId = _cleanEnvVal(process.env.AUTH_NET_LOGIN_ID);
+  const transactionKey = _cleanEnvVal(process.env.AUTH_NET_TRANSACTION_KEY);
+  const clientKey = _cleanEnvVal(process.env.AUTH_NET_CLIENT_KEY);
 
   const endpoint = isProd
     ? 'https://api.authorize.net/xml/v1/request.api'
@@ -2892,6 +2315,260 @@ function _getAuthNetConfig() {
     clientKey,
   };
 }
+
+
+
+/* --------------------  Uber Direct (Courier)  -------------------- */
+// NOTE: This section is additive and does not modify the Authorize.Net transaction payload.
+// It only:
+//  1) uses the selected pickup store (Calle 8 vs 79th) for Uber pickup_address
+//  2) creates a delivery (after successful card charge) and returns tracking_url
+//  3) exposes an endpoint to fetch live delivery status/courier info
+
+const UBER_DIRECT = {
+  customerId: (process.env.UBER_DIRECT_CUSTOMER_ID || '').trim(),
+  clientId: (process.env.UBER_DIRECT_CLIENT_ID || '').trim(),
+  clientSecret: (process.env.UBER_DIRECT_CLIENT_SECRET || '').trim(),
+  authUrl: (process.env.UBER_DIRECT_AUTH_URL || 'https://auth.uber.com/oauth/v2/token').trim(),
+  apiBaseUrl: (process.env.UBER_DIRECT_API_BASE_URL || 'https://api.uber.com/v1').trim().replace(/\/+$/, ''),
+};
+
+const _uberTokenCache = { accessToken: null, expiresAtMs: 0 };
+
+function _digitsOnly(v) {
+  return String(v ?? '').replace(/\D+/g, '');
+}
+
+function toE164US(phone) {
+  const d = _digitsOnly(phone);
+  if (!d) return '';
+  if (d.length == 10) return '+1' + d;
+  if (d.length == 11 && d.startsWith('1')) return '+' + d;
+  return d.startsWith('+') ? d : '+' + d;
+}
+
+function normalizeStoreId(v) {
+  const raw = String(v ?? '').trim().toLowerCase();
+  const s = raw.replace(/\s+/g, '');
+  if (!s) return 'calle8';
+  if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+  if (s.includes('79th') || s.includes('79') || s == '79th') return '79th';
+  // Accept "Calle 8" / "79th Street" labels
+  if (raw.includes('calle') && raw.includes('8')) return 'calle8';
+  if (raw.includes('79')) return '79th';
+  return s;
+}
+
+function storeLabelFromId(storeId) {
+  const id = normalizeStoreId(storeId);
+  return id === '79th' ? '79th Street' : 'Calle 8';
+}
+
+function buildStoreAddress(storeId) {
+  const id = normalizeStoreId(storeId);
+  if (id === '79th') {
+    const line2 = (process.env.STORE_79_STREET2 || '').trim();
+    const street = [ (process.env.STORE_79_STREET1 || '').trim(), line2 ].filter(Boolean);
+    return {
+      street_address: street,
+      city: (process.env.STORE_79_CITY || '').trim(),
+      state: (process.env.STORE_79_STATE || '').trim(),
+      zip_code: (process.env.STORE_79_ZIP || '').trim(),
+      country: (process.env.STORE_79_COUNTRY || 'US').trim(),
+      phone_number: toE164US(process.env.STORE_79_PHONE),
+      name: storeLabelFromId(id),
+    };
+  }
+
+  const street = [ (process.env.CALLE8_STREET1 || '').trim() ].filter(Boolean);
+  return {
+    street_address: street,
+    city: (process.env.CALLE8_CITY || '').trim(),
+    state: (process.env.CALLE8_STATE || '').trim(),
+    zip_code: (process.env.CALLE8_ZIP || '').trim(),
+    country: (process.env.CALLE8_COUNTRY || 'US').trim(),
+    phone_number: toE164US(process.env.CALLE8_PHONE),
+    name: storeLabelFromId(id),
+  };
+}
+
+function assertUberConfigured() {
+  const missing = [];
+  if (!UBER_DIRECT.customerId) missing.push('UBER_DIRECT_CUSTOMER_ID');
+  if (!UBER_DIRECT.clientId) missing.push('UBER_DIRECT_CLIENT_ID');
+  if (!UBER_DIRECT.clientSecret) missing.push('UBER_DIRECT_CLIENT_SECRET');
+  if (missing.length) {
+    const msg = `Uber Direct config missing: ${missing.join(', ')}`;
+    console.error('[Uber Direct] ' + msg);
+    throw new Error(msg);
+  }
+}
+
+async function uberGetAccessToken() {
+  assertUberConfigured();
+
+  const now = Date.now();
+  if (_uberTokenCache.accessToken && _uberTokenCache.expiresAtMs - now > 30_000) {
+    return _uberTokenCache.accessToken;
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    scope: 'eats.deliveries',
+    client_id: UBER_DIRECT.clientId,
+    client_secret: UBER_DIRECT.clientSecret,
+  });
+
+  const r = await fetch(UBER_DIRECT.authUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data.access_token) {
+    console.error('[Uber Direct] token error', { status: r.status, data });
+    throw new Error('Failed to obtain Uber access token.');
+  }
+
+  const expiresIn = Number(data.expires_in || 0);
+  _uberTokenCache.accessToken = data.access_token;
+  _uberTokenCache.expiresAtMs = now + Math.max(60, expiresIn) * 1000;
+  return data.access_token;
+}
+
+async function uberRequest(path, { method = 'GET', json = null } = {}) {
+  const token = await uberGetAccessToken();
+  const url = `${UBER_DIRECT.apiBaseUrl}${path}`;
+
+  const r = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: json ? JSON.stringify(json) : undefined,
+  });
+
+  const raw = await r.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw: raw.slice(0, 800) }; }
+
+  if (!r.ok) {
+    console.error('[Uber Direct] API error', { method, url, status: r.status, data });
+    const msg = data?.message || data?.error?.message || data?.title || 'Uber API request failed.';
+    const e = new Error(msg);
+    e.status = r.status;
+    e.data = data;
+    throw e;
+  }
+
+  return data;
+}
+
+function uberAddressJsonString(addressObj) {
+  // Uber Direct expects pickup_address / dropoff_address to be a JSON-encoded string.
+  // See docs in uber_api.html.
+  return JSON.stringify({
+    street_address: addressObj.street_address,
+    city: addressObj.city,
+    state: addressObj.state,
+    zip_code: addressObj.zip_code,
+    country: addressObj.country || 'US',
+  });
+}
+
+async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
+  const store = buildStoreAddress(pickupStoreId);
+  const payload = {
+    pickup_address: uberAddressJsonString(store),
+    dropoff_address: uberAddressJsonString(dropoffAddress),
+  };
+
+  const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/delivery_quotes`, { method: 'POST', json: payload });
+  return data;
+}
+
+async function uberCreateDelivery({ quoteId, pickupStoreId, dropoffName, dropoffPhone, dropoffAddress, manifestItems, manifestTotalValueCents, manifestReference }) {
+  const store = buildStoreAddress(pickupStoreId);
+  const payload = {
+    quote_id: quoteId,
+    pickup_name: store.name,
+    pickup_phone_number: store.phone_number || toE164US(process.env.CALLE8_PHONE || process.env.STORE_79_PHONE),
+    pickup_address: uberAddressJsonString(store),
+
+    dropoff_name: String(dropoffName || '').slice(0, 80) || 'Customer',
+    dropoff_phone_number: toE164US(dropoffPhone),
+    dropoff_address: uberAddressJsonString(dropoffAddress),
+
+    manifest_items: Array.isArray(manifestItems) && manifestItems.length ? manifestItems : [{ name: 'Order', quantity: 1, size: 'small' }],
+    manifest_total_value: Number.isFinite(Number(manifestTotalValueCents)) ? Number(manifestTotalValueCents) : 0,
+    manifest_reference: String(manifestReference || '').slice(0, 80) || undefined,
+  };
+
+  const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/deliveries`, { method: 'POST', json: payload });
+  return data;
+}
+
+app.get('/api/uber/ping', (req, res) => {
+  const isSandbox = /sandbox/i.test(UBER_DIRECT.apiBaseUrl) || /sandbox/i.test(UBER_DIRECT.authUrl);
+  return res.json({
+    ok: true,
+    mode: isSandbox ? 'sandbox' : 'production',
+    apiBaseUrl: UBER_DIRECT.apiBaseUrl,
+    authUrl: UBER_DIRECT.authUrl,
+    customerIdPresent: !!UBER_DIRECT.customerId,
+  });
+});
+
+// Quick auth check (does not create quotes/deliveries)
+app.get('/api/uber/auth-test', async (req, res) => {
+  try {
+    const token = await uberGetAccessToken();
+    return res.json({ ok: true, tokenPresent: !!token, tokenLen: token.length, apiBaseUrl: UBER_DIRECT.apiBaseUrl });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Create a quote (for debugging / fee estimates)
+app.post('/api/uber/quote', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const pickupStoreId = normalizeStoreId(body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || body.pickupStoreLabel);
+
+    const dropoff = body.dropoffAddress || body.deliveryAddress || body.shippingAddress || body.billingAddress || body.billing || {};
+    const dropoffAddress = {
+      street_address: [dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1, dropoff.street2 || dropoff.line2].filter(Boolean),
+      city: dropoff.city,
+      state: dropoff.state,
+      zip_code: dropoff.zip || dropoff.postalCode,
+      country: dropoff.country || 'US',
+    };
+
+    if (!dropoffAddress.street_address.length || !dropoffAddress.city || !dropoffAddress.state || !dropoffAddress.zip_code) {
+      return res.status(400).json({ error: 'Missing dropoff address (street/city/state/zip) for Uber quote.' });
+    }
+
+    const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+    return res.json({ ok: true, pickupStoreId, quote });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message, details: e.data || undefined });
+  }
+});
+
+// Fetch live delivery status (includes courier details when assigned)
+app.get('/api/uber/deliveries/:deliveryId', async (req, res) => {
+  try {
+    const deliveryId = req.params.deliveryId;
+    const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/deliveries/${encodeURIComponent(deliveryId)}`, { method: 'GET' });
+    return res.json({ ok: true, delivery: data });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message, details: e.data || undefined });
+  }
+});
+
 
 // Quick sanity-check endpoint (does NOT charge)
 // Visit /api/authorize/test-auth in your browser or curl it.
@@ -2943,6 +2620,12 @@ app.get('/api/authorize/test-auth', async (req, res) => {
   }
 });
 
+// Alias (some environments/bookmarks may hit this path)
+app.get('/api/authorize/auth-test', async (req, res) => {
+  return res.redirect(302, '/api/authorize/test-auth');
+});
+
+
 app.post('/api/authorize/charge', async (req, res) => {
   try {
     const { endpoint, env, apiLoginId, transactionKey } = _getAuthNetConfig();
@@ -2957,12 +2640,25 @@ app.post('/api/authorize/charge', async (req, res) => {
     }
 
     // Accept.js typically sends: { opaqueData: { dataDescriptor, dataValue }, totals: { total }, ... }
-    const body = req.body || {};
+    let body = req.body;
+    // Some proxies / middleware can hand us a raw JSON string. Normalize to an object.
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch { /* ignore */ }
+    }
+    body = body || {};
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
 
     if (!opaqueDataDescriptor || !opaqueDataValue) {
+      console.warn('[Authorize.Net] Missing opaqueData', {
+        contentType: req.headers['content-type'],
+        bodyType: typeof req.body,
+        keys: body && typeof body === 'object' ? Object.keys(body).slice(0, 25) : [],
+        hasOpaqueDataObj: !!(body && body.opaqueData),
+        hasOpaqueDescriptor: !!body.opaqueDataDescriptor,
+        hasOpaqueValue: !!body.opaqueDataValue,
+      });
       return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
     }
 
@@ -3072,77 +2768,75 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
-    const orderItems = Array.isArray(body.items) ? body.items : [];
-    const deliveryDetails = body.deliveryDetails || {};
-    const orderTotals = body.totals || {};
-    const contactName = [billing.firstName, billing.lastName].filter(Boolean).join(' ').trim() || null;
-    let uberDeliveryResult = null;
-    let uberDeliveryError = null;
-    if (body.deliveryMethod === 'delivery' && deliveryDetails?.quote?.quoteId) {
-      try {
-        uberDeliveryResult = await createUberDeliveryFromQuote({
-          pickupStoreId: body.pickupStoreId || body.pickupStore || DEFAULT_SHOP,
-          deliveryDetails,
-          totals: orderTotals,
-          transactionId: transId,
-        });
-      } catch (deliveryErr) {
-        uberDeliveryError = deliveryErr;
-        console.error('[uber_delivery] create_failed', {
-          message: deliveryErr.message,
-          detail: deliveryErr.detail || null,
-        });
-      }
-    }
-    const fulfillmentLog = body.deliveryMethod === 'delivery'
-      ? {
-          type: 'delivery',
-          store: body.pickupStore || body.pickupStoreId || null,
-          deliveryAddress: deliveryDetails.address || null,
-          deliveryInstructions: deliveryDetails.instructions || null,
-          uberQuoteId: deliveryDetails.quote?.quoteId || deliveryDetails.quote?.id || null,
-          uberFee: deliveryDetails.quote?.fee || null,
-          uberLink:
-            uberDeliveryResult?.trackingUrl ||
-            uberDeliveryResult?.shareUrl ||
-            deliveryDetails.quote?.trackingUrl ||
-            deliveryDetails.quote?.shareUrl ||
-            null,
-          uberDeliveryId: uberDeliveryResult?.id || null,
-          uberDeliveryStatus: uberDeliveryResult?.status || null,
-          uberDeliveryError: uberDeliveryError ? (uberDeliveryError.detail || uberDeliveryError.message || null) : null,
-        }
-      : {
-          type: 'pickup',
-          store: body.pickupStore || body.pickupStoreId || null,
-        };
-    const customerLog = {
-      name: contactName,
-      phone: billing.phoneNumber || deliveryDetails.contact?.phone || deliveryDetails.contactPhone || null,
-      email: customerEmail || body.customer?.email || null,
-    };
-    console.log('[order]', {
-      transactionId: transId,
-      authCode: trx?.authCode || null,
-      customer: customerLog,
-      fulfillment: fulfillmentLog,
-      totals: orderTotals,
-      items: orderItems,
-    });
+    // If this checkout used Uber courier between stores, create the courier job AFTER payment.
+    let uberDelivery = null;
+    let uberError = null;
+    try {
+      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
+      if (deliveryMethod === 'delivery') {
+        const pickupStoreId = normalizeStoreId(body?.pickupStoreId || body?.pickupStore || body?.pickupStoreLabel);
+        const dropoffStoreId = normalizeStoreId(body?.selectedDeliveryStore || body?.dropoffStoreId);
 
-    const responsePayload = {
+        if (pickupStoreId && dropoffStoreId && pickupStoreId !== dropoffStoreId) {
+          const pickupStore = getStoreById(pickupStoreId);
+          const dropoffStore = getStoreById(dropoffStoreId);
+          if (!pickupStore || !dropoffStore) throw new Error('Invalid pickup/dropoff store selection.');
+
+          const customerFirst = String(body?.billing?.firstName || '').trim();
+          const customerLast = String(body?.billing?.lastName || '').trim();
+          const dropoffName = `${customerFirst} ${customerLast}`.trim() || 'Customer';
+          const dropoffPhone = toE164US(body?.billing?.phoneNumber || '');
+
+          const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
+
+          const quote = await uberCreateQuote({
+            pickup: buildUberAddressFromStore(pickupStoreId),
+            dropoff: buildUberAddressFromStore(dropoffStoreId),
+          });
+
+          const delivery = await uberCreateDelivery({
+            quoteId: quote?.id,
+            pickupName: pickupStore.name || 'Pickup',
+            pickupPhone: toE164US(pickupStore.phone || ''),
+            pickupAddress: buildUberAddressFromStore(pickupStoreId),
+            dropoffName,
+            dropoffPhone,
+            dropoffAddress: buildUberAddressFromStore(dropoffStoreId),
+            manifestTotalValueCents: manifestCents,
+            manifestItems: [
+              {
+                name: 'Store transfer',
+                quantity: 1,
+                price: maxCents(manifestCents),
+              },
+            ],
+            manifestReference: `order-${transId}`,
+          });
+
+          uberDelivery = {
+            deliveryId: delivery?.id,
+            trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || null,
+            status: delivery?.status || null,
+            fee: delivery?.fee || null,
+            quoteId: quote?.id || null,
+            pickupStoreId,
+            dropoffStoreId,
+          };
+        }
+      }
+    } catch (e) {
+      uberError = e?.message || 'Uber courier request failed.';
+      console.error('[Uber Direct] post-payment delivery create failed:', uberError);
+    }
+
+    return res.json({
       ok: true,
       transactionId: transId,
       authCode: trx?.authCode,
       responseCode: trx?.responseCode,
-    };
-    if (uberDeliveryResult) {
-      responsePayload.delivery = uberDeliveryResult;
-    }
-    if (uberDeliveryError) {
-      responsePayload.deliveryWarning = uberDeliveryError.detail || uberDeliveryError.message || 'Uber Direct delivery could not be created automatically.';
-    }
-    return res.json(responsePayload);
+      uberDelivery,
+      uberError,
+    });
   } catch (err) {
     console.error('[Authorize.Net] charge exception', err);
     return res.status(500).json({ error: 'Server error while charging card.' });

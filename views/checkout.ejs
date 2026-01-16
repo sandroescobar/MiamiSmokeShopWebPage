@@ -1,561 +1,952 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= title || 'Checkout' %></title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Secure checkout</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Keep your existing CSS includes if you have them -->
-  <link rel="stylesheet" href="/css/checkout.css">
   <style>
-    /* Minimal fallback styling so the page is usable even if checkout.css is missing */
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f6f7fb;color:#111;}
-    .wrap{max-width:980px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:1fr 360px;gap:18px}
-    @media (max-width:900px){.wrap{grid-template-columns:1fr}}
-    .card{background:#fff;border:1px solid #e6e6ef;border-radius:12px;padding:16px}
-    h2{margin:0 0 12px 0;font-size:18px}
-    label{display:block;font-size:12px;color:#444;margin:10px 0 6px}
-    input,select{width:100%;padding:10px 12px;border:1px solid #d6d6e6;border-radius:10px;font-size:14px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .btn{width:100%;padding:12px 14px;border:0;border-radius:10px;background:#4fc3df;color:#fff;font-weight:700;cursor:pointer}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .muted{color:#666;font-size:12px;margin-top:6px}
-    .err{color:#b00020;font-size:13px;margin-top:10px;white-space:pre-wrap}
-    .sumrow{display:flex;justify-content:space-between;margin:8px 0;font-size:14px}
-    .sumrow.total{font-weight:800;font-size:16px}
-    .fulfillment-hero{max-width:980px;margin:24px auto 8px auto;padding:0 16px}
-    .fulfillment-hero__shell{background:linear-gradient(120deg,#10131a,#1b2f60 55%,#2f7cc6);border-radius:20px;padding:26px;display:flex;flex-wrap:wrap;gap:24px;align-items:center;box-shadow:0 15px 35px rgba(16,19,26,.35)}
-    .fulfillment-hero__copy{flex:1 1 260px;color:#f2f7ff}
-    .fulfillment-hero__eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;margin-bottom:12px;color:#c8d9ff}
-    .fulfillment-hero__title{font-size:26px;margin:0 0 8px 0;color:#fff}
-    .fulfillment-hero__text{margin:0;font-size:15px;color:rgba(255,255,255,.85);line-height:1.5}
-    .fulfillment-hero__store{margin-top:14px;font-size:13px;color:#c8d9ff}
-    .fulfillment-options{flex:1 1 320px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
-    .fulfillment-tile{position:relative;display:block}
-    .fulfillment-tile input{position:absolute;inset:0;opacity:0;pointer-events:none}
-    .fulfillment-card{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.25);border-radius:18px;padding:18px;min-height:130px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease}
-    .fulfillment-card__title{font-size:18px;font-weight:700;color:#fff;margin:0 0 6px 0}
-    .fulfillment-card__desc{font-size:14px;color:rgba(255,255,255,.8);margin:0}
-    .fulfillment-card__tag{font-size:13px;color:#4fc3df;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-    .fulfillment-tile input:checked + .fulfillment-card{border-color:#4fc3df;box-shadow:0 12px 28px rgba(79,195,223,.35);transform:translateY(-4px)}
-    .fulfillment-summary{margin-top:18px;font-size:14px;color:#dbe9ff}
-    .delivery-fields{margin-top:18px;padding-top:18px;border-top:1px solid #ececf4;display:none}
-    .delivery-status{margin-top:8px;font-size:12px;min-height:18px}
-    @media(max-width:720px){.fulfillment-hero__shell{flex-direction:column;padding:22px}.fulfillment-options{width:100%;grid-template-columns:1fr}}
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --ink-dim:#475569;
+      --ink-soft:#64748b;
+      --line:#e2e8f0;
+      --brand:#111827;
+      --brand-ink:#ffffff;
+      --pill:#f1f5f9;
+      --focus:#4f46e5;
+      --ok:#16a34a;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--ink);
+      font: 14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Page shell */
+    .page{
+      max-width: 1200px; margin: 24px auto; padding: 0 16px 48px;
+    }
+    .mast{display:flex; align-items:center; gap:12px; margin: 6px 0 18px;}
+    .mast h1{font-size:28px; margin:0; font-weight:700}
+    .eyebrow{font-size:13px; color:var(--ink-soft); margin-bottom: 18px;}
+
+    /* Layout */
+    .grid{
+      display:grid; gap: 24px;
+      grid-template-columns: 1fr 360px;
+    }
+    @media (max-width: 960px){
+      .grid{grid-template-columns: 1fr}
+    }
+
+    /* Cards */
+    .card{
+      background:var(--card); border:1px solid var(--line);
+      border-radius:12px; box-shadow: 0 4px 14px rgba(15,23,42,.06);
+    }
+    .card .card-body{ padding: 18px; }
+    .section{margin-bottom: 18px;}
+    .section h3{
+      font-size: 14px; letter-spacing:.02em; text-transform: uppercase;
+      color:var(--ink-dim); margin: 0 0 10px; font-weight:700;
+    }
+
+    /* Option pills (pickup / delivery) */
+    .option-row{
+      display:grid; gap:12px; grid-template-columns: 1.2fr 1.2fr;
+    }
+    @media (max-width: 600px){ .option-row{grid-template-columns:1fr} }
+    .option{
+      position:relative; border:1px solid var(--line); border-radius:12px; background:#fff;
+      padding:14px; display:flex; gap:12px; align-items:center; cursor:pointer;
+    }
+    .option input{ position:absolute; inset:0; opacity:0; }
+    .option .icon{
+      width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:var(--pill);
+      font-size:16px;
+    }
+    .option .title{ font-weight:600; }
+    .option .sub{ color:var(--ink-soft); font-size:13px; }
+    .option:has(input:checked){
+      border-color: var(--focus); box-shadow:0 0 0 4px rgba(79,70,229,.12);
+    }
+
+    /* Form fields */
+    .row{ display:grid; gap:12px; grid-template-columns: 1.2fr 1.2fr; }
+    .row-1{ grid-template-columns: 1fr; }
+    @media (max-width: 680px){ .row{grid-template-columns:1fr} }
+
+    label{ display:block; font-weight:600; font-size:13px; margin: 8px 0 6px; color:var(--ink) }
+    input, select, textarea{
+      width:100%; border:1px solid var(--line); background:#fff; color:var(--ink);
+      border-radius:10px; padding:12px 14px; font: inherit; outline: none;
+    }
+    input:focus, select:focus, textarea:focus{ border-color:var(--focus); box-shadow:0 0 0 3px rgba(79,70,229,.15); }
+
+    /* Order summary */
+    .summary .totals{ border-top:1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+    .line{ display:flex; justify-content:space-between; margin: 8px 0; }
+    .grand{ font-weight:800; font-size:18px; }
+
+    /* Store selection */
+    .store-selector { margin-top: 12px; }
+    .store-option {
+      position: relative; border: 1px solid var(--line); border-radius: 10px;
+      background: #fff; padding: 12px 14px; margin-bottom: 10px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .store-option:hover { border-color: var(--focus); }
+    .store-option input { position: absolute; inset: 0; opacity: 0; }
+    .store-option .store-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .store-option .store-name { font-weight: 600; }
+    .store-option .availability { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--pill); }
+    .store-option .availability.available { background: #dcfce7; color: #166534; }
+    .store-option .availability.unavailable { background: #fee2e2; color: #991b1b; }
+    .store-option .store-address { font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
+    .store-option .store-distance { font-size: 12px; color: var(--ink-soft); }
+    .store-option:has(input:checked) { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+
+    .availability-notice { font-size: 13px; color: #475569; margin-top: 10px; padding: 10px;
+      background: #f1f5f9; border-radius: 8px; border-left: 3px solid var(--focus); }
+    .loading { color: var(--ink-soft); font-size: 13px; margin-top: 8px; }
+
+    /* Buttons */
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:12px 16px; border-radius:10px; border:1px solid transparent;
+      cursor:pointer; font-weight:700; text-decoration:none;
+    }
+    .btn-primary{ background:var(--brand); color:var(--brand-ink); }
+    .btn-secondary{ background:#fff; border-color:var(--line); color:var(--ink) }
+    .btn:disabled{ opacity:.6; pointer-events:none }
+
+    .actions{ display:flex; gap:12px; margin-top:14px; flex-wrap:wrap; justify-content: center; align-items: center}
+    .payment-header{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:0;flex-wrap:wrap}
+    .payment-header h3{margin:0}
+    .card-brand-logos{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .card-brand-logos svg{height:20px;width:auto;display:block}
+    .payment-body{margin-top:4px}
+    .payment-card{border-style:dashed;margin-top:4px}
+    .policy-links{margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px}
+    .policy-links a{color:#0a7fd6;text-decoration:none}
+    .policy-links a:hover{text-decoration:underline}
+    .policy-modal{position:fixed;inset:0;background:rgba(15,23,42,.7);display:none;align-items:center;justify-content:center;padding:24px;z-index:2000}
+    .policy-modal.show{display:flex}
+    .policy-modal__dialog{background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(15,23,42,.35);position:relative;padding:28px}
+    .policy-modal__close{position:absolute;top:12px;right:12px;border:none;background:rgba(15,23,42,.08);color:#0f172a;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer}
+    .policy-modal__content h4{margin:0;font-size:20px}
+    .policy-modal__content p{color:#475569}
+    .policy-modal__body{margin-top:16px;display:flex;flex-direction:column;gap:16px;font-size:14px;color:#0f172a}
+    .policy-modal__body h2,.policy-modal__body h3{margin:12px 0 4px;font-size:16px}
+    .policy-modal__body ul{padding-left:18px;margin:0}
+    .policy-modal__loading{color:#475569;font-size:14px;margin:0}
+    .policy-modal__error{color:#b91c1c;font-size:14px;margin:0}
+
+    /* ---------------- ZenPayments Hosted Fields ---------------- */
+    .zp-fields { display: grid; gap: 12px; }
+    .zp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .zp-label { font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; display:block; }
+    .zp-input {
+      min-height: 44px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #fff;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+    }
+    input.zp-input{display:block;}
+    .zp-hint { font-size: 0.85rem; color: #64748b; margin-top: 6px; }
+    .zp-error { color: #b91c1c; font-size: 0.9rem; margin-top: 8px; }
+    .zp-success { color: #15803d; font-size: 0.9rem; margin-top: 8px; }
   </style>
 </head>
-
 <body>
-  <section class="fulfillment-hero">
-    <div class="fulfillment-hero__shell">
-      <div class="fulfillment-hero__copy">
-        <span class="fulfillment-hero__eyebrow">Step 1 · Fulfillment</span>
-        <h1 class="fulfillment-hero__title">Pickup or delivery?</h1>
-        <p class="fulfillment-hero__text">Choose how you'd like to get your order. We'll keep everything synced with Authorize.Net so you only enter your details once.</p>
-        <div class="fulfillment-hero__store">Items prepared at <strong><%= (storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop' %></strong>. Need another location? Switch stores from the product catalog.</div>
-        <div class="fulfillment-summary" id="deliveryNote"></div>
-      </div>
-      <div class="fulfillment-options">
-        <label class="fulfillment-tile">
-          <input type="radio" name="fulfillmentMethod" value="pickup" checked>
-          <div class="fulfillment-card">
-            <div>
-              <p class="fulfillment-card__title">In-store pickup</p>
-              <p class="fulfillment-card__desc">Pay online, grab it curbside or at the counter. We'll text you when it's ready.</p>
-            </div>
-            <span class="fulfillment-card__tag">Fastest</span>
-          </div>
-        </label>
-        <label class="fulfillment-tile">
-          <input type="radio" name="fulfillmentMethod" value="delivery">
-          <div class="fulfillment-card">
-            <div>
-              <p class="fulfillment-card__title">Local delivery</p>
-              <p class="fulfillment-card__desc">We’ll hand off to our runner and keep you updated every step of the way.</p>
-            </div>
-            <span class="fulfillment-card__tag">We drive it</span>
-          </div>
-        </label>
-      </div>
+
+  <div class="page">
+    <div class="mast">
+      <h1>Secure checkout</h1>
     </div>
-  </section>
+    <div class="eyebrow">Pick up in-store or get fast Uber Delivery</div>
 
-  <div class="wrap">
-    <!-- Left: Contact + Payment -->
-    <div class="card">
-      <h2>Contact</h2>
+    <div class="grid">
+      <!-- LEFT: form -->
+      <div>
+        <div class="card">
+          <div class="card-body">
+            <div class="section">
+              <h3>Delivery options</h3>
+              <div class="option-row">
+                <label class="option">
+                  <input type="radio" name="delivery_method" value="pickup" checked>
+                  <div class="icon">🏪</div>
+                  <div>
+                    <div class="title">Store pickup</div>
+                    <div class="sub">Free pickup at our Miami location</div>
+                  </div>
+                </label>
 
-      <label>Email address</label>
-      <input id="email" type="email" value="<%= (typeof user !== 'undefined' && user && user.email) ? user.email : '' %>
-" placeholder="you@example.com" />
+                <label class="option">
+                  <input type="radio" name="delivery_method" value="uber">
+                  <div class="icon">🛵</div>
+                  <div>
+                    <div class="title">Uber Delivery</div>
+                    <div class="sub">On-demand courier to your door</div>
+                  </div>
+                </label>
+              </div>
 
-      <div class="row">
-        <div>
-          <label>First name</label>
-          <input id="firstName" type="text" value="" placeholder="First" />
-        </div>
-        <div>
-          <label>Last name</label>
-          <input id="lastName" type="text" value="" placeholder="Last" />
-        </div>
-      </div>
+              <!-- Store Selection (Pickup) -->
+              <div id="pickup-stores-section" style="margin-top: 16px;">
+                <h3 style="margin-top: 12px; margin-bottom: 8px;">Select pickup location</h3>
+                <div id="pickup-stores" class="store-selector"></div>
+                <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
+              </div>
 
-      <label>Phone number</label>
-      <input id="phoneNumber" type="tel" value="" placeholder="(xxx) xxx-xxxx" />
+              <!-- Store Detection (Delivery) -->
+              <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
+                <h3 style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
+                <p id="delivery-store-helper" class="loading" style="display:block; margin-top:4px;">Enter your address to compare store inventory and delivery fees.</p>
+                <div id="delivery-availability-notice" class="availability-notice" style="display:none;"></div>
+                <div id="closest-store-info" style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 8px; border-left: 3px solid #0284c7; display:none;">
+                  <div style="font-weight: 600; margin-bottom: 4px;">📍 <span id="closest-store-name"></span></div>
+                  <div style="font-size: 12px; color: #475569; margin-bottom: 2px;"><span id="closest-store-address"></span></div>
+                  <div style="font-size: 12px; color: #0284c7; font-weight: 500;">~<span id="closest-store-distance"></span> miles away • Delivery fee $<span id="closest-store-fee"></span></div>
+                </div>
+                <div id="delivery-stores" class="store-selector" style="display:none; margin-top: 12px;"></div>
+              </div>
+            </div>
 
-      <div id="deliveryFields" class="delivery-fields">
-        <h2 style="margin-top:0;">Delivery Details</h2>
-        <label>Street address</label>
-        <input id="deliveryStreet" type="text" autocomplete="address-line1" placeholder="123 Main St" />
-        <label>Apartment, suite, etc.</label>
-        <input id="deliveryUnit" type="text" autocomplete="address-line2" placeholder="Unit" />
-        <div class="row">
-          <div>
-            <label>City</label>
-            <input id="deliveryCity" type="text" autocomplete="address-level2" placeholder="City" />
-          </div>
-          <div>
-            <label>State</label>
-            <input id="deliveryState" type="text" autocomplete="address-level1" placeholder="State" />
-          </div>
-        </div>
-        <label>ZIP code</label>
-        <input id="deliveryZip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="ZIP" />
-        <label>Delivery notes</label>
-        <input id="deliveryInstructions" type="text" placeholder="Gate code, buzzer, etc." />
-      </div>
+            <div class="section">
+              <h3>Contact</h3>
+              <div class="row-1">
+                <label>Email address
+                  <input type="email" name="email" placeholder="you@email.com" required>
+                </label>
+              </div>
+              <div class="row">
+                <label>First name
+                  <input type="text" name="first_name" placeholder="First name" required>
+                </label>
+                <label>Last name
+                  <input type="text" name="last_name" placeholder="Last name" required>
+                </label>
+              </div>
+              <div class="row-1">
+                <label>Phone number
+                  <input type="tel" name="phone" placeholder="(305) 555-0123" required>
+                </label>
+              </div>
+            </div>
 
-      <h2 style="margin-top:18px;">Payment</h2>
+            <div class="section" id="address-section">
+              <h3>Delivery address</h3>
+              <div class="row-1">
+                <label>Street address
+                  <input type="text" name="street" placeholder="123 Main Street">
+                </label>
+              </div>
+              <div class="row-1">
+                <label>Apt / Unit (optional)
+                  <input type="text" name="unit" placeholder="Apt 12B">
+                </label>
+              </div>
+              <div class="row">
+                <label>City
+                  <input type="text" name="city" placeholder="Miami">
+                </label>
+                <label>State
+                  <input type="text" name="state" placeholder="FL">
+                </label>
+              </div>
+              <div class="row-1">
+                <label>ZIP Code
+                  <input type="text" name="zip" placeholder="33101">
+                </label>
+              </div>
+            </div>
 
-      <label>Name on card</label>
-      <input id="cardName" type="text" placeholder="Name as it appears on card" />
+            <!-- PAYMENT SECTION -->
+            <div class="section">
+              <div class="payment-header">
+                <h3>Payment</h3>
+                <div class="card-brand-logos" aria-label="Accepted payment methods">
+                  <svg viewBox="0 0 80 24" role="img" aria-label="Visa">
+                    <rect width="80" height="24" rx="4" fill="#1a1f71"/>
+                    <text x="8" y="17" fill="#ffffff" font-size="14" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="700">VISA</text>
+                  </svg>
+                  <svg viewBox="0 0 80 24" role="img" aria-label="Mastercard">
+                    <rect width="80" height="24" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+                    <circle cx="34" cy="12" r="9" fill="#eb001b"/>
+                    <circle cx="46" cy="12" r="9" fill="#f79e1b" fill-opacity="0.9"/>
+                  </svg>
+                  <svg viewBox="0 0 150 24" role="img" aria-label="American Express">
+                    <rect width="150" height="24" rx="4" fill="#2e77bb"/>
+                    <text x="10" y="16" fill="#ffffff" font-size="11" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="700" letter-spacing="1">AMERICAN EXPRESS</text>
+                  </svg>
+                  <svg viewBox="0 0 110 24" role="img" aria-label="Discover">
+                    <rect width="110" height="24" rx="4" fill="#ffffff" stroke="#e2e8f0"/>
+                    <text x="8" y="16" fill="#111827" font-size="12" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="700">DISCOVER</text>
+                    <circle cx="90" cy="12" r="8" fill="#f58220"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="row-1 payment-body">
+                <div class="card payment-card">
+                  <div class="card-body">
 
-      <label>Card number</label>
-      <input id="cardNumber" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="•••• •••• •••• ••••" />
+<div class="zp-fields" id="authnet-fields">
+  <div class="row-1">
+    <label class="zp-label" for="cardName">Name on card</label>
+    <input id="cardName" class="zp-input" type="text" autocomplete="cc-name" placeholder="Full name"/>
+  </div>
 
-      <div class="row">
-        <div>
-          <label>Expiration (MM/YY)</label>
-          <input id="cardExp" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" />
-        </div>
-        <div>
-          <label>CVV</label>
-          <input id="cardCvv" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="123" />
-        </div>
-      </div>
+  <div class="row-1" style="margin-top:10px">
+    <label class="zp-label" for="cardNumber">Card number</label>
+    <input id="cardNumber" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234"/>
+  </div>
 
-      <div class="muted">Your card details are tokenized by Authorize.Net (Accept.js). We never store raw card numbers on our server.</div>
-      <div id="err" class="err" style="display:none;"></div>
+  <div class="zp-row" style="margin-top:10px">
+    <div>
+      <label class="zp-label" for="cardExp">Expiration</label>
+      <input id="cardExp" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY"/>
     </div>
-
-    <!-- Right: Order Summary -->
-    <div class="card">
-      <h2>Order Summary</h2>
-
-      <div class="sumrow"><span>Subtotal</span><span id="subtotal">$0.00</span></div>
-      <div class="sumrow"><span>Tax</span><span id="tax">$0.00</span></div>
-      <div class="sumrow"><span>Delivery</span><span id="delivery">$0.00</span></div>
-      <div class="sumrow total"><span>Total</span><span id="total">$0.00</span></div>
-      <div id="deliveryStatus" class="muted delivery-status"></div>
-
-      <button id="completeOrderBtn" class="btn" type="button" style="margin-top:14px;">Complete Order</button>
-      <div class="muted" id="authnetDebug"></div>
+    <div>
+      <label class="zp-label" for="cardCvv">CVV</label>
+      <input id="cardCvv" class="zp-input" type="tel" inputmode="numeric" autocomplete="cc-csc" placeholder="123"/>
     </div>
   </div>
 
-  <% const env = (authorizeEnv || '').toLowerCase(); %>
-  <% if (env === 'production') { %>
-    <script src="https://js.authorize.net/v1/Accept.js" charset="utf-8"></script>
-  <% } else { %>
-    <script src="https://jstest.authorize.net/v1/Accept.js" charset="utf-8"></script>
-  <% } %>
+  <div id="pay-msg" class="zp-hint">Card details are tokenized securely by Authorize.net (Accept.js).</div>
+  <div id="pay-error" class="zp-error" role="alert" aria-live="polite"></div>
+</div>
+
+                  </div>
+                </div>
+                <div class="policy-links">
+                  <a href="/policy/terms" target="_blank" rel="noopener">Terms of Service</a>
+                  <a href="/policy/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+                  <a href="/policy/delivery" target="_blank" rel="noopener">Delivery Policy</a>
+                  <a href="/policy/refund" target="_blank" rel="noopener">Refund Policy</a>
+                  <a href="/policy/cancellations" target="_blank" rel="noopener">Cancellation Policy</a>
+                </div>
+              </div>
+            </div>
+            <!-- END PAYMENT SECTION -->
+
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: order summary -->
+      <aside class="summary">
+        <div class="card">
+          <div class="card-body">
+            <h3 style="margin-top:0; text-transform:none; letter-spacing:0; font-size:16px;">Order summary</h3>
+
+            <div id="order-items-container"></div>
+
+            <div class="totals">
+              <div class="line"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
+              <div class="line"><span>Delivery</span><span id="summary-delivery">$0.00</span></div>
+              <div class="line"><span>Tax (est)</span><span id="summary-tax">$0.00</span></div>
+              <div class="line grand"><span>Total</span><span id="summary-total">$0.00</span></div>
+            </div>
+
+            <div class="actions" style="margin-top:16px">
+              <button type="button" id="zp-pay-btn" class="btn btn-primary" style="width:100%">Complete Order</button>
+              <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Authorize.Net Accept.js -->
+  <script src="https://js.authorize.net/v1/Accept.js"></script>
+
+  <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
+    <div class="policy-modal__dialog">
+      <button type="button" id="policy-modal-close" class="policy-modal__close" aria-label="Close policy details">×</button>
+      <div id="policy-modal-content" class="policy-modal__content"></div>
+    </div>
+  </div>
 
   <script>
-    // Injected by server (public values only)
-    const AUTHNET = {
-      loginId: "<%= (authorizeLoginId || '') %>",
-      clientKey: "<%= (authorizeClientKey || '') %>",
-      env: "<%= (authorizeEnv || '') %>"
-    };
-    const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : (selectedShop || 'Calle 8')) %>;
-    const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
-    const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
-    const DELIVERY_MAX_RADIUS_MILES = 10;
-    const deliveryQuoteState = { status: 'idle', fee: 0, quoteId: null, currency: 'USD', expires: null, error: '' };
-    let deliveryQuoteAbort = null;
-    let deliveryQuoteTimer = null;
-    let deliveryGeo = null;
+    // Global state
+    let allStores = [];
+    let selectedStore = null;
+    let cartProductIds = [];
+    let checkoutTotals = { subtotal: 0, tax: 0, delivery: 0, total: 0 };
+    let deliveryStoreOptions = [];
+    let selectedDeliveryStore = null;
+    let userDeliveryLocation = null;
 
-    function readCartItems() {
-      try { return JSON.parse(localStorage.getItem('cart') || '[]'); } catch { return []; }
+    // Render cart items and update totals
+    (function(){
+      const cart = JSON.parse(localStorage.getItem('cart')) || [];
+      const container = document.getElementById('order-items-container');
+      const TAX_RATE = 0.0875;
+
+      cartProductIds = cart.map(item => item.id).filter(Boolean);
+
+      if (cart.length === 0) {
+        container.innerHTML = '<p style="color:#64748b; margin-bottom:16px;">Your cart is empty</p>';
+      } else {
+        let itemsHtml = '';
+        let subtotal = 0;
+
+        cart.forEach(item => {
+          const price = typeof item.price === 'string' ? parseFloat(item.price.replace('$', '')) : (item.price || 0);
+          const itemTotal = price * (item.quantity || 1);
+          subtotal += itemTotal;
+          itemsHtml += `
+            <div class="line" style="font-size:13px; padding:8px 0;">
+              <span>${item.name} <span style="color:#64748b;">×${item.quantity}</span></span>
+              <span>$${itemTotal.toFixed(2)}</span>
+            </div>
+          `;
+        });
+
+        const tax = subtotal * TAX_RATE;
+        const delivery = 0;
+        const total = subtotal + tax + delivery;
+
+        checkoutTotals = { subtotal, tax, delivery, total };
+
+        container.innerHTML = itemsHtml + '<div style="border-bottom:1px solid #e2e8f0; margin-bottom:8px;"></div>';
+
+        document.getElementById('summary-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        document.getElementById('summary-delivery').textContent = `$${delivery.toFixed(2)}`;
+        document.getElementById('summary-tax').textContent = `$${tax.toFixed(2)}`;
+        document.getElementById('summary-total').textContent = `$${total.toFixed(2)}`;
+      }
+    })();
+
+    function updateSummaryDelivery() {
+      const deliveryEl = document.getElementById('summary-delivery');
+      const totalEl = document.getElementById('summary-total');
+      if (deliveryEl) deliveryEl.textContent = `$${checkoutTotals.delivery.toFixed(2)}`;
+      if (totalEl) totalEl.textContent = `$${checkoutTotals.total.toFixed(2)}`;
     }
 
-    function normalizePrice(value) {
-      if (typeof value === 'number' && Number.isFinite(value)) return value;
-      const parsed = parseFloat(String(value || '').replace(/[^0-9.]/g, ''));
-      return Number.isFinite(parsed) ? parsed : 0;
+    function setDeliveryFee(amount) {
+      const value = typeof amount === 'number' && !Number.isNaN(amount) ? amount : 0;
+      checkoutTotals.delivery = value;
+      checkoutTotals.total = checkoutTotals.subtotal + checkoutTotals.tax + checkoutTotals.delivery;
+      updateSummaryDelivery();
     }
 
-    function buildOrderItems() {
-      return readCartItems()
-        .map((item) => {
-          const quantity = Math.max(1, Number(item.quantity ?? item.qty ?? 1) || 1);
-          const unitPrice = normalizePrice(item.price ?? item.unitPrice ?? 0);
-          return {
-            id: item.id || item.productId || null,
-            name: item.name || item.productName || 'Item',
-            flavor: item.flavor || item.variant || '',
-            quantity,
-            price: unitPrice,
-            total: unitPrice * quantity
-          };
-        })
-        .filter((item) => item.quantity > 0);
+    function haversineMiles(lat1, lon1, lat2, lon2) {
+      const R = 3959;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     }
 
-    // Basic totals calculation from localStorage cart (adjust if your cart schema differs)
-    // Expected cart item shape examples:
-    // - { price: 9.99, quantity: 2 }
-    // - { price: "9.99", qty: 2 }
-    function getCartTotals(includeDeliveryFee = true) {
-      const cart = readCartItems();
-      const subtotal = cart.reduce((sum, it) => {
-        const p = normalizePrice(it.price ?? it.unitPrice ?? 0);
-        const q = Math.max(1, Number(it.quantity ?? it.qty ?? 1) || 1);
-        if (!Number.isFinite(p) || !Number.isFinite(q)) return sum;
-        return sum + (p * q);
-      }, 0);
-
-      const taxRate = 0.0875;
-      const tax = subtotal * taxRate;
-      const includeDelivery = includeDeliveryFee && getFulfillmentMethod() === 'delivery';
-      const delivery = includeDelivery ? Math.max(0, Number(deliveryQuoteState.fee || 0)) : 0;
-      const total = subtotal + tax + delivery;
-
-      return { subtotal, tax, delivery, total };
+    function estimateDeliveryFee(distance) {
+      if (!distance || Number.isNaN(distance)) return 9.99;
+      const surcharge = Math.max(0, distance - 4) * 1.25;
+      return Math.min(24.99, 10.99 + surcharge);
     }
 
-    function money(n) {
-      const x = Number(n || 0);
-      return '$' + (Number.isFinite(x) ? x.toFixed(2) : '0.00');
-    }
-
-    function renderTotals() {
-      const t = getCartTotals();
-      document.getElementById('subtotal').textContent = money(t.subtotal);
-      document.getElementById('tax').textContent = money(t.tax);
-      document.getElementById('delivery').textContent = money(t.delivery);
-      document.getElementById('total').textContent = money(t.total);
-      updateDeliveryStatus();
-      return t;
-    }
-
-    function getFulfillmentMethod() {
-      const checked = document.querySelector('input[name="fulfillmentMethod"]:checked');
-      return checked ? checked.value : 'pickup';
-    }
-
-    function getPickupStoreLabel() {
-      return DEFAULT_STORE_LABEL;
-    }
-
-    function getPickupStoreId() {
-      return DEFAULT_STORE_ID;
-    }
-
-    function getContactName() {
-      const first = document.getElementById('firstName').value.trim();
-      const last = document.getElementById('lastName').value.trim();
-      return [first, last].filter(Boolean).join(' ').trim();
-    }
-
-    function collectDeliveryAddress() {
-      return {
-        street1: document.getElementById('deliveryStreet').value.trim(),
-        street2: document.getElementById('deliveryUnit').value.trim(),
-        city: document.getElementById('deliveryCity').value.trim(),
-        state: document.getElementById('deliveryState').value.trim(),
-        zip: document.getElementById('deliveryZip').value.trim(),
-        instructions: document.getElementById('deliveryInstructions').value.trim(),
-        country: 'US'
+    function normalizeStreetTokens(street) {
+      if (!street) return '';
+      const map = {
+        first: '1st', second: '2nd', third: '3rd', fourth: '4th', fifth: '5th',
+        sixth: '6th', seventh: '7th', eighth: '8th', eight: '8th', ninth: '9th', tenth: '10th'
       };
-    }
-
-    function isDeliveryAddressComplete(address) {
-      return !!(address.street1 && address.city && address.state && address.zip);
-    }
-
-    function resetDeliveryQuoteState() {
-      deliveryQuoteState.status = 'idle';
-      deliveryQuoteState.fee = 0;
-      deliveryQuoteState.quoteId = null;
-      deliveryQuoteState.currency = 'USD';
-      deliveryQuoteState.expires = null;
-      deliveryQuoteState.error = '';
-    }
-
-    function updateDeliveryStatus() {
-      const el = document.getElementById('deliveryStatus');
-      if (!el) return;
-      if (getFulfillmentMethod() !== 'delivery') {
-        el.textContent = '';
-        return;
-      }
-      if (deliveryQuoteState.status === 'loading') {
-        el.textContent = 'Calculating delivery fee...';
-        return;
-      }
-      if (deliveryQuoteState.status === 'error') {
-        el.textContent = deliveryQuoteState.error || 'Delivery quote unavailable.';
-        return;
-      }
-      if (deliveryQuoteState.status === 'ready') {
-        el.textContent = `Delivery via Uber Direct: ${money(deliveryQuoteState.fee)}`;
-        return;
-      }
-      el.textContent = 'Enter your delivery address to see the fee.';
-    }
-
-    function ensureDeliveryGeo() {
-      if (!navigator.geolocation || deliveryGeo) return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          deliveryGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        },
-        () => {},
-        { maximumAge: 300000 }
+      return street.replace(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|eight|ninth|tenth)\b/gi,
+        (match) => map[match.toLowerCase()] || match
       );
     }
 
-    function scheduleDeliveryQuote() {
-      if (getFulfillmentMethod() !== 'delivery') return;
-      if (deliveryQuoteTimer) clearTimeout(deliveryQuoteTimer);
-      deliveryQuoteTimer = setTimeout(() => {
-        requestDeliveryQuote();
-      }, 500);
+    async function geocodeAddressWithFallback(street, city, state, zip) {
+      const normalizedStreet = normalizeStreetTokens(street);
+      const attempts = [];
+      const formattedOriginal = `${street}, ${city}, ${state} ${zip}`;
+      if (normalizedStreet && normalizedStreet !== street) attempts.push(`${normalizedStreet}, ${city}, ${state} ${zip}`);
+      attempts.push(formattedOriginal);
+
+      for (const address of attempts) {
+        const geocodeRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
+        );
+        if (!geocodeRes.ok || geocodeRes.status === 429) return null;
+        const geocodeData = await geocodeRes.json();
+        if (geocodeData.length > 0) {
+          const lat = parseFloat(geocodeData[0].lat);
+          const lng = parseFloat(geocodeData[0].lon);
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) return { lat, lng };
+        }
+      }
+      return null;
     }
 
-    async function requestDeliveryQuote() {
-      if (getFulfillmentMethod() !== 'delivery') return;
-      const address = collectDeliveryAddress();
-      if (!isDeliveryAddressComplete(address)) {
-        resetDeliveryQuoteState();
-        updateDeliveryStatus();
-        renderTotals();
+    function clearDeliveryOptions() {
+      deliveryStoreOptions = [];
+      selectedDeliveryStore = null;
+      const container = document.getElementById('delivery-stores');
+      if (container) { container.innerHTML = ''; container.style.display = 'none'; }
+      const info = document.getElementById('closest-store-info');
+      if (info) info.style.display = 'none';
+      const notice = document.getElementById('delivery-availability-notice');
+      if (notice) notice.style.display = 'none';
+      setDeliveryFee(0);
+    }
+
+    function updateClosestStoreHighlight(closest) {
+      const info = document.getElementById('closest-store-info');
+      if (!info || !closest) { if (info) info.style.display = 'none'; return; }
+      const nameEl = document.getElementById('closest-store-name');
+      const addressEl = document.getElementById('closest-store-address');
+      const distanceEl = document.getElementById('closest-store-distance');
+      const feeEl = document.getElementById('closest-store-fee');
+      if (nameEl) nameEl.textContent = closest.name;
+      if (addressEl) addressEl.textContent = closest.address;
+      if (distanceEl) distanceEl.textContent = Number.isFinite(closest.distance) ? closest.distance.toFixed(1) : '–';
+      if (feeEl) feeEl.textContent = closest.fee.toFixed(2);
+      info.style.display = 'block';
+    }
+
+    function updateDeliveryNotice(selectedOption) {
+      const notice = document.getElementById('delivery-availability-notice');
+      if (!notice) return;
+      const messages = [];
+      const closest = deliveryStoreOptions[0];
+      if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
+      if (selectedOption && selectedOption.missingCount > 0) messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
+      if (messages.length > 0) { notice.innerHTML = messages.join('<br>'); notice.style.display = 'block'; }
+      else { notice.style.display = 'none'; }
+    }
+
+    function renderDeliveryStores() {
+      const container = document.getElementById('delivery-stores');
+      const helper = document.getElementById('delivery-store-helper');
+      if (!container) return;
+
+      if (!deliveryStoreOptions.length) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        if (helper) helper.style.display = 'block';
+        updateClosestStoreHighlight(null);
+        updateDeliveryNotice(null);
         return;
       }
-      if (deliveryQuoteAbort) {
-        deliveryQuoteAbort.abort();
-      }
-      deliveryQuoteState.status = 'loading';
-      deliveryQuoteState.error = '';
-      updateDeliveryStatus();
-      const controller = new AbortController();
-      deliveryQuoteAbort = controller;
-      const phoneValue = document.getElementById('phoneNumber').value.trim();
-      if (!phoneValue) {
-        resetDeliveryQuoteState();
-        deliveryQuoteState.status = 'error';
-        deliveryQuoteState.error = 'Add a phone number for delivery updates.';
-        deliveryQuoteAbort = null;
-        renderTotals();
+
+      if (helper) helper.style.display = 'none';
+
+      const totalItems = cartProductIds.length;
+      const cards = deliveryStoreOptions.map((option, idx) => {
+        const checked = selectedDeliveryStore ? selectedDeliveryStore === option.name : idx === 0;
+        const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
+        const availabilityClass = option.missingCount === 0 ? 'available' : 'unavailable';
+        const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
+        const warning = option.missingCount === 0 ? '' : `<div class="store-distance" style="color:#b45309;">Missing ${option.missingCount} item(s)</div>`;
+        return `
+          <label class="store-option">
+            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
+            <div class="store-header">
+              <div class="store-name">${option.name}</div>
+              <span class="availability ${availabilityClass}">${availabilityLabel}</span>
+            </div>
+            <div class="store-address">${option.address}</div>
+            <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
+            ${warning}
+          </label>
+        `;
+      }).join('');
+
+      container.innerHTML = cards;
+      container.style.display = 'block';
+
+      container.querySelectorAll('input[name="store_delivery"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          selectedDeliveryStore = e.target.value;
+          applyDeliverySelection();
+        });
+      });
+
+      applyDeliverySelection();
+    }
+
+    function applyDeliverySelection() {
+      if (!deliveryStoreOptions.length) {
+        setDeliveryFee(0);
+        updateClosestStoreHighlight(null);
+        updateDeliveryNotice(null);
         return;
       }
-      const baseTotals = getCartTotals(false);
-      const payload = {
-        pickupStoreId: getPickupStoreId(),
-        manifestValue: baseTotals.subtotal,
-        dropoff: {
-          street1: address.street1,
-          street2: address.street2,
-          city: address.city,
-          state: address.state,
-          zip: address.zip,
-          country: address.country,
-          contactName: getContactName() || 'Customer',
-          contactPhone: phoneValue,
-          email: document.getElementById('email').value.trim(),
-          lat: deliveryGeo ? deliveryGeo.lat : undefined,
-          lng: deliveryGeo ? deliveryGeo.lng : undefined
-        }
-      };
+      if (!selectedDeliveryStore) selectedDeliveryStore = deliveryStoreOptions[0].name;
+
+      const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
+      selectedDeliveryStore = selectedOption.name;
+      setDeliveryFee(selectedOption.fee);
+      updateClosestStoreHighlight(deliveryStoreOptions[0]);
+      updateDeliveryNotice(selectedOption);
+    }
+
+    async function buildDeliveryStoreOptions(lat, lng) {
+      if (!allStores.length) { clearDeliveryOptions(); return; }
+
+      const totalItems = cartProductIds.length;
+      const results = await Promise.all(allStores.map(async store => {
+        const availability = await getStoreAvailability(store.name);
+        const availableCount = Object.values(availability || {}).filter(Boolean).length;
+        const missingCount = Math.max(totalItems - availableCount, 0);
+
+        const storeLat = parseFloat(store.latitude);
+        const storeLng = parseFloat(store.longitude);
+        const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
+        const fee = estimateDeliveryFee(distance);
+
+        return { ...store, distance, fee, availableCount, missingCount };
+      }));
+
+      results.sort((a, b) => a.distance - b.distance);
+
+      const previousSelection = selectedDeliveryStore;
+      deliveryStoreOptions = results;
+
+      if (previousSelection && results.some(option => option.name === previousSelection)) {
+        selectedDeliveryStore = previousSelection;
+      } else {
+        const fullyStocked = results.find(option => option.missingCount === 0);
+        selectedDeliveryStore = (fullyStocked || results[0]) ? (fullyStocked || results[0]).name : null;
+      }
+
+      renderDeliveryStores();
+    }
+
+    async function initializeStores() {
       try {
-        const resp = await fetch('/api/uber/quote', {
+        const res = await fetch('/api/stores');
+        if (!res.ok) throw new Error('Failed to fetch stores');
+        allStores = await res.json();
+
+        await renderPickupStores();
+
+        if (allStores.length > 0) {
+          const firstRadio = document.querySelector('input[name="store_pickup"]');
+          if (firstRadio) {
+            firstRadio.checked = true;
+            selectedStore = allStores[0].name;
+            await checkInventoryForStore(selectedStore);
+          }
+        }
+
+        if (userDeliveryLocation) {
+          await buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
+        }
+      } catch (err) {
+        console.error('Error initializing stores:', err);
+      }
+    }
+
+    async function renderPickupStores() {
+      const container = document.getElementById('pickup-stores');
+      let html = '';
+
+      for (const store of allStores) {
+        const availability = await getStoreAvailability(store.name);
+        const availableCount = Object.values(availability).filter(Boolean).length;
+        const totalItems = cartProductIds.length;
+        const isAvailable = availableCount === totalItems;
+        const statusLabel = totalItems ? `${availableCount}/${totalItems} in stock` : 'Cart empty';
+
+        html += `
+          <label class="store-option">
+            <input type="radio" name="store_pickup" value="${store.name}" ${store.id === allStores[0].id ? 'checked' : ''}>
+            <div class="store-header">
+              <div class="store-name">${store.name}</div>
+              <span class="availability ${isAvailable ? 'available' : 'unavailable'}">
+                ${statusLabel}
+              </span>
+            </div>
+            <div class="store-address">${store.address}</div>
+            <div class="store-distance">📍 Store location</div>
+          </label>
+        `;
+      }
+
+      container.innerHTML = html;
+
+      document.querySelectorAll('input[name="store_pickup"]').forEach(radio => {
+        radio.addEventListener('change', async (e) => {
+          selectedStore = e.target.value;
+          await checkInventoryForStore(selectedStore);
+        });
+      });
+    }
+
+    async function getStoreAvailability(storeName) {
+      if (cartProductIds.length === 0) return {};
+      try {
+        const res = await fetch('/api/check-inventory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: controller.signal
+          body: JSON.stringify({ product_ids: cartProductIds, store_name: storeName })
         });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok || !data.ok) {
-          resetDeliveryQuoteState();
-          deliveryQuoteState.status = 'error';
-          const friendly = data.error === 'distance_exceeded'
-            ? `Delivery is limited to ${data.maxMiles || DELIVERY_MAX_RADIUS_MILES} miles.`
-            : (data.detail || data.error || 'Delivery quote unavailable.');
-          deliveryQuoteState.error = friendly;
-          deliveryQuoteAbort = null;
-          renderTotals();
+        if (!res.ok) throw new Error('Failed to check inventory');
+        return await res.json();
+      } catch (err) {
+        console.error('Error checking inventory:', err);
+        return {};
+      }
+    }
+
+    async function checkInventoryForStore(storeName) {
+      const availability = await getStoreAvailability(storeName);
+      const unavailable = Object.entries(availability)
+        .filter(([_, available]) => !available)
+        .map(([id, _]) => cartProductIds.indexOf(parseInt(id)))
+        .filter(i => i !== -1);
+
+      const notice = document.getElementById('pickup-availability-notice');
+      if (unavailable.length > 0) {
+        notice.innerHTML = `⚠️ ${unavailable.length} item(s) not available at ${storeName}`;
+        notice.style.display = 'block';
+      } else {
+        notice.style.display = 'none';
+      }
+    }
+
+    (function(){
+      const radios = document.querySelectorAll('input[name="delivery_method"]');
+      const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
+      const pickupSection = document.getElementById('pickup-stores-section');
+      const deliverySection = document.getElementById('delivery-stores-section');
+      const addressSection = document.getElementById('address-section');
+
+      function update(){
+        const method = (document.querySelector('input[name="delivery_method"]:checked')||{}).value;
+        const isDelivery = method === 'uber';
+
+        pickupSection.style.display = isDelivery ? 'none' : 'block';
+        deliverySection.style.display = isDelivery ? 'block' : 'none';
+        addressSection.style.display = isDelivery ? 'block' : 'none';
+
+        addressInputs.forEach(i=>{
+          i.disabled = !isDelivery;
+          i.required = isDelivery;
+        });
+
+        if (isDelivery) {
+          if (deliveryStoreOptions.length) applyDeliverySelection();
+          else if (userDeliveryLocation) buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
+          else setDeliveryFee(0);
+        } else {
+          setDeliveryFee(0);
+          const deliveryNotice = document.getElementById('delivery-availability-notice');
+          if (deliveryNotice) deliveryNotice.style.display = 'none';
+        }
+      }
+
+      radios.forEach(r=>r.addEventListener('change', update));
+      update();
+    })();
+
+    (function(){
+      const addressInputs = Array.from(document.querySelectorAll('input[name="street"],input[name="unit"],input[name="city"],input[name="state"],input[name="zip"]'));
+      const debounceDelay = 1500;
+      let debounceTimer;
+
+      async function findClosestStore() {
+        const street = document.querySelector('input[name="street"]').value.trim();
+        const city = document.querySelector('input[name="city"]').value.trim();
+        const state = document.querySelector('input[name="state"]').value.trim();
+        const zip = document.querySelector('input[name="zip"]').value.trim();
+        const helper = document.getElementById('delivery-store-helper');
+
+        if (!street || !city || !state || !zip) {
+          if (helper) {
+            helper.style.display = 'block';
+            helper.textContent = 'Enter your address to compare store inventory and delivery fees.';
+          }
+          clearDeliveryOptions();
           return;
         }
-        deliveryQuoteState.status = 'ready';
-        deliveryQuoteState.fee = Number(data.fee || 0);
-        deliveryQuoteState.quoteId = data.quoteId || null;
-        deliveryQuoteState.currency = data.currency || 'USD';
-        deliveryQuoteState.expires = data.expires || null;
-        deliveryQuoteState.error = '';
-        deliveryQuoteAbort = null;
-        renderTotals();
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        resetDeliveryQuoteState();
-        deliveryQuoteState.status = 'error';
-        deliveryQuoteState.error = 'Delivery quote failed.';
-        deliveryQuoteAbort = null;
-        renderTotals();
-      }
-    }
 
-    function getDeliveryPayloadForServer() {
-      const address = collectDeliveryAddress();
-      const contact = {
-        name: getContactName(),
-        phone: document.getElementById('phoneNumber').value.trim(),
-        email: document.getElementById('email').value.trim()
-      };
-      return {
-        address,
-        instructions: address.instructions,
-        quote: deliveryQuoteState.status === 'ready'
-          ? {
-              quoteId: deliveryQuoteState.quoteId,
-              fee: deliveryQuoteState.fee,
-              currency: deliveryQuoteState.currency,
-              expires: deliveryQuoteState.expires
-            }
-          : null,
-        contact,
-        contactPhone: contact.phone,
-        contactEmail: contact.email,
-        geo: deliveryGeo
-      };
-    }
-
-    function updateFulfillmentNote() {
-      const note = document.getElementById('deliveryNote');
-      const method = getFulfillmentMethod();
-      const storeLabel = getPickupStoreLabel();
-      if (note) {
-        note.textContent = method === 'pickup'
-          ? `Pickup from ${storeLabel}. You'll get a text when it's ready.`
-          : `Delivery from ${storeLabel}. We'll confirm the drop-off after payment.`;
-      }
-      const deliveryShell = document.getElementById('deliveryFields');
-      if (deliveryShell) {
-        deliveryShell.style.display = method === 'delivery' ? 'block' : 'none';
-      }
-      if (method === 'delivery') {
-        ensureDeliveryGeo();
-        scheduleDeliveryQuote();
-      } else {
-        if (deliveryQuoteAbort) {
-          deliveryQuoteAbort.abort();
-          deliveryQuoteAbort = null;
+        if (helper) {
+          helper.style.display = 'block';
+          helper.textContent = 'Finding stores near you…';
         }
-        resetDeliveryQuoteState();
-        updateDeliveryStatus();
-        renderTotals();
+
+        try {
+          const coords = await geocodeAddressWithFallback(street, city, state, zip);
+
+          if (!coords) {
+            if (helper) helper.textContent = 'Could not locate that address. Double-check the details.';
+            clearDeliveryOptions();
+            return;
+          }
+
+          userDeliveryLocation = coords;
+          await buildDeliveryStoreOptions(coords.lat, coords.lng);
+        } catch (err) {
+          console.error('Error finding closest store:', err);
+          if (helper) helper.textContent = 'Something went wrong while finding nearby stores.';
+          clearDeliveryOptions();
+        }
       }
-      updateDeliveryStatus();
+
+      addressInputs.forEach(input => {
+        input.addEventListener('input', () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(findClosestStore, debounceDelay);
+        });
+      });
+    })();
+
+    const policyModal = document.getElementById('policy-modal');
+    const policyModalContent = document.getElementById('policy-modal-content');
+    const policyModalClose = document.getElementById('policy-modal-close');
+
+    function openPolicyModal(url, label) {
+      if (!policyModal || !policyModalContent) return;
+      policyModal.classList.add('show');
+      policyModalContent.innerHTML = `<p class="policy-modal__loading">Loading ${label}…</p>`;
+      fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+        .then((res) => res.text())
+        .then((html) => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const title = doc.querySelector('.policy-title')?.textContent?.trim() || label;
+          const subtitle = doc.querySelector('.policy-subtitle')?.textContent?.trim() || '';
+          const bodyNode = doc.querySelector('.policy-content') || doc.body;
+          policyModalContent.innerHTML = `
+            <div class="policy-modal__header">
+              <h4 id="policy-modal-title">${title}</h4>
+              ${subtitle ? `<p>${subtitle}</p>` : ''}
+            </div>
+            <div class="policy-modal__body">${bodyNode.innerHTML}</div>
+          `;
+        })
+        .catch(() => {
+          policyModalContent.innerHTML = `
+            <p class="policy-modal__error">
+              Unable to load ${label}. <a href="${url}" target="_blank" rel="noopener">Open policy</a>
+            </p>
+          `;
+        });
     }
 
-    function buildSuccessPayload(result, totals) {
-      const firstName = document.getElementById('firstName').value.trim();
-      const lastName = document.getElementById('lastName').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const phoneNumber = document.getElementById('phoneNumber').value.trim();
-      const fulfillmentMethod = getFulfillmentMethod();
-      const storeLabel = getPickupStoreLabel();
-      const storeId = getPickupStoreId();
-      const deliveryDetails = fulfillmentMethod === 'delivery' ? getDeliveryPayloadForServer() : null;
-      const serverDelivery = result.delivery || null;
-      const deliveryWarning = result.deliveryWarning || null;
+    function closePolicyModal() {
+      if (!policyModal) return;
+      policyModal.classList.remove('show');
+    }
+
+    function setupPolicyLinks() {
+      const links = document.querySelectorAll('.policy-links a');
+      links.forEach((link) => {
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          openPolicyModal(link.href, link.textContent.trim());
+        });
+      });
+      if (policyModalClose) policyModalClose.addEventListener('click', closePolicyModal);
+      if (policyModal) {
+        policyModal.addEventListener('click', (event) => {
+          if (event.target === policyModal) closePolicyModal();
+        });
+      }
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closePolicyModal();
+      });
+    }
+
+    window.addEventListener('load', () => {
+      initializeStores();
+      setupPolicyLinks();
+    });
+
+    /* ---------------- Authorize.Net Accept.js init ---------------- */
+    const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
+    const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
+
+    function paySetError(msg) {
+      const el = document.getElementById('pay-error');
+      if (el) el.textContent = msg || '';
+    }
+
+    function paySetHint(msg) {
+      const el = document.getElementById('pay-msg');
+      if (el) el.textContent = msg || '';
+    }
+
+    function getSelectedDeliveryMethod() {
+      const method = (document.querySelector('input[name="delivery_method"]:checked') || {}).value;
+      return method || 'pickup';
+    }
+
+    function buildBillingFromForm() {
+      const email = document.querySelector('input[name="email"]')?.value?.trim() || '';
+      const firstName = document.querySelector('input[name="first_name"]')?.value?.trim() || '';
+      const lastName = document.querySelector('input[name="last_name"]')?.value?.trim() || '';
+      const phone = document.querySelector('input[name="phone"]')?.value?.trim() || '';
+
+      const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
+      const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
+      const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
+      const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
+      const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
+
+      const addressLine = [street, unit].filter(Boolean).join(' ');
       return {
-        transactionId: result.transactionId,
-        authCode: result.authCode || '',
-        responseCode: result.responseCode || '',
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        delivery: totals.delivery,
-        total: totals.total,
-        fulfillmentMethod,
-        storeLabel,
-        storeId,
-        items: buildOrderItems(),
-        customer: {
+        customer: { email, firstName, lastName, phone },
+        billing: {
           firstName,
           lastName,
-          email,
-          phoneNumber
-        },
-        deliveryDetails,
-        serverDelivery,
-        deliveryWarning,
-        timestamp: Date.now()
+          phoneNumber: phone,
+          address: addressLine,
+          city,
+          state,
+          zip,
+          country: 'US'
+        }
       };
-    }
-
-    function showErr(msg) {
-      const el = document.getElementById('err');
-      el.style.display = 'block';
-      el.textContent = msg || 'Payment failed.';
-    }
-
-    function clearErr() {
-      const el = document.getElementById('err');
-      el.style.display = 'none';
-      el.textContent = '';
     }
 
     function parseExp(exp) {
-      // Accepts "MM/YY" or "MM/YYYY"
-      const raw = String(exp || '').trim();
-      const m = raw.match(/^(\d{1,2})\s*\/\s*(\d{2,4})$/);
+      const raw = String(exp || '').replace(/\s+/g, '');
+      const m = raw.match(/^(\d{2})\s*\/?\s*(\d{2}|\d{4})$/);
       if (!m) return null;
-      let mm = m[1].padStart(2, '0');
-      let yy = m[2];
-      if (yy.length === 2) yy = '20' + yy;
-      return { month: mm, year: yy };
+      const month = m[1];
+      let year = m[2];
+      if (year.length === 2) year = `20${year}`;
+      return { month, year };
     }
 
-    async function submitCharge(opaqueData, totals) {
-      const billing = {
-        firstName: document.getElementById('firstName').value.trim(),
-        lastName: document.getElementById('lastName').value.trim(),
-        phoneNumber: document.getElementById('phoneNumber').value.trim(),
-        address: '',
-        city: '',
-        state: '',
-        zip: '',
-        country: 'US'
-      };
-      const customer = { email: document.getElementById('email').value.trim() };
+    async function submitCharge(opaqueData) {
+      const { customer, billing } = buildBillingFromForm();
 
-      const deliveryMethod = getFulfillmentMethod();
-      const pickupStore = getPickupStoreLabel();
-      const pickupStoreId = getPickupStoreId();
-
+      const deliveryMethod = getSelectedDeliveryMethod();
+      const pickupStoreId = (deliveryMethod === 'delivery')
+        ? normalizeStoreId(selectedDeliveryStore || selectedStore)
+        : normalizeStoreId(selectedStore);
       const payload = {
-        opaqueData,               // { dataDescriptor, dataValue }
+        opaqueData,
+        totals: checkoutTotals,
+        customer: { email: customer.email },
         billing,
-        customer,
         deliveryMethod,
-        pickupStore,
         pickupStoreId,
-        selectedDeliveryStore: deliveryMethod === 'delivery' ? pickupStoreId : null,
-        deliveryDetails: deliveryMethod === 'delivery' ? getDeliveryPayloadForServer() : null,
-        items: buildOrderItems(),
-        totals
+        pickupStoreLabel: storeLabelFromId(pickupStoreId),
+        pickupStore: selectedStore,
+        selectedDeliveryStore
       };
 
       const resp = await fetch('/api/authorize/charge', {
@@ -565,119 +956,130 @@
       });
 
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || 'Payment failed.');
-      }
+      if (!resp.ok) throw new Error(data?.error || 'Payment failed. Please try again.');
       return data;
     }
 
+
+
+    // Store id normalization (used for Uber pickup store selection)
+    function normalizeStoreId(v) {
+      const raw = String(v ?? '').trim().toLowerCase();
+      const s = raw.replace(/\s+/g, '');
+      if (!s) return '';
+      if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+      if (s.includes('79th') || s == '79th' || s.includes('79street') || s.includes('79') ) return '79th';
+      return raw; // fallback (server will normalize too)
+    }
+
+    function storeLabelFromId(id) {
+      const s = normalizeStoreId(id);
+      if (s === 'calle8') return 'Calle 8';
+      if (s === '79th') return '79th Street';
+      return String(id ?? '').trim();
+    }
+
     function tokenizeAndPay() {
-      clearErr();
+      const btn = document.getElementById('zp-pay-btn');
+      if (!btn) return;
 
-      // Basic config sanity
-      const dbg = document.getElementById('authnetDebug');
-      dbg.textContent = `[checkout] authnet config { loginIdPresent: ${!!AUTHNET.loginId}, clientKeyPresent: ${!!AUTHNET.clientKey}, env: '${AUTHNET.env || 'unset'}' }`;
-
-      if (!AUTHNET.loginId || !AUTHNET.clientKey) {
-        showErr('Authorize.Net is not configured (missing loginId/clientKey).');
+      if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
+        paySetError('Payment configuration missing (Authorize.net keys not set).');
         return;
       }
 
-      const totals = renderTotals();
-      if (!totals || totals.total <= 0) {
-        showErr('Your cart total is $0.00. Add an item before checking out.');
+      paySetError('');
+
+      if (!window.Accept || typeof window.Accept.dispatchData !== 'function') {
+        paySetError('Authorize.Net Accept.js failed to load. Refresh and try again.');
         return;
       }
 
-      const exp = parseExp(document.getElementById('cardExp').value);
-      if (!exp) {
-        showErr('Invalid expiration date. Use MM/YY.');
+      const expObj = parseExp(document.getElementById('cardExp')?.value);
+      if (!expObj) {
+        paySetError('Expiration must be in MM/YY format.');
         return;
       }
 
-      if (getFulfillmentMethod() === 'delivery') {
-        const deliveryAddress = collectDeliveryAddress();
-        if (!isDeliveryAddressComplete(deliveryAddress)) {
-          showErr('Enter your delivery address to continue.');
-          return;
-        }
-        if (deliveryQuoteState.status !== 'ready') {
-          showErr(deliveryQuoteState.error || 'Delivery fee is still calculating.');
-          return;
-        }
-      }
-
-      const secureData = {
-        authData: {
-          clientKey: AUTHNET.clientKey,
-          apiLoginID: AUTHNET.loginId
-        },
-        cardData: {
-          cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g,''),
-          month: exp.month,
-          year: exp.year,
-          cardCode: document.getElementById('cardCvv').value.trim()
-        }
+      const cardData = {
+        cardNumber: (document.getElementById('cardNumber')?.value || '').replace(/\s+/g, ''),
+        month: expObj.month,
+        year: expObj.year,
+        cardCode: (document.getElementById('cardCvv')?.value || '').trim(),
+        fullName: (document.getElementById('cardName')?.value || '').trim()
       };
 
-      // Accept.js callback
-      const responseHandler = async function(response) {
+      if (!cardData.cardNumber || !cardData.cardCode || !cardData.month || !cardData.year) {
+        paySetError('Please fill out all card fields.');
+        return;
+      }
+
+      btn.disabled = true;
+      paySetHint('Processing payment…');
+
+      const authData = {
+        clientKey: AUTH_NET_CLIENT_KEY,
+        apiLoginID: AUTH_NET_LOGIN_ID
+      };
+
+      window.Accept.dispatchData({ authData, cardData }, async (response) => {
         try {
-          if (response.messages && response.messages.resultCode === "Error") {
-            const msg = (response.messages.message && response.messages.message[0] && response.messages.message[0].text) || 'Payment tokenization failed.';
-            showErr(msg);
-            return;
+          const result = response?.messages?.resultCode;
+          if (result !== 'Ok') {
+            const msg = response?.messages?.message?.[0]?.text || 'Card tokenization failed.';
+            throw new Error(msg);
           }
 
           const opaqueData = response.opaqueData;
-          if (!opaqueData || !opaqueData.dataDescriptor || !opaqueData.dataValue) {
-            showErr('Tokenization did not return opaqueData. Please try again.');
-            return;
+          if (!opaqueData?.dataDescriptor || !opaqueData?.dataValue) {
+            throw new Error('Missing token from Authorize.Net.');
           }
 
-          const btn = document.getElementById('completeOrderBtn');
-          btn.disabled = true;
+          const serverResult = await submitCharge(opaqueData);
 
-          const result = await submitCharge(opaqueData, totals);
-          const payload = buildSuccessPayload(result, totals);
-          try {
-            sessionStorage.setItem(SUCCESS_STORAGE_KEY, JSON.stringify(payload));
-          } catch {}
-          try {
-            localStorage.removeItem('cart');
-          } catch {}
-          const params = new URLSearchParams();
-          if (result.transactionId) params.set('order', result.transactionId);
-          if (payload.storeId) params.set('shop', payload.storeId);
-          const search = params.toString();
-          window.location.href = search ? `/checkout/success?${search}` : '/checkout/success';
+          paySetError('');
+          paySetHint('Payment approved ✅');
 
-        } catch (e) {
-          showErr(e.message || 'Payment failed.');
-        } finally {
-          document.getElementById('completeOrderBtn').disabled = false;
+          // Persist success payload for /checkout-success
+          try {
+            const deliveryMethod = getSelectedDeliveryMethod();
+            const successPayload = {
+              receipt: serverResult?.receipt || null,
+              deliveryMethod,
+              totals: checkoutTotals,
+              pickupStoreId: pickupStoreId || null,
+              pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
+              serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null
+            };
+            sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+          } catch (_) {}
+
+          try { localStorage.removeItem('cart'); } catch (_) {}
+          setTimeout(() => { window.location.href = '/checkout-success'; }, 200);
+        } catch (err) {
+          paySetError(err?.message || 'Payment failed.');
+          paySetHint('Please review your card details and try again.');
+          btn.disabled = false;
         }
-      };
-
-      if (typeof Accept === 'undefined' || !Accept.dispatchData) {
-        showErr('Authorize.Net Accept.js failed to load. Please refresh and try again.');
-        return;
-      }
-
-      Accept.dispatchData(secureData, responseHandler);
+      });
     }
 
-    const fulfillmentRadios = document.querySelectorAll('input[name="fulfillmentMethod"]');
-    fulfillmentRadios.forEach(radio => radio.addEventListener('change', updateFulfillmentNote));
-    updateFulfillmentNote();
+    window.tokenizeAndPay = tokenizeAndPay;
 
-    ['deliveryStreet','deliveryUnit','deliveryCity','deliveryState','deliveryZip','phoneNumber'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('input', scheduleDeliveryQuote);
-    });
+    function bindPayButton() {
+      const btn = document.getElementById('zp-pay-btn');
+      if (!btn) return;
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
 
-    document.getElementById('completeOrderBtn').addEventListener('click', tokenizeAndPay);
-    renderTotals();
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        tokenizeAndPay();
+      });
+    }
+
+    bindPayButton();
+    document.addEventListener('DOMContentLoaded', bindPayButton);
   </script>
 </body>
 </html>
