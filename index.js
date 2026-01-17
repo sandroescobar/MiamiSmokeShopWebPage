@@ -2488,6 +2488,23 @@ function buildStoreAddress(storeId) {
   };
 }
 
+function buildCustomerDropoffAddress(billing = {}) {
+  const streetParts = [];
+  if (billing.street) streetParts.push(String(billing.street).trim());
+  if (billing.address) streetParts.push(String(billing.address).trim());
+  if (billing.address2) streetParts.push(String(billing.address2).trim());
+  const unit = billing.unit || billing.street2;
+  if (unit) streetParts.push(String(unit).trim());
+  const lines = streetParts.filter(Boolean);
+  return {
+    street_address: lines,
+    city: String(billing.city || '').trim(),
+    state: String(billing.state || '').trim(),
+    zip_code: String(billing.zip || billing.postalCode || '').trim(),
+    country: String(billing.country || 'US').trim(),
+  };
+}
+
 function assertUberConfigured() {
   const missing = [];
   if (!UBER_DIRECT.customerId) missing.push('UBER_DIRECT_CUSTOMER_ID');
@@ -2865,61 +2882,47 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
-    // If this checkout used Uber courier between stores, create the courier job AFTER payment.
+    // If this checkout used Uber courier, create the courier job AFTER payment.
     let uberDelivery = null;
     let uberError = null;
     try {
       const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
-        const pickupStoreId = normalizeStoreId(body?.pickupStoreId || body?.pickupStore || body?.pickupStoreLabel);
-        const dropoffStoreId = normalizeStoreId(body?.selectedDeliveryStore || body?.dropoffStoreId);
-
-        if (pickupStoreId && dropoffStoreId && pickupStoreId !== dropoffStoreId) {
-          const pickupStore = getStoreById(pickupStoreId);
-          const dropoffStore = getStoreById(dropoffStoreId);
-          if (!pickupStore || !dropoffStore) throw new Error('Invalid pickup/dropoff store selection.');
-
-          const customerFirst = String(body?.billing?.firstName || '').trim();
-          const customerLast = String(body?.billing?.lastName || '').trim();
-          const dropoffName = `${customerFirst} ${customerLast}`.trim() || 'Customer';
-          const dropoffPhone = toE164US(body?.billing?.phoneNumber || '');
-
-          const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
-
-          const quote = await uberCreateQuote({
-            pickup: buildUberAddressFromStore(pickupStoreId),
-            dropoff: buildUberAddressFromStore(dropoffStoreId),
-          });
-
-          const delivery = await uberCreateDelivery({
-            quoteId: quote?.id,
-            pickupName: pickupStore.name || 'Pickup',
-            pickupPhone: toE164US(pickupStore.phone || ''),
-            pickupAddress: buildUberAddressFromStore(pickupStoreId),
-            dropoffName,
-            dropoffPhone,
-            dropoffAddress: buildUberAddressFromStore(dropoffStoreId),
-            manifestTotalValueCents: manifestCents,
-            manifestItems: [
-              {
-                name: 'Store transfer',
-                quantity: 1,
-                price: maxCents(manifestCents),
-              },
-            ],
-            manifestReference: `order-${transId}`,
-          });
-
-          uberDelivery = {
-            deliveryId: delivery?.id,
-            trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || null,
-            status: delivery?.status || null,
-            fee: delivery?.fee || null,
-            quoteId: quote?.id || null,
-            pickupStoreId,
-            dropoffStoreId,
-          };
+        const pickupStoreId = normalizeStoreId(
+          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
+        );
+        const billingInfo = body?.billing || {};
+        const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
+        if (!dropoffAddress.street_address.length || !dropoffAddress.city || !dropoffAddress.state || !dropoffAddress.zip_code) {
+          throw new Error('Missing delivery address fields.');
         }
+        const dropoffPhone = toE164US(billingInfo.phoneNumber || body?.customer?.phone || '');
+        if (!dropoffPhone) {
+          throw new Error('Missing delivery phone number.');
+        }
+        const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
+        const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
+
+        const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+
+        const delivery = await uberCreateDelivery({
+          quoteId: quote?.id,
+          pickupStoreId,
+          dropoffName,
+          dropoffPhone,
+          dropoffAddress,
+          manifestTotalValueCents: manifestCents,
+          manifestReference: `order-${transId}`,
+        });
+
+        uberDelivery = {
+          deliveryId: delivery?.id || null,
+          trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url || null,
+          status: delivery?.status || null,
+          fee: delivery?.fee || null,
+          quoteId: quote?.id || null,
+          pickupStoreId,
+        };
       }
     } catch (e) {
       uberError = e?.message || 'Uber courier request failed.';
