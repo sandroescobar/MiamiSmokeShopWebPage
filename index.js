@@ -2563,16 +2563,17 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
   return data;
 }
 
-function uberAddressJsonString(addressObj) {
-  // Uber Direct expects pickup_address / dropoff_address to be a JSON-encoded string.
-  // See docs in uber_api.html.
-  return JSON.stringify({
-    street_address: addressObj.street_address,
-    city: addressObj.city,
-    state: addressObj.state,
-    zip_code: addressObj.zip_code,
+function uberAddressJsonString(addressObj = {}) {
+  const street = Array.isArray(addressObj.street_address)
+    ? addressObj.street_address.filter(Boolean)
+    : [addressObj.street_address].filter(Boolean);
+  return {
+    street_address: street,
+    city: addressObj.city || '',
+    state: addressObj.state || '',
+    zip_code: addressObj.zip_code || '',
     country: addressObj.country || 'US',
-  });
+  };
 }
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
