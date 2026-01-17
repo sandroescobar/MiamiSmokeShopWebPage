@@ -76,6 +76,7 @@
           <div class="summary-row"><span>Delivery</span><span id="deliveryValue">$0.00</span></div>
           <div class="summary-row total"><span>Total</span><span id="totalValue">$0.00</span></div>
         </div>
+
         <div class="card meta-card">
           <h2>Fulfillment</h2>
           <p class="meta-value" id="fulfillmentText">—</p>
@@ -92,15 +93,18 @@
             </div>
           </div>
         </div>
+
         <div class="card tracking-card" id="trackingCard" hidden>
           <h2>Courier Tracking</h2>
           <p class="muted" id="trackingStatusText">Waiting for courier assignment.</p>
           <a class="btn btn-primary" id="trackingLink" href="#" target="_blank" rel="noopener noreferrer">Open Tracking</a>
         </div>
+
         <div class="card warning-card" id="deliveryWarningCard" hidden>
           <h2>Delivery Update</h2>
           <p class="muted" id="deliveryWarningText"></p>
         </div>
+
         <div class="card debug-card" id="deliveryDebugCard" hidden>
           <h2>Delivery Debug</h2>
           <pre id="deliveryDebugPre"></pre>
@@ -118,172 +122,200 @@
     </div>
   </main>
 
+  <!-- Wrapped in an IIFE so it can't collide with globals from cart.js (fixes "already been declared") -->
   <script>
-    const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
-    const SUCCESS_CART_STORAGE_KEY = 'cart';
-    const CART_LAST_CLOSED_KEY = 'cartLastClosedAt';
-    const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop') %>;
-    const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
+    (() => {
+      const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
+      const SUCCESS_CART_STORAGE_KEY = 'cart';
+      const CART_LAST_CLOSED_KEY = 'cartLastClosedAt';
 
-    function money(value) {
-      const n = Number(value || 0);
-      return '$' + (Number.isFinite(n) ? n.toFixed(2) : '0.00');
-    }
+      const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop') %>;
+      const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
 
-    function escapeHtml(value) {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-      return String(value || '').replace(/[&<>"']/g, (ch) => map[ch] || ch);
-    }
-
-    function loadPayload() {
-      try {
-        const raw = sessionStorage.getItem(SUCCESS_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch (err) {
-        return null;
+      function money(value) {
+        const n = Number(value || 0);
+        return '$' + (Number.isFinite(n) ? n.toFixed(2) : '0.00');
       }
-    }
 
-    function renderItems(items) {
-      const list = document.getElementById('itemsList');
-      if (!items.length) {
-        list.innerHTML = '<p class="muted">No items available.</p>';
-        return;
+      function escapeHtml(value) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return String(value || '').replace(/[&<>"']/g, (ch) => map[ch] || ch);
       }
-      list.innerHTML = items.map((item) => {
-        const note = item.flavor ? `<span class="item-note">${escapeHtml(item.flavor)}</span>` : '';
-        const qty = Math.max(1, Number(item.quantity) || 1);
-        const total = Number.isFinite(item.total) ? item.total : Number(item.price || 0) * qty;
-        return `
-          <div class="item-row">
-            <div>
-              <p class="item-name">${escapeHtml(item.name)}</p>
-              ${note}
+
+      function loadPayload() {
+        try {
+          const raw = sessionStorage.getItem(SUCCESS_STORAGE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+          return null;
+        }
+      }
+
+      function renderItems(items) {
+        const list = document.getElementById('itemsList');
+        if (!items.length) {
+          list.innerHTML = '<p class="muted">No items available.</p>';
+          return;
+        }
+        list.innerHTML = items.map((item) => {
+          const note = item.flavor ? `<span class="item-note">${escapeHtml(item.flavor)}</span>` : '';
+          const qty = Math.max(1, Number(item.quantity) || 1);
+          const total = Number.isFinite(item.total) ? item.total : Number(item.price || 0) * qty;
+          return `
+            <div class="item-row">
+              <div>
+                <p class="item-name">${escapeHtml(item.name)}</p>
+                ${note}
+              </div>
+              <div class="item-qty">x${qty}</div>
+              <div class="item-total">${money(total)}</div>
             </div>
-            <div class="item-qty">x${qty}</div>
-            <div class="item-total">${money(total)}</div>
-          </div>
-        `;
-      }).join('');
-    }
+          `;
+        }).join('');
+      }
 
-    function formatMethod(method) {
-      return method === 'delivery' ? 'Delivery' : 'Pickup';
-    }
+      function formatMethod(method) {
+        return method === 'delivery' ? 'Delivery' : 'Pickup';
+      }
 
-    function renderSummary(payload) {
-      const items = Array.isArray(payload.items) ? payload.items : [];
-      const totalItems = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0);
-      document.getElementById('itemCount').textContent = totalItems === 1 ? '1 item' : totalItems + ' items';
-      renderItems(items);
-      document.getElementById('subtotalValue').textContent = money(payload.subtotal);
-      document.getElementById('taxValue').textContent = money(payload.tax);
-      document.getElementById('deliveryValue').textContent = money(payload.delivery);
-      document.getElementById('totalValue').textContent = money(payload.total);
-      const method = formatMethod(payload.fulfillmentMethod);
-      const storeLabel = payload.storeLabel || DEFAULT_STORE_LABEL;
-      document.getElementById('fulfillmentText').textContent = method;
-      document.getElementById('methodNote').textContent = method === 'Delivery' ? 'We will text courier updates shortly.' : 'We will let you know when pickup is ready.';
-      document.getElementById('storeBadge').textContent = storeLabel;
-      document.getElementById('transactionId').textContent = payload.transactionId || '—';
-      document.getElementById('authCode').textContent = payload.authCode || '—';
-      const heroTitle = document.getElementById('heroTitle');
-      const heroSubtitle = document.getElementById('heroSubtitle');
-      const heroNote = document.getElementById('heroNote');
-      const firstName = payload.customer && payload.customer.firstName ? payload.customer.firstName : '';
-      const hasTracking = !!(payload.serverDelivery && (payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl));
-      heroTitle.textContent = firstName ? `Thanks, ${firstName}!` : 'Order confirmed';
-      heroSubtitle.textContent = payload.transactionId ? `Transaction ${payload.transactionId}` : 'Receipt saved';
-      heroNote.textContent = method === 'Delivery'
-        ? (hasTracking ? 'Tracking link ready below.' : `On the way from ${storeLabel}`)
-        : `Ready soon at ${storeLabel}`;
-      const trackingCard = document.getElementById('trackingCard');
-      if (trackingCard) {
-        if (method === 'Delivery' && hasTracking) {
-          trackingCard.hidden = false;
-          const trackingLink = document.getElementById('trackingLink');
-          const trackingStatusText = document.getElementById('trackingStatusText');
-          const trackingUrl = payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl;
-          if (trackingLink && trackingUrl) {
-            trackingLink.href = trackingUrl;
+      function renderSummary(payload) {
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const totalItems = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0);
+
+        document.getElementById('itemCount').textContent =
+          totalItems === 1 ? '1 item' : totalItems + ' items';
+
+        renderItems(items);
+
+        document.getElementById('subtotalValue').textContent = money(payload.subtotal);
+        document.getElementById('taxValue').textContent = money(payload.tax);
+        document.getElementById('deliveryValue').textContent = money(payload.delivery);
+        document.getElementById('totalValue').textContent = money(payload.total);
+
+        const method = formatMethod(payload.fulfillmentMethod);
+        const storeLabel = payload.storeLabel || DEFAULT_STORE_LABEL;
+
+        document.getElementById('fulfillmentText').textContent = method;
+        document.getElementById('methodNote').textContent =
+          method === 'Delivery'
+            ? 'We will text courier updates shortly.'
+            : 'We will let you know when pickup is ready.';
+
+        document.getElementById('storeBadge').textContent = storeLabel;
+        document.getElementById('transactionId').textContent = payload.transactionId || '—';
+        document.getElementById('authCode').textContent = payload.authCode || '—';
+
+        const heroTitle = document.getElementById('heroTitle');
+        const heroSubtitle = document.getElementById('heroSubtitle');
+        const heroNote = document.getElementById('heroNote');
+
+        const firstName = payload.customer && payload.customer.firstName ? payload.customer.firstName : '';
+        const hasTracking = !!(payload.serverDelivery && (payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl));
+
+        heroTitle.textContent = firstName ? `Thanks, ${firstName}!` : 'Order confirmed';
+        heroSubtitle.textContent = payload.transactionId ? `Transaction ${payload.transactionId}` : 'Receipt saved';
+        heroNote.textContent =
+          method === 'Delivery'
+            ? (hasTracking ? 'Tracking link ready below.' : `On the way from ${storeLabel}`)
+            : `Ready soon at ${storeLabel}`;
+
+        const trackingCard = document.getElementById('trackingCard');
+        if (trackingCard) {
+          if (method === 'Delivery' && hasTracking) {
+            trackingCard.hidden = false;
+
+            const trackingLink = document.getElementById('trackingLink');
+            const trackingStatusText = document.getElementById('trackingStatusText');
+            const trackingUrl = payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl;
+
+            if (trackingLink && trackingUrl) trackingLink.href = trackingUrl;
+
+            if (trackingStatusText) {
+              trackingStatusText.textContent = payload.serverDelivery.status
+                ? `Status: ${payload.serverDelivery.status}`
+                : 'Courier assigned.';
+            }
+          } else {
+            trackingCard.hidden = true;
           }
-          if (trackingStatusText) {
-            trackingStatusText.textContent = payload.serverDelivery.status
-              ? `Status: ${payload.serverDelivery.status}`
-              : 'Courier assigned.';
+        }
+
+        const deliveryWarningCard = document.getElementById('deliveryWarningCard');
+        if (deliveryWarningCard) {
+          if (method === 'Delivery' && payload.deliveryWarning) {
+            deliveryWarningCard.hidden = false;
+            const deliveryWarningText = document.getElementById('deliveryWarningText');
+            if (deliveryWarningText) deliveryWarningText.textContent = payload.deliveryWarning;
+          } else {
+            deliveryWarningCard.hidden = true;
           }
-        } else {
-          trackingCard.hidden = true;
+        }
+
+        const deliveryDebugCard = document.getElementById('deliveryDebugCard');
+        if (deliveryDebugCard) {
+          const hasDebug = !!(payload.serverDelivery || payload.uberError || payload.deliveryWarning);
+          if (hasDebug) {
+            deliveryDebugCard.hidden = false;
+            const deliveryDebugPre = document.getElementById('deliveryDebugPre');
+            if (deliveryDebugPre) {
+              const debugData = {
+                delivery: payload.serverDelivery || null,
+                error: payload.uberError || payload.deliveryWarning || null
+              };
+              deliveryDebugPre.textContent = JSON.stringify(debugData, null, 2);
+            }
+          } else {
+            deliveryDebugCard.hidden = true;
+          }
         }
       }
-      const deliveryWarningCard = document.getElementById('deliveryWarningCard');
-      if (deliveryWarningCard) {
-        if (method === 'Delivery' && payload.deliveryWarning) {
-          deliveryWarningCard.hidden = false;
-          const deliveryWarningText = document.getElementById('deliveryWarningText');
-          if (deliveryWarningText) {
-            deliveryWarningText.textContent = payload.deliveryWarning;
-          }
-        } else {
-          deliveryWarningCard.hidden = true;
+
+      function showFallback() {
+        const shell = document.querySelector('[data-success-shell]');
+        if (shell) shell.style.display = 'none';
+
+        const fallback = document.getElementById('fallbackSection');
+        if (fallback) fallback.hidden = false;
+
+        const orderId = new URLSearchParams(window.location.search).get('order');
+        const storeLabel = DEFAULT_STORE_LABEL;
+
+        const message = orderId
+          ? `We could not load the receipt for transaction ${orderId}. Please contact the ${storeLabel} team if you need assistance.`
+          : `We could not find your checkout session. Head back to the store to start again.`;
+
+        const msgEl = document.getElementById('fallbackMessage');
+        if (msgEl) msgEl.textContent = message;
+      }
+
+      function clearCartStorage() {
+        try {
+          localStorage.removeItem(SUCCESS_CART_STORAGE_KEY);
+          localStorage.removeItem(CART_LAST_CLOSED_KEY);
+        } catch {}
+      }
+
+      function initSuccessPage() {
+        const payload = loadPayload();
+        if (!payload) {
+          showFallback();
+          return;
         }
+        try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
+        renderSummary(payload);
       }
-      const deliveryDebugCard = document.getElementById('deliveryDebugCard');
-      if (deliveryDebugCard) {
-        const hasDebug = !!(payload.serverDelivery || payload.uberError || payload.deliveryWarning);
-        if (hasDebug) {
-          deliveryDebugCard.hidden = false;
-          const deliveryDebugPre = document.getElementById('deliveryDebugPre');
-          if (deliveryDebugPre) {
-            const debugData = {
-              delivery: payload.serverDelivery || null,
-              error: payload.uberError || payload.deliveryWarning || null
-            };
-            deliveryDebugPre.textContent = JSON.stringify(debugData, null, 2);
-          }
-        } else {
-          deliveryDebugCard.hidden = true;
-        }
-      }
-    }
 
-    function showFallback() {
-      document.querySelector('[data-success-shell]').style.display = 'none';
-      const fallback = document.getElementById('fallbackSection');
-      fallback.hidden = false;
-      const orderId = new URLSearchParams(window.location.search).get('order');
-      const storeLabel = DEFAULT_STORE_LABEL;
-      const message = orderId
-        ? `We could not load the receipt for transaction ${orderId}. Please contact the ${storeLabel} team if you need assistance.`
-        : `We could not find your checkout session. Head back to the store to start again.`;
-      document.getElementById('fallbackMessage').textContent = message;
-    }
+      document.addEventListener('DOMContentLoaded', () => {
+        initSuccessPage();
+        clearCartStorage();
 
-    function clearCartStorage() {
-      try {
-        localStorage.removeItem(SUCCESS_CART_STORAGE_KEY);
-        localStorage.removeItem(CART_LAST_CLOSED_KEY);
-      } catch {}
-    }
+        const shopBtn = document.querySelector('[data-action="shop"]');
+        const homeBtn = document.querySelector('[data-action="home"]');
 
-    function initSuccessPage() {
-      const payload = loadPayload();
-      if (!payload) {
-        showFallback();
-        return;
-      }
-      try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
-      renderSummary(payload);
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      initSuccessPage();
-      clearCartStorage();
-      const shopBtn = document.querySelector('[data-action="shop"]');
-      const homeBtn = document.querySelector('[data-action="home"]');
-      if (shopBtn) shopBtn.addEventListener('click', () => { window.location.href = '/products'; });
-      if (homeBtn) homeBtn.addEventListener('click', () => { window.location.href = '/'; });
-    });
+        if (shopBtn) shopBtn.addEventListener('click', () => { window.location.href = '/products'; });
+        if (homeBtn) homeBtn.addEventListener('click', () => { window.location.href = '/'; });
+      });
+    })();
   </script>
 </body>
 </html>
