@@ -2531,12 +2531,27 @@ async function uberGetAccessToken() {
     client_id: UBER_DIRECT.clientId,
     client_secret: UBER_DIRECT.clientSecret,
   });
-
-  const r = await fetch(UBER_DIRECT.authUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
+  let r;
+  try {
+    r = await fetch(UBER_DIRECT.authUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+  } catch (e) {
+    // Render logs currently show only "fetch failed". Expose the underlying cause (DNS/TLS/egress) so you can fix quickly.
+    const c = e?.cause || {};
+    console.error('[Uber Direct] token fetch failed', {
+      authUrl: UBER_DIRECT.authUrl,
+      name: e?.name,
+      message: e?.message,
+      causeCode: c?.code,
+      causeErrno: c?.errno,
+      causeSyscall: c?.syscall,
+      causeHost: c?.hostname || c?.host,
+    });
+    throw new Error('Uber Direct token request failed (network).');
+  }
 
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data.access_token) {
@@ -2581,23 +2596,37 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
 }
 
 function uberAddressJsonString(addressObj = {}) {
+  // Uber Direct expects pickup_address/dropoff_address as a *string* containing JSON (not a nested object).
+  // See uber_api.html: "pickup_address" and "dropoff_address" are required strings containing JSON.
   const street = Array.isArray(addressObj.street_address)
     ? addressObj.street_address.filter(Boolean)
     : [addressObj.street_address].filter(Boolean);
-  return {
+
+  const obj = {
     street_address: street,
     city: addressObj.city || '',
     state: addressObj.state || '',
     zip_code: addressObj.zip_code || '',
     country: addressObj.country || 'US',
   };
+
+  return JSON.stringify(obj);
 }
 
-async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
+async function uberCreateQuote({ pickupStoreId, dropoffAddress, dropoffPhone, manifestTotalValueCents }) {
   const store = buildStoreAddress(pickupStoreId);
   const payload = {
+    // Required by Uber Direct: strings containing JSON
     pickup_address: uberAddressJsonString(store),
     dropoff_address: uberAddressJsonString(dropoffAddress),
+
+    // These are optional for quotes, but including them tends to reduce deliverability edge-cases.
+    pickup_phone_number: store.phone_number || toE164US(process.env.CALLE8_PHONE || process.env.STORE_79_PHONE),
+    dropoff_phone_number: toE164US(dropoffPhone || ''),
+    manifest_total_value: Number.isFinite(Number(manifestTotalValueCents)) ? Number(manifestTotalValueCents) : 0,
+
+    // Helps you identify which store was used inside Uber Direct.
+    external_store_id: String(pickupStoreId || '').slice(0, 150) || undefined,
   };
 
   const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/delivery_quotes`, { method: 'POST', json: payload });
@@ -2611,6 +2640,8 @@ async function uberCreateDelivery({ quoteId, pickupStoreId, dropoffName, dropoff
     pickup_name: store.name,
     pickup_phone_number: store.phone_number || toE164US(process.env.CALLE8_PHONE || process.env.STORE_79_PHONE),
     pickup_address: uberAddressJsonString(store),
+
+    external_store_id: String(pickupStoreId || '').slice(0, 150) || undefined,
 
     dropoff_name: String(dropoffName || '').slice(0, 80) || 'Customer',
     dropoff_phone_number: toE164US(dropoffPhone),
@@ -2665,7 +2696,9 @@ app.post('/api/uber/quote', async (req, res) => {
       return res.status(400).json({ error: 'Missing dropoff address (street/city/state/zip) for Uber quote.' });
     }
 
-    const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+    const dropoffPhone = toE164US(dropoff.phoneNumber || dropoff.phone || body.dropoffPhone || body.phone || '');
+    const manifestCents = Math.max(0, Math.round(Number(body.manifestTotalValue ?? body.manifest_total_value ?? body.amount ?? body.totals?.total ?? 0) * 100));
+    const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress, dropoffPhone, manifestTotalValueCents: manifestCents });
     return res.json({ ok: true, pickupStoreId, quote });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message, details: e.data || undefined });
@@ -2912,7 +2945,7 @@ app.post('/api/authorize/charge', async (req, res) => {
         const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
         console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
 
-        const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+        const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress, dropoffPhone, manifestTotalValueCents: manifestCents });
         console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
 
         const delivery = await uberCreateDelivery({
@@ -2955,6 +2988,17 @@ app.post('/api/authorize/charge', async (req, res) => {
       transactionId: transId,
       authCode: trx?.authCode,
       responseCode: trx?.responseCode,
+      receipt: {
+        orderNumber: String(transId),
+        amount: Number(body?.amount || body?.totals?.total || 0),
+        deliveryMethod: String(body?.deliveryMethod || '').toLowerCase() || null,
+        pickupStoreId: body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || null,
+        uberTrackingUrl: uberDelivery?.trackingUrl || null,
+        uberDeliveryId: uberDelivery?.deliveryId || null,
+        uberStatus: uberDelivery?.status || null,
+        uberFeeCents: uberDelivery?.fee ?? null,
+        uberError: uberError || null,
+      },
       uberDelivery,
       uberError,
     });
