@@ -120,7 +120,7 @@
 
   <script>
     const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
-    const CART_STORAGE_KEY = 'cart';
+    const SUCCESS_CART_STORAGE_KEY = 'cart';
     const CART_LAST_CLOSED_KEY = 'cartLastClosedAt';
     const DEFAULT_STORE_LABEL = <%- JSON.stringify((storeMeta && storeMeta.label) ? storeMeta.label : 'Miami Vape Smoke Shop') %>;
     const DEFAULT_STORE_ID = <%- JSON.stringify(selectedShop || '') %>;
@@ -261,7 +261,7 @@
 
     function clearCartStorage() {
       try {
-        localStorage.removeItem(CART_STORAGE_KEY);
+        localStorage.removeItem(SUCCESS_CART_STORAGE_KEY);
         localStorage.removeItem(CART_LAST_CLOSED_KEY);
       } catch {}
     }
