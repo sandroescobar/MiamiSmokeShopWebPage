@@ -779,7 +779,7 @@
 
       function update(){
         const method = (document.querySelector('input[name="delivery_method"]:checked')||{}).value;
-        const isDelivery = method === 'uber';
+        const isDelivery = method === 'delivery' || method === 'uber';
 
         // Toggle visibility
         pickupSection.style.display = isDelivery ? 'none' : 'block';
