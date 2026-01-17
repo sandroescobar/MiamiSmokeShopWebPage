@@ -387,6 +387,11 @@
     let deliveryStoreOptions = [];
     let selectedDeliveryStore = null;
     let userDeliveryLocation = null;
+    let userDropoffAddress = null;
+
+    // Uber Direct live quote state (for UI + to reuse quote after payment)
+    let selectedUberQuote = { quoteId: null, feeCents: null, isLive: false, storeId: null, error: null };
+    let _uberQuoteRequestSeq = 0;
 
     // Render cart items and update totals
     (function(){
@@ -463,6 +468,64 @@
       return Math.min(24.99, 10.99 + surcharge);
     }
 
+    function dollarsFromCents(cents) {
+      const n = Number(cents);
+      if (!Number.isFinite(n)) return 0;
+      return Math.round(n) / 100;
+    }
+
+    async function requestUberDirectQuote(pickupStoreId, dropoffAddress) {
+      // Always try to use Uber Direct pricing first. Only fall back to local estimate if Uber quote fails.
+      if (!pickupStoreId || !dropoffAddress) return { ok: false, error: 'Missing pickup/dropoff for quote.' };
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        const payload = {
+          pickupStoreId,
+          dropoffAddress: {
+            address: dropoffAddress.street || dropoffAddress.address || dropoffAddress.line1 || '',
+            street: dropoffAddress.street || dropoffAddress.address || dropoffAddress.line1 || '',
+            street1: dropoffAddress.street || dropoffAddress.address || dropoffAddress.line1 || '',
+            line1: dropoffAddress.street || dropoffAddress.address || dropoffAddress.line1 || '',
+            street2: dropoffAddress.unit || dropoffAddress.address2 || dropoffAddress.line2 || '',
+            line2: dropoffAddress.unit || dropoffAddress.address2 || dropoffAddress.line2 || '',
+            city: dropoffAddress.city || '',
+            state: dropoffAddress.state || '',
+            zip: dropoffAddress.zip || dropoffAddress.postalCode || '',
+            country: dropoffAddress.country || 'US',
+          }
+        };
+
+        const resp = await fetch('/api/uber/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.ok || !data?.quote) {
+          const msg = data?.error || data?.details?.message || data?.details?.title || 'Uber Direct quote unavailable.';
+          return { ok: false, error: msg, details: data?.details };
+        }
+
+        const feeCents = Number(data.quote.fee);
+        const quoteId = data.quote.id;
+        if (!quoteId || !Number.isFinite(feeCents)) {
+          return { ok: false, error: 'Uber Direct returned an invalid quote.' };
+        }
+
+        return { ok: true, quoteId, feeCents, fee: dollarsFromCents(feeCents) };
+      } catch (err) {
+        const msg = (err && err.name === 'AbortError') ? 'Uber quote timed out.' : 'Uber quote failed.';
+        return { ok: false, error: msg };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
     function normalizeStreetTokens(street) {
       if (!street) return '';
       const map = {
@@ -500,12 +563,13 @@
         }
 
         const data = await resp.json();
-        if (!data || !data.lat || !data.lng) return null;
+        // Backend returns { lat, lng, displayName }. Keep key name as `lng`.
+        if (!data || data.lat == null || data.lng == null) return null;
 
         return {
           lat: Number(data.lat),
-          lon: Number(data.lng),
-          display_name: data.display_name || "",
+          lng: Number(data.lng),
+          displayName: data.displayName || data.display_name || "",
         };
       } catch (err) {
         console.warn("[geocode] exception", err);
@@ -522,6 +586,7 @@
       if (info) info.style.display = 'none';
       const notice = document.getElementById('delivery-availability-notice');
       if (notice) notice.style.display = 'none';
+      selectedUberQuote = { quoteId: null, feeCents: null, isLive: false, storeId: null, error: null };
       setDeliveryFee(0);
     }
 
@@ -581,7 +646,8 @@
               <span class="availability ${availabilityClass}">${availabilityLabel}</span>
             </div>
             <div class="store-address">${option.address}</div>
-            <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
+            <div class="store-distance">~${distanceLabel} miles • ${option.quoteLive ? 'Uber Direct fee' : 'Estimated fee'} $${option.fee.toFixed(2)}</div>
+            ${option.quoteLive ? '' : (option.quoteError ? `<div class="store-distance" style="color:#b45309;">Uber Direct unavailable — manual dispatch</div>` : '')}
             ${warning}
           </label>
         `;
@@ -599,12 +665,12 @@
 
       applyDeliverySelection();
     }
-
     function applyDeliverySelection() {
       if (!deliveryStoreOptions.length) {
         setDeliveryFee(0);
         updateClosestStoreHighlight(null);
         updateDeliveryNotice(null);
+        selectedUberQuote = { quoteId: null, feeCents: null, isLive: false, storeId: null, error: null };
         return;
       }
       if (!selectedDeliveryStore) selectedDeliveryStore = deliveryStoreOptions[0].name;
@@ -612,14 +678,31 @@
       const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
       selectedDeliveryStore = selectedOption.name;
       setDeliveryFee(selectedOption.fee);
+
+      // Track the quote tied to the currently selected delivery store
+      selectedUberQuote = {
+        quoteId: selectedOption.quoteId || null,
+        feeCents: selectedOption.feeCents || null,
+        isLive: !!selectedOption.quoteLive,
+        storeId: normalizeStoreId(selectedOption.name),
+        error: selectedOption.quoteError || null,
+      };
+
       updateClosestStoreHighlight(deliveryStoreOptions[0]);
       updateDeliveryNotice(selectedOption);
     }
 
-    async function buildDeliveryStoreOptions(lat, lng) {
+    async function buildDeliveryStoreOptions(lat, lng, dropoffAddress) {
       if (!allStores.length) { clearDeliveryOptions(); return; }
 
+      // Increment request sequence so any in-flight quote requests from a previous address are ignored
+      const requestSeq = ++_uberQuoteRequestSeq;
+
+      const dropoff = dropoffAddress || userDropoffAddress;
+      const hasFullDropoff = !!(dropoff && (dropoff.street || dropoff.address) && dropoff.city && dropoff.state && dropoff.zip);
+
       const totalItems = cartProductIds.length;
+
       const results = await Promise.all(allStores.map(async store => {
         const availability = await getStoreAvailability(store.name);
         const availableCount = Object.values(availability || {}).filter(Boolean).length;
@@ -627,22 +710,53 @@
 
         const storeLat = parseFloat(store.latitude);
         const storeLng = parseFloat(store.longitude);
-        const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
-        const fee = estimateDeliveryFee(distance);
+        const distance = (Number.isNaN(storeLat) || Number.isNaN(storeLng)) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
+        const fallbackFee = estimateDeliveryFee(distance);
 
-        return { ...store, distance, fee, availableCount, missingCount };
+        const pickupStoreId = normalizeStoreId(store.name);
+
+        let fee = fallbackFee;
+        let quoteLive = false;
+        let quoteId = null;
+        let feeCents = null;
+        let quoteError = null;
+
+        // Try live Uber Direct quote first (recommended). Only fall back to our estimate if Uber can’t quote.
+        if (hasFullDropoff && pickupStoreId) {
+          const q = await requestUberDirectQuote(pickupStoreId, dropoff);
+          if (q.ok) {
+            fee = q.fee;
+            quoteLive = true;
+            quoteId = q.quoteId;
+            feeCents = q.feeCents;
+          } else {
+            quoteLive = false;
+            quoteError = q.error || 'Uber Direct quote unavailable.';
+          }
+        } else {
+          quoteLive = false;
+          quoteError = 'Enter your full address to get a live Uber quote.';
+        }
+
+        // If a newer request started, drop this result
+        if (requestSeq !== _uberQuoteRequestSeq) return null;
+
+        return { ...store, distance, fee, availableCount, missingCount, quoteLive, quoteId, feeCents, quoteError };
       }));
 
-      results.sort((a, b) => a.distance - b.distance);
+      if (requestSeq !== _uberQuoteRequestSeq) return;
+
+      const clean = results.filter(Boolean);
+      clean.sort((a, b) => a.distance - b.distance);
 
       const previousSelection = selectedDeliveryStore;
-      deliveryStoreOptions = results;
+      deliveryStoreOptions = clean;
 
-      if (previousSelection && results.some(option => option.name === previousSelection)) {
+      if (previousSelection && clean.some(option => option.name === previousSelection)) {
         selectedDeliveryStore = previousSelection;
       } else {
-        const fullyStocked = results.find(option => option.missingCount === 0);
-        selectedDeliveryStore = (fullyStocked || results[0]) ? (fullyStocked || results[0]).name : null;
+        const fullyStocked = clean.find(option => option.missingCount === 0);
+        selectedDeliveryStore = (fullyStocked || clean[0]) ? (fullyStocked || clean[0]).name : null;
       }
 
       renderDeliveryStores();
@@ -666,7 +780,7 @@
         }
 
         if (userDeliveryLocation) {
-          await buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
+          await buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng, userDropoffAddress);
         }
       } catch (err) {
         console.error('Error initializing stores:', err);
@@ -763,7 +877,7 @@
 
         if (isDelivery) {
           if (deliveryStoreOptions.length) applyDeliverySelection();
-          else if (userDeliveryLocation) buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng);
+          else if (userDeliveryLocation) buildDeliveryStoreOptions(userDeliveryLocation.lat, userDeliveryLocation.lng, userDropoffAddress);
           else setDeliveryFee(0);
         } else {
           setDeliveryFee(0);
@@ -812,7 +926,8 @@
           }
 
           userDeliveryLocation = coords;
-          await buildDeliveryStoreOptions(coords.lat, coords.lng);
+          userDropoffAddress = { street, unit: document.querySelector('input[name="unit"]').value.trim(), city, state, zip, country: "US" };
+          await buildDeliveryStoreOptions(coords.lat, coords.lng, userDropoffAddress);
         } catch (err) {
           console.error('Error finding closest store:', err);
           if (helper) helper.textContent = 'Something went wrong while finding nearby stores.';
@@ -968,7 +1083,14 @@
         pickupStoreId,
         pickupStoreLabel: storeLabelFromId(pickupStoreId),
         pickupStore: selectedStore,
-        selectedDeliveryStore
+        selectedDeliveryStore,
+
+        // Uber Direct quote (used to keep UI pricing aligned with delivery creation)
+        uberQuoteId: selectedUberQuote.quoteId,
+        uberQuoteFeeCents: selectedUberQuote.feeCents,
+        uberQuoteLive: selectedUberQuote.isLive,
+        uberQuoteStoreId: selectedUberQuote.storeId,
+        uberQuoteError: selectedUberQuote.error,
       };
 
       const resp = await fetch('/api/authorize/charge', {
