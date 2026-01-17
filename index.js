@@ -2580,17 +2580,23 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
   return data;
 }
 
+// Uber Direct expects pickup_address/dropoff_address to be a *stringified JSON object*
+// (not a nested JSON object). When we send an object, Uber returns:
+// "expected string value, got jsonitor.ValueType(6)".
 function uberAddressJsonString(addressObj = {}) {
   const street = Array.isArray(addressObj.street_address)
     ? addressObj.street_address.filter(Boolean)
     : [addressObj.street_address].filter(Boolean);
-  return {
+
+  const normalized = {
     street_address: street,
     city: addressObj.city || '',
     state: addressObj.state || '',
     zip_code: addressObj.zip_code || '',
     country: addressObj.country || 'US',
   };
+
+  return JSON.stringify(normalized);
 }
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
@@ -2910,90 +2916,36 @@ app.post('/api/authorize/charge', async (req, res) => {
         const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
         console.log('[Uber Direct] courier contact', { dropoffName, dropoffPhone });
         const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
+        console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
 
-        // If the UI could not obtain a live Uber Direct quote, do NOT attempt delivery creation.
-        // We still capture payment (per your requirement) and mark this order for manual dispatch.
-        const clientQuoteLive = body?.uberQuoteLive === undefined ? true : !!body.uberQuoteLive;
-        const clientQuoteId = typeof body?.uberQuoteId === 'string' ? body.uberQuoteId.trim() : '';
-        const clientQuoteStoreId = normalizeStoreId(body?.uberQuoteStoreId || pickupStoreId);
-        const clientQuoteFeeCents = Number(body?.uberQuoteFeeCents);
-        const clientQuoteFee = Number.isFinite(clientQuoteFeeCents) ? clientQuoteFeeCents : null;
+        const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+        console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
 
-        if (!clientQuoteLive) {
-          uberError = body?.uberQuoteError || 'Uber Direct quote unavailable — manual dispatch required.';
-          console.log('[Uber Direct] skipping delivery create (manual dispatch)', { pickupStoreId, reason: uberError });
-        } else {
-          console.log('[Uber Direct] quote request input', {
-            pickupStoreId,
-            manifestCents,
-            reuseClientQuote: !!clientQuoteId,
-          });
+        const delivery = await uberCreateDelivery({
+          quoteId: quote?.id,
+          pickupStoreId,
+          dropoffName,
+          dropoffPhone,
+          dropoffAddress,
+          manifestTotalValueCents: manifestCents,
+          manifestReference: `order-${transId}`,
+        });
+        console.log('[Uber Direct] delivery response', {
+          deliveryId: delivery?.id,
+          status: delivery?.status,
+          tracking: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url,
+          fee: delivery?.fee,
+        });
 
-          let quote = null;
-          let quoteFromClient = false;
-
-          // Prefer reusing the quote that was shown to the customer, to keep pricing aligned.
-          if (clientQuoteId && clientQuoteStoreId === pickupStoreId) {
-            quote = { id: clientQuoteId, fee: clientQuoteFee };
-            quoteFromClient = true;
-            console.log('[Uber Direct] using client quote', { quoteId: clientQuoteId, fee: clientQuoteFee });
-          } else {
-            quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
-            console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
-          }
-
-          let delivery;
-          try {
-            delivery = await uberCreateDelivery({
-              quoteId: quote?.id,
-              pickupStoreId,
-              dropoffName,
-              dropoffPhone,
-              dropoffAddress,
-              manifestTotalValueCents: manifestCents,
-              manifestReference: `order-${transId}`,
-            });
-          } catch (errDelivery) {
-            // If the client quote expired/was invalid, retry once with a fresh quote.
-            if (quoteFromClient) {
-              console.warn('[Uber Direct] delivery create failed with client quote; retrying with fresh quote', {
-                error: errDelivery?.message || String(errDelivery),
-              });
-              const freshQuote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
-              console.log('[Uber Direct] quote response (retry)', { quoteId: freshQuote?.id, fee: freshQuote?.fee, currency: freshQuote?.currency_code });
-              quote = freshQuote;
-              delivery = await uberCreateDelivery({
-                quoteId: quote?.id,
-                pickupStoreId,
-                dropoffName,
-                dropoffPhone,
-                dropoffAddress,
-                manifestTotalValueCents: manifestCents,
-                manifestReference: `order-${transId}`,
-              });
-            } else {
-              throw errDelivery;
-            }
-          }
-
-          console.log('[Uber Direct] delivery response', {
-            deliveryId: delivery?.id,
-            status: delivery?.status,
-            tracking: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url,
-            fee: delivery?.fee,
-          });
-
-          uberDelivery = {
-            deliveryId: delivery?.id || null,
-            trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url || null,
-            status: delivery?.status || null,
-            fee: delivery?.fee || null,
-            quoteId: quote?.id || null,
-            pickupStoreId,
-          };
-        }
+        uberDelivery = {
+          deliveryId: delivery?.id || null,
+          trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url || null,
+          status: delivery?.status || null,
+          fee: delivery?.fee || null,
+          quoteId: quote?.id || null,
+          pickupStoreId,
+        };
       } else {
-
         console.log('[Uber Direct] courier branch skipped (delivery not selected)');
       }
     } catch (e) {
