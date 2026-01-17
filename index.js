@@ -2882,7 +2882,6 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
-    // If this checkout used Uber courier, create the courier job AFTER payment.
     let uberDelivery = null;
     let uberError = null;
     try {
@@ -2893,6 +2892,14 @@ app.post('/api/authorize/charge', async (req, res) => {
         );
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
+        console.log('[Uber Direct] courier branch start', {
+          pickupStoreId,
+          billingKeys: Object.keys(billingInfo || {}),
+          dropoffStreetLines: dropoffAddress.street_address,
+          dropoffCity: dropoffAddress.city,
+          dropoffState: dropoffAddress.state,
+          dropoffZip: dropoffAddress.zip_code,
+        });
         if (!dropoffAddress.street_address.length || !dropoffAddress.city || !dropoffAddress.state || !dropoffAddress.zip_code) {
           throw new Error('Missing delivery address fields.');
         }
@@ -2901,9 +2908,12 @@ app.post('/api/authorize/charge', async (req, res) => {
           throw new Error('Missing delivery phone number.');
         }
         const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
+        console.log('[Uber Direct] courier contact', { dropoffName, dropoffPhone });
         const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
+        console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
 
         const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+        console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
 
         const delivery = await uberCreateDelivery({
           quoteId: quote?.id,
@@ -2914,6 +2924,12 @@ app.post('/api/authorize/charge', async (req, res) => {
           manifestTotalValueCents: manifestCents,
           manifestReference: `order-${transId}`,
         });
+        console.log('[Uber Direct] delivery response', {
+          deliveryId: delivery?.id,
+          status: delivery?.status,
+          tracking: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url,
+          fee: delivery?.fee,
+        });
 
         uberDelivery = {
           deliveryId: delivery?.id || null,
@@ -2923,10 +2939,15 @@ app.post('/api/authorize/charge', async (req, res) => {
           quoteId: quote?.id || null,
           pickupStoreId,
         };
+      } else {
+        console.log('[Uber Direct] courier branch skipped (delivery not selected)');
       }
     } catch (e) {
       uberError = e?.message || 'Uber courier request failed.';
-      console.error('[Uber Direct] post-payment delivery create failed:', uberError);
+      console.error('[Uber Direct] post-payment delivery create failed:', {
+        error: uberError,
+        stack: e?.stack,
+      });
     }
 
     return res.json({

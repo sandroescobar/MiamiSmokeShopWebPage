@@ -928,7 +928,12 @@
           firstName,
           lastName,
           phoneNumber: phone,
-          address: addressLine,
+          phone,
+          street,
+          address: street || addressLine,
+          address2: unit,
+          street2: unit,
+          unit,
           city,
           state,
           zip,
@@ -957,7 +962,7 @@
       const payload = {
         opaqueData,
         totals: checkoutTotals,
-        customer: { email: customer.email },
+        customer,
         billing,
         deliveryMethod,
         pickupStoreId,
@@ -1066,7 +1071,9 @@
               totals: checkoutTotals,
               pickupStoreId: pickupStoreId || null,
               pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
-              serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null
+              serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
+              uberError: serverResult?.uberError || null,
+              deliveryWarning: serverResult?.uberError || null
             };
             sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
           } catch (_) {}
