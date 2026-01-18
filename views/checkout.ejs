@@ -1210,39 +1210,43 @@
           paySetHint('Payment approved ✅');
 
           // Persist success payload for /checkout-success
-          try {
-            const deliveryMethod = getSelectedDeliveryMethod();
-            const computedPickupStoreId = (deliveryMethod === 'delivery')
-              ? normalizeStoreId(selectedDeliveryStore || selectedStore)
-              : normalizeStoreId(selectedStore);
-            const successItems = cloneCartItemsForReceipt();
-            const storeLabel = storeLabelFromId(computedPickupStoreId);
+          // Persist success payload for /checkout-success
+try {
+  const deliveryMethod = getSelectedDeliveryMethod();
 
-            const successPayload = {
-              receipt: serverResult?.receipt || null,
-              transactionId: serverResult?.transactionId || null,
-              authCode: serverResult?.authCode || null,
-              deliveryMethod,
-              fulfillmentMethod: deliveryMethod,
-              totals: checkoutTotals,
-              subtotal: checkoutTotals.subtotal,
-              tax: checkoutTotals.tax,
-              delivery: checkoutTotals.delivery,
-              total: checkoutTotals.total,
-              pickupStoreId: computedPickupStoreId || null,
-              pickupStoreLabel: storeLabel || null,
-              storeLabel: storeLabel || null,
-              items: successItems,
-              customer,
-              billing,
-              serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
-              uberError: serverResult?.uberError || null,
-              deliveryWarning: serverResult?.uberError || null,
-              inventoryAdjustment: serverResult?.inventoryAdjustment || null
-            };
-            sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
-            localStorage.setItem('checkoutSuccessPayloadBackup', JSON.stringify(successPayload));
-          } catch (_) {}
+  // IMPORTANT: define pickupStoreId in THIS scope (was undefined before)
+  const pickupStoreId =
+    deliveryMethod === 'delivery'
+      ? normalizeStoreId((window.selectedDeliveryStore || window.selectedStore) || '')
+      : normalizeStoreId(window.selectedStore || '');
+
+  // Build a receipt from the cart + totals we already have (don’t rely on serverResult.receipt)
+  let cartItems = [];
+  try { cartItems = JSON.parse(localStorage.getItem('cart') || '[]'); } catch (_) {}
+
+  const receipt = {
+    items: cartItems,
+    totals: checkoutTotals,
+    transactionId: serverResult?.transactionId || null,
+    authCode: serverResult?.authCode || null
+  };
+
+  const successPayload = {
+    receipt,
+    deliveryMethod,
+    totals: checkoutTotals,
+    pickupStoreId: pickupStoreId || null,
+    pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
+    serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
+    uberError: serverResult?.uberError || null,
+    deliveryWarning: serverResult?.uberError || null
+  };
+
+  sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+} catch (e) {
+  console.error('[checkout] failed to persist success payload:', e);
+}
+
 
           try { localStorage.removeItem('cart'); } catch (_) {}
           setTimeout(() => { window.location.href = '/checkout-success'; }, 200);
