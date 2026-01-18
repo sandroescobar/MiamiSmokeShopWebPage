@@ -1096,6 +1096,24 @@
       return String(id ?? '').trim();
     }
 
+    function cloneCartItemsForReceipt() {
+      if (!Array.isArray(cartItems)) return [];
+      return cartItems.map((item) => {
+        const qty = Math.max(1, Number(item?.quantity) || 1);
+        const priceValue =
+          typeof item?.price === 'number'
+            ? item.price
+            : parseFloat(String(item?.price || '').replace(/[^0-9.]/g, ''));
+        return {
+          id: item?.id ?? null,
+          name: item?.name || '',
+          flavor: item?.flavor || '',
+          quantity: qty,
+          price: Number.isFinite(priceValue) ? priceValue : 0,
+        };
+      });
+    }
+
     async function submitCharge(opaqueData) {
       const { customer, billing } = buildBillingFromForm();
 
@@ -1197,15 +1215,30 @@
             const computedPickupStoreId = (deliveryMethod === 'delivery')
               ? normalizeStoreId(selectedDeliveryStore || selectedStore)
               : normalizeStoreId(selectedStore);
+            const successItems = cloneCartItemsForReceipt();
+            const storeLabel = storeLabelFromId(computedPickupStoreId);
 
             const successPayload = {
               receipt: serverResult?.receipt || null,
+              transactionId: serverResult?.transactionId || null,
+              authCode: serverResult?.authCode || null,
               deliveryMethod,
+              fulfillmentMethod: deliveryMethod,
               totals: checkoutTotals,
+              subtotal: checkoutTotals.subtotal,
+              tax: checkoutTotals.tax,
+              delivery: checkoutTotals.delivery,
+              total: checkoutTotals.total,
               pickupStoreId: computedPickupStoreId || null,
-              pickupStoreLabel: storeLabelFromId(computedPickupStoreId) || null,
+              pickupStoreLabel: storeLabel || null,
+              storeLabel: storeLabel || null,
+              items: successItems,
+              customer,
+              billing,
               serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
-              uberError: serverResult?.uberError || null
+              uberError: serverResult?.uberError || null,
+              deliveryWarning: serverResult?.uberError || null,
+              inventoryAdjustment: serverResult?.inventoryAdjustment || null
             };
             sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
           } catch (_) {}
