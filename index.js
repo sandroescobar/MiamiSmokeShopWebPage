@@ -7,6 +7,222 @@ import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
 
+
+// ---------------- Slack order notifications ----------------
+// Keep the webhook in an environment variable and DO NOT commit it to git.
+// Render/Railway/etc: set SLACK_WEBHOOK_URL to your Incoming Webhook URL.
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
+
+function formatUSD(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '$0.00';
+  return `$${n.toFixed(2)}`;
+}
+
+function centsToDollarsMaybe(value) {
+  // Uber often returns fee in cents. If it's a large integer, assume cents.
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (Number.isInteger(n) && n >= 50) return n / 100;
+  return n;
+}
+
+function sanitizeOrderItemsPayload(raw) {
+  const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+  const out = [];
+  for (const item of arr) {
+    if (!item || typeof item !== 'object') continue;
+    const name = String(item.name || item.title || item.product_name || '').trim();
+    if (!name) continue;
+    const quantity = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+    const price = Number(
+      typeof item.price === 'string'
+        ? String(item.price).replace('$', '')
+        : (item.price ?? item.unit_price ?? item.unitPrice ?? NaN)
+    );
+    out.push({
+      name,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      price: Number.isFinite(price) ? price : null,
+    });
+  }
+  return out;
+}
+
+function sanitizeTotalsPayload(raw) {
+  const t = (raw && typeof raw === 'object') ? raw : {};
+  const subtotal = Number(t.subtotal ?? t.sub_total ?? t.subTotal ?? NaN);
+  const tax = Number(t.tax ?? t.taxAmount ?? NaN);
+  const delivery = Number(t.delivery ?? t.deliveryFee ?? t.shipping ?? NaN);
+  const total = Number(t.total ?? t.amount ?? t.totalAmount ?? NaN);
+  return {
+    subtotal: Number.isFinite(subtotal) ? subtotal : null,
+    tax: Number.isFinite(tax) ? tax : null,
+    delivery: Number.isFinite(delivery) ? delivery : null,
+    total: Number.isFinite(total) ? total : null,
+  };
+}
+
+function formatDropoffFromBilling(billing) {
+  const b = (billing && typeof billing === 'object') ? billing : {};
+  const parts = [];
+  const line1 = String(b.address || b.street || '').trim();
+  const line2 = String(b.address2 || b.street2 || b.unit || '').trim();
+  if (line1) parts.push(line1);
+  if (line2) parts.push(line2);
+  const city = String(b.city || '').trim();
+  const state = String(b.state || '').trim();
+  const zip = String(b.zip || '').trim();
+  const csz = [city, state].filter(Boolean).join(', ');
+  const tail = [csz, zip].filter(Boolean).join(' ');
+  if (tail) parts.push(tail);
+  return parts.join(' • ');
+}
+
+async function postToSlack(payload) {
+  if (!SLACK_WEBHOOK_URL) return { ok: false, skipped: true };
+  try {
+    const resp = await fetch(SLACK_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.warn('[Slack] webhook failed', resp.status, t.slice(0, 300));
+      return { ok: false, status: resp.status };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.warn('[Slack] webhook exception', err);
+    return { ok: false, error: err?.message };
+  }
+}
+
+async function sendSlackOrderNotification({
+  transactionId,
+  chargedTotal,
+  deliveryMethod,
+  pickupStoreId,
+  pickupStoreLabel,
+  customer,
+  billing,
+  items,
+  totals,
+  uberDelivery,
+  uberError,
+}) {
+  if (!SLACK_WEBHOOK_URL) return { ok: false, skipped: true };
+
+  const c = (customer && typeof customer === 'object') ? customer : {};
+  const b = (billing && typeof billing === 'object') ? billing : {};
+  const isDelivery = String(deliveryMethod || '').toLowerCase() === 'delivery';
+  const methodLabel = isDelivery ? 'Uber Delivery' : 'Store pickup';
+
+  const name = String(`${c.firstName || b.firstName || ''} ${c.lastName || b.lastName || ''}`).trim() || 'Customer';
+  const email = String(c.email || '').trim();
+  const phone = String(c.phone || c.phoneNumber || b.phone || b.phoneNumber || '').trim();
+
+  const dropoff = isDelivery ? (formatDropoffFromBilling(b) || '—') : null;
+
+  const deliveryFeeFromTotals = totals && totals.delivery !== null && totals.delivery !== undefined ? totals.delivery : null;
+  const deliveryFeeFromUber = centsToDollarsMaybe(uberDelivery && uberDelivery.fee);
+  const deliveryFee = isDelivery ? (deliveryFeeFromTotals !== null ? deliveryFeeFromTotals : (deliveryFeeFromUber !== null ? deliveryFeeFromUber : null)) : 0;
+
+  const charged = Number.isFinite(Number(chargedTotal)) ? Number(chargedTotal) : (totals && totals.total !== null ? totals.total : null);
+
+  const storeLabel = pickupStoreLabel || (typeof storeLabelFromId === 'function' ? storeLabelFromId(pickupStoreId) : pickupStoreId);
+
+  const itemLines = (Array.isArray(items) ? items : []).map((it) => {
+    const qty = Number(it?.quantity) || 1;
+    const price = (it?.price !== null && it?.price !== undefined) ? Number(it.price) : null;
+    const suffix = price !== null && Number.isFinite(price) ? ` — ${formatUSD(price)} ea` : '';
+    return `• ${it.name} ×${qty}${suffix}`;
+  });
+
+  const trackingUrl = uberDelivery?.trackingUrl || uberDelivery?.tracking_url || uberDelivery?.share_url || null;
+
+  const blocks = [];
+  blocks.push({
+    type: 'header',
+    text: { type: 'plain_text', text: `New Order: ${formatUSD(charged)} — ${methodLabel}`, emoji: true },
+  });
+
+  blocks.push({
+    type: 'section',
+    fields: [
+      { type: 'mrkdwn', text: `*Transaction*
+${transactionId || '—'}` },
+      { type: 'mrkdwn', text: `*Pickup Store*
+${storeLabel || '—'}` },
+      { type: 'mrkdwn', text: `*Customer*
+${name}` },
+      { type: 'mrkdwn', text: `*Email*
+${email || '—'}` },
+      { type: 'mrkdwn', text: `*Phone*
+${phone || '—'}` },
+      { type: 'mrkdwn', text: `*Method*
+${methodLabel}` },
+    ],
+  });
+
+  if (isDelivery) {
+    blocks.push({
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*Dropoff*
+${dropoff || '—'}` },
+        { type: 'mrkdwn', text: `*Delivery fee*
+${deliveryFee !== null ? formatUSD(deliveryFee) : '—'}` },
+      ],
+    });
+  }
+
+  blocks.push({ type: 'divider' });
+
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `*Items*
+${itemLines.length ? itemLines.join('\n') : '— (No items provided by client payload)'}` },
+  });
+
+  const subtotal = totals?.subtotal;
+  const tax = totals?.tax;
+  const delivery = totals?.delivery;
+  const total = totals?.total;
+
+  const totalsLines = [
+    subtotal !== null && subtotal !== undefined ? `Subtotal: ${formatUSD(subtotal)}` : null,
+    delivery !== null && delivery !== undefined ? `Delivery: ${formatUSD(delivery)}` : null,
+    tax !== null && tax !== undefined ? `Tax: ${formatUSD(tax)}` : null,
+    total !== null && total !== undefined ? `Total: ${formatUSD(total)}` : (charged !== null ? `Total charged: ${formatUSD(charged)}` : null),
+  ].filter(Boolean);
+
+  if (totalsLines.length) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: totalsLines.join(' • ') }],
+    });
+  }
+
+  if (trackingUrl) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Live tracking:* ${trackingUrl}` },
+    });
+  }
+
+  if (uberError) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Uber status:* Manual dispatch needed — ${uberError}` },
+    });
+  }
+
+  return postToSlack({ blocks });
+}
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
@@ -2246,9 +2462,9 @@ app.get('/checkout', (req, res) => {
     // These get injected into checkout.ejs so the browser can tokenize card data.
     // Make sure these env vars are set where your app runs.
     authorizeLoginId: _getAuthNetConfig().apiLoginId,
-    
+
     authorizeClientKey: _getAuthNetConfig().clientKey,
-    
+
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
 
@@ -2580,23 +2796,17 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
   return data;
 }
 
-// Uber Direct expects pickup_address/dropoff_address to be a *stringified JSON object*
-// (not a nested JSON object). When we send an object, Uber returns:
-// "expected string value, got jsonitor.ValueType(6)".
 function uberAddressJsonString(addressObj = {}) {
   const street = Array.isArray(addressObj.street_address)
     ? addressObj.street_address.filter(Boolean)
     : [addressObj.street_address].filter(Boolean);
-
-  const normalized = {
+  return {
     street_address: street,
     city: addressObj.city || '',
     state: addressObj.state || '',
     zip_code: addressObj.zip_code || '',
     country: addressObj.country || 'US',
   };
-
-  return JSON.stringify(normalized);
 }
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
@@ -2766,6 +2976,21 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
+
+    // Values used for downstream fulfillment and Slack notifications
+    const deliveryMethodSelected = String(body?.deliveryMethod || body?.delivery_method || '').toLowerCase() || 'pickup';
+    const orderItemsForOps = sanitizeOrderItemsPayload(body.cartItems || body.items || body.cart || body.orderItems || body.order?.items);
+    const totalsForOps = sanitizeTotalsPayload(body.totals || body.order?.totals || {});
+    const pickupStoreIdForOps = normalizeStoreId(
+      body.pickupStoreId ||
+      body.selectedDeliveryStore ||
+      body.pickupStore ||
+      body.pickupStoreLabel ||
+      body.pickupStoreName ||
+      body.store ||
+      'calle8'
+    );
+
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -2891,7 +3116,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     let uberDelivery = null;
     let uberError = null;
     try {
-      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
+      const deliveryMethod = deliveryMethodSelected;
       if (deliveryMethod === 'delivery') {
         const pickupStoreId = normalizeStoreId(
           body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
@@ -2954,6 +3179,27 @@ app.post('/api/authorize/charge', async (req, res) => {
         error: uberError,
         stack: e?.stack,
       });
+    }
+
+
+
+    // Send an internal Slack notification (non-blocking for checkout)
+    try {
+      await sendSlackOrderNotification({
+        transactionId: transId,
+        chargedTotal: numericAmount,
+        deliveryMethod: deliveryMethodSelected,
+        pickupStoreId: pickupStoreIdForOps,
+        pickupStoreLabel: (typeof storeLabelFromId === 'function') ? storeLabelFromId(pickupStoreIdForOps) : pickupStoreIdForOps,
+        customer: body.customer || {},
+        billing: body.billing || {},
+        items: orderItemsForOps,
+        totals: { ...totalsForOps, total: totalsForOps.total ?? numericAmount },
+        uberDelivery,
+        uberError,
+      });
+    } catch (e) {
+      console.warn('[Slack] order notification failed', e?.message || e);
     }
 
     return res.json({
