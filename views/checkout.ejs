@@ -1241,6 +1241,7 @@
               inventoryAdjustment: serverResult?.inventoryAdjustment || null
             };
             sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+            localStorage.setItem('checkoutSuccessPayloadBackup', JSON.stringify(successPayload));
           } catch (_) {}
 
           try { localStorage.removeItem('cart'); } catch (_) {}

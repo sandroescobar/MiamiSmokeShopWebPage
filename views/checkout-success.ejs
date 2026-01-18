@@ -126,6 +126,7 @@
   <script>
     (() => {
       const SUCCESS_STORAGE_KEY = 'checkoutSuccessPayload';
+      const SUCCESS_STORAGE_BACKUP_KEY = 'checkoutSuccessPayloadBackup';
       const SUCCESS_CART_STORAGE_KEY = 'cart';
       const CART_LAST_CLOSED_KEY = 'cartLastClosedAt';
 
@@ -145,10 +146,13 @@
       function loadPayload() {
         try {
           const raw = sessionStorage.getItem(SUCCESS_STORAGE_KEY);
-          return raw ? JSON.parse(raw) : null;
-        } catch (err) {
-          return null;
-        }
+          if (raw) return JSON.parse(raw);
+        } catch {}
+        try {
+          const rawBackup = localStorage.getItem(SUCCESS_STORAGE_BACKUP_KEY);
+          return rawBackup ? JSON.parse(rawBackup) : null;
+        } catch {}
+        return null;
       }
 
       function renderItems(items) {
@@ -302,6 +306,7 @@
           return;
         }
         try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
+        try { localStorage.removeItem(SUCCESS_STORAGE_BACKUP_KEY); } catch {}
         renderSummary(payload);
       }
 
