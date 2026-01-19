@@ -2874,8 +2874,12 @@ app.post('/api/uber/quote', async (req, res) => {
     const pickupStoreId = normalizeStoreId(body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || body.pickupStoreLabel);
 
     const dropoff = body.dropoffAddress || body.deliveryAddress || body.shippingAddress || body.billingAddress || body.billing || {};
+    const streetLine = [
+      dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1,
+      dropoff.street2 || dropoff.line2,
+    ].filter(Boolean).join(' ');
     const dropoffAddress = {
-      street_address: [dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1, dropoff.street2 || dropoff.line2].filter(Boolean),
+      street_address: streetLine,
       city: dropoff.city,
       state: dropoff.state,
       zip_code: dropoff.zip || dropoff.postalCode,
