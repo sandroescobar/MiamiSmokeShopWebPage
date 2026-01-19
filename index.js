@@ -7,222 +7,6 @@ import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
 
-
-// ---------------- Slack order notifications ----------------
-// Keep the webhook in an environment variable and DO NOT commit it to git.
-// Render/Railway/etc: set SLACK_WEBHOOK_URL to your Incoming Webhook URL.
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
-
-function formatUSD(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '$0.00';
-  return `$${n.toFixed(2)}`;
-}
-
-function centsToDollarsMaybe(value) {
-  // Uber often returns fee in cents. If it's a large integer, assume cents.
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  if (Number.isInteger(n) && n >= 50) return n / 100;
-  return n;
-}
-
-function sanitizeOrderItemsPayload(raw) {
-  const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-  const out = [];
-  for (const item of arr) {
-    if (!item || typeof item !== 'object') continue;
-    const name = String(item.name || item.title || item.product_name || '').trim();
-    if (!name) continue;
-    const quantity = Number(item.quantity ?? item.qty ?? item.count ?? 1);
-    const price = Number(
-      typeof item.price === 'string'
-        ? String(item.price).replace('$', '')
-        : (item.price ?? item.unit_price ?? item.unitPrice ?? NaN)
-    );
-    out.push({
-      name,
-      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
-      price: Number.isFinite(price) ? price : null,
-    });
-  }
-  return out;
-}
-
-function sanitizeTotalsPayload(raw) {
-  const t = (raw && typeof raw === 'object') ? raw : {};
-  const subtotal = Number(t.subtotal ?? t.sub_total ?? t.subTotal ?? NaN);
-  const tax = Number(t.tax ?? t.taxAmount ?? NaN);
-  const delivery = Number(t.delivery ?? t.deliveryFee ?? t.shipping ?? NaN);
-  const total = Number(t.total ?? t.amount ?? t.totalAmount ?? NaN);
-  return {
-    subtotal: Number.isFinite(subtotal) ? subtotal : null,
-    tax: Number.isFinite(tax) ? tax : null,
-    delivery: Number.isFinite(delivery) ? delivery : null,
-    total: Number.isFinite(total) ? total : null,
-  };
-}
-
-function formatDropoffFromBilling(billing) {
-  const b = (billing && typeof billing === 'object') ? billing : {};
-  const parts = [];
-  const line1 = String(b.address || b.street || '').trim();
-  const line2 = String(b.address2 || b.street2 || b.unit || '').trim();
-  if (line1) parts.push(line1);
-  if (line2) parts.push(line2);
-  const city = String(b.city || '').trim();
-  const state = String(b.state || '').trim();
-  const zip = String(b.zip || '').trim();
-  const csz = [city, state].filter(Boolean).join(', ');
-  const tail = [csz, zip].filter(Boolean).join(' ');
-  if (tail) parts.push(tail);
-  return parts.join(' • ');
-}
-
-async function postToSlack(payload) {
-  if (!SLACK_WEBHOOK_URL) return { ok: false, skipped: true };
-  try {
-    const resp = await fetch(SLACK_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const t = await resp.text().catch(() => '');
-      console.warn('[Slack] webhook failed', resp.status, t.slice(0, 300));
-      return { ok: false, status: resp.status };
-    }
-    return { ok: true };
-  } catch (err) {
-    console.warn('[Slack] webhook exception', err);
-    return { ok: false, error: err?.message };
-  }
-}
-
-async function sendSlackOrderNotification({
-  transactionId,
-  chargedTotal,
-  deliveryMethod,
-  pickupStoreId,
-  pickupStoreLabel,
-  customer,
-  billing,
-  items,
-  totals,
-  uberDelivery,
-  uberError,
-}) {
-  if (!SLACK_WEBHOOK_URL) return { ok: false, skipped: true };
-
-  const c = (customer && typeof customer === 'object') ? customer : {};
-  const b = (billing && typeof billing === 'object') ? billing : {};
-  const isDelivery = String(deliveryMethod || '').toLowerCase() === 'delivery';
-  const methodLabel = isDelivery ? 'Uber Delivery' : 'Store pickup';
-
-  const name = String(`${c.firstName || b.firstName || ''} ${c.lastName || b.lastName || ''}`).trim() || 'Customer';
-  const email = String(c.email || '').trim();
-  const phone = String(c.phone || c.phoneNumber || b.phone || b.phoneNumber || '').trim();
-
-  const dropoff = isDelivery ? (formatDropoffFromBilling(b) || '—') : null;
-
-  const deliveryFeeFromTotals = totals && totals.delivery !== null && totals.delivery !== undefined ? totals.delivery : null;
-  const deliveryFeeFromUber = centsToDollarsMaybe(uberDelivery && uberDelivery.fee);
-  const deliveryFee = isDelivery ? (deliveryFeeFromTotals !== null ? deliveryFeeFromTotals : (deliveryFeeFromUber !== null ? deliveryFeeFromUber : null)) : 0;
-
-  const charged = Number.isFinite(Number(chargedTotal)) ? Number(chargedTotal) : (totals && totals.total !== null ? totals.total : null);
-
-  const storeLabel = pickupStoreLabel || (typeof storeLabelFromId === 'function' ? storeLabelFromId(pickupStoreId) : pickupStoreId);
-
-  const itemLines = (Array.isArray(items) ? items : []).map((it) => {
-    const qty = Number(it?.quantity) || 1;
-    const price = (it?.price !== null && it?.price !== undefined) ? Number(it.price) : null;
-    const suffix = price !== null && Number.isFinite(price) ? ` — ${formatUSD(price)} ea` : '';
-    return `• ${it.name} ×${qty}${suffix}`;
-  });
-
-  const trackingUrl = uberDelivery?.trackingUrl || uberDelivery?.tracking_url || uberDelivery?.share_url || null;
-
-  const blocks = [];
-  blocks.push({
-    type: 'header',
-    text: { type: 'plain_text', text: `New Order: ${formatUSD(charged)} — ${methodLabel}`, emoji: true },
-  });
-
-  blocks.push({
-    type: 'section',
-    fields: [
-      { type: 'mrkdwn', text: `*Transaction*
-${transactionId || '—'}` },
-      { type: 'mrkdwn', text: `*Pickup Store*
-${storeLabel || '—'}` },
-      { type: 'mrkdwn', text: `*Customer*
-${name}` },
-      { type: 'mrkdwn', text: `*Email*
-${email || '—'}` },
-      { type: 'mrkdwn', text: `*Phone*
-${phone || '—'}` },
-      { type: 'mrkdwn', text: `*Method*
-${methodLabel}` },
-    ],
-  });
-
-  if (isDelivery) {
-    blocks.push({
-      type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: `*Dropoff*
-${dropoff || '—'}` },
-        { type: 'mrkdwn', text: `*Delivery fee*
-${deliveryFee !== null ? formatUSD(deliveryFee) : '—'}` },
-      ],
-    });
-  }
-
-  blocks.push({ type: 'divider' });
-
-  blocks.push({
-    type: 'section',
-    text: { type: 'mrkdwn', text: `*Items*
-${itemLines.length ? itemLines.join('\n') : '— (No items provided by client payload)'}` },
-  });
-
-  const subtotal = totals?.subtotal;
-  const tax = totals?.tax;
-  const delivery = totals?.delivery;
-  const total = totals?.total;
-
-  const totalsLines = [
-    subtotal !== null && subtotal !== undefined ? `Subtotal: ${formatUSD(subtotal)}` : null,
-    delivery !== null && delivery !== undefined ? `Delivery: ${formatUSD(delivery)}` : null,
-    tax !== null && tax !== undefined ? `Tax: ${formatUSD(tax)}` : null,
-    total !== null && total !== undefined ? `Total: ${formatUSD(total)}` : (charged !== null ? `Total charged: ${formatUSD(charged)}` : null),
-  ].filter(Boolean);
-
-  if (totalsLines.length) {
-    blocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: totalsLines.join(' • ') }],
-    });
-  }
-
-  if (trackingUrl) {
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*Live tracking:* ${trackingUrl}` },
-    });
-  }
-
-  if (uberError) {
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*Uber status:* Manual dispatch needed — ${uberError}` },
-    });
-  }
-
-  return postToSlack({ blocks });
-}
-
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
@@ -2462,9 +2246,9 @@ app.get('/checkout', (req, res) => {
     // These get injected into checkout.ejs so the browser can tokenize card data.
     // Make sure these env vars are set where your app runs.
     authorizeLoginId: _getAuthNetConfig().apiLoginId,
-
+    
     authorizeClientKey: _getAuthNetConfig().clientKey,
-
+    
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
 
@@ -2676,29 +2460,11 @@ function storeLabelFromId(storeId) {
   return id === '79th' ? '79th Street' : 'Calle 8';
 }
 
-function normalizeStreetLine(value) {
-  if (!value) return '';
-  if (Array.isArray(value)) {
-    return value.flat().filter(Boolean).map((part) => String(part).trim()).join(' ');
-  }
-  if (typeof value === 'object') {
-    const parts = [];
-    ['street_address', 'address', 'address1', 'address2', 'street', 'street1', 'street2', 'line1', 'line2']
-      .forEach((key) => {
-        if (value[key]) parts.push(String(value[key]).trim());
-      });
-    return parts.join(' ');
-  }
-  return String(value || '').trim();
-}
-
 function buildStoreAddress(storeId) {
   const id = normalizeStoreId(storeId);
   if (id === '79th') {
-    const street = normalizeStreetLine([
-      (process.env.STORE_79_STREET1 || '').trim(),
-      (process.env.STORE_79_STREET2 || '').trim(),
-    ]);
+    const line2 = (process.env.STORE_79_STREET2 || '').trim();
+    const street = [ (process.env.STORE_79_STREET1 || '').trim(), line2 ].filter(Boolean);
     return {
       street_address: street,
       city: (process.env.STORE_79_CITY || '').trim(),
@@ -2710,10 +2476,7 @@ function buildStoreAddress(storeId) {
     };
   }
 
-  const street = normalizeStreetLine([
-    (process.env.CALLE8_STREET1 || '').trim(),
-    (process.env.CALLE8_STREET2 || '').trim(),
-  ]);
+  const street = [ (process.env.CALLE8_STREET1 || '').trim() ].filter(Boolean);
   return {
     street_address: street,
     city: (process.env.CALLE8_CITY || '').trim(),
@@ -2726,15 +2489,15 @@ function buildStoreAddress(storeId) {
 }
 
 function buildCustomerDropoffAddress(billing = {}) {
-  const streetLine = normalizeStreetLine([
-    billing.street,
-    billing.address,
-    billing.address2,
-    billing.unit,
-    billing.street2,
-  ]);
+  const streetParts = [];
+  if (billing.street) streetParts.push(String(billing.street).trim());
+  if (billing.address) streetParts.push(String(billing.address).trim());
+  if (billing.address2) streetParts.push(String(billing.address2).trim());
+  const unit = billing.unit || billing.street2;
+  if (unit) streetParts.push(String(unit).trim());
+  const lines = streetParts.filter(Boolean);
   return {
-    street_address: streetLine,
+    street_address: lines,
     city: String(billing.city || '').trim(),
     state: String(billing.state || '').trim(),
     zip_code: String(billing.zip || billing.postalCode || '').trim(),
@@ -2817,35 +2580,38 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
   return data;
 }
 
-function formatUberAddress(addressObj = {}) {
-  const base = typeof addressObj === 'string' || Array.isArray(addressObj)
-    ? { street_address: addressObj }
-    : (addressObj || {});
-  const street = normalizeStreetLine([
-    base.street_address,
-    base.address,
-    base.address1,
-    base.address2,
-    base.street,
-    base.street1,
-    base.street2,
-    base.line1,
-    base.line2,
-  ]);
-  return {
-    street_address: street,
-    city: String(base.city || '').trim(),
-    state: String(base.state || '').trim(),
-    zip_code: String(base.zip_code || base.zip || '').trim(),
-    country: String(base.country || 'US').trim(),
+function uberAddressJsonString(addressObj = {}) {
+  // Uber Direct expects pickup_address/dropoff_address as a *string* containing JSON (not a nested object).
+  // street_address must be an array of address lines.
+
+  const rawLine1 = addressObj.street_address ?? addressObj.address ?? addressObj.address1 ?? addressObj.street1 ?? '';
+  const rawLine2 = addressObj.street2 ?? addressObj.address2 ?? '';
+
+  let streetLines;
+  if (Array.isArray(rawLine1)) {
+    streetLines = rawLine1.filter(Boolean).map(String);
+  } else {
+    streetLines = [rawLine1].filter(Boolean).map(String);
+  }
+  if (rawLine2) streetLines.push(String(rawLine2));
+
+  const normalized = {
+    street_address: streetLines,
+    city: String(addressObj.city || ''),
+    state: String(addressObj.state || ''),
+    zip_code: String(addressObj.zip_code || addressObj.zip || ''),
+    country: String(addressObj.country || 'US'),
   };
+
+  return JSON.stringify(normalized);
 }
+
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
   const store = buildStoreAddress(pickupStoreId);
   const payload = {
-    pickup_address: formatUberAddress(store),
-    dropoff_address: formatUberAddress(dropoffAddress),
+    pickup_address: uberAddressJsonString(store),
+    dropoff_address: uberAddressJsonString(dropoffAddress),
   };
 
   const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/delivery_quotes`, { method: 'POST', json: payload });
@@ -2858,11 +2624,11 @@ async function uberCreateDelivery({ quoteId, pickupStoreId, dropoffName, dropoff
     quote_id: quoteId,
     pickup_name: store.name,
     pickup_phone_number: store.phone_number || toE164US(process.env.CALLE8_PHONE || process.env.STORE_79_PHONE),
-    pickup_address: formatUberAddress(store),
+    pickup_address: uberAddressJsonString(store),
 
     dropoff_name: String(dropoffName || '').slice(0, 80) || 'Customer',
     dropoff_phone_number: toE164US(dropoffPhone),
-    dropoff_address: formatUberAddress(dropoffAddress),
+    dropoff_address: uberAddressJsonString(dropoffAddress),
 
     manifest_items: Array.isArray(manifestItems) && manifestItems.length ? manifestItems : [{ name: 'Order', quantity: 1, size: 'small', price: 0 }],
     manifest_total_value: Number.isFinite(Number(manifestTotalValueCents)) ? Number(manifestTotalValueCents) : 0,
@@ -2901,12 +2667,8 @@ app.post('/api/uber/quote', async (req, res) => {
     const pickupStoreId = normalizeStoreId(body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || body.pickupStoreLabel);
 
     const dropoff = body.dropoffAddress || body.deliveryAddress || body.shippingAddress || body.billingAddress || body.billing || {};
-    const streetLine = normalizeStreetLine([
-      dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1,
-      dropoff.street2 || dropoff.line2,
-    ]);
     const dropoffAddress = {
-      street_address: streetLine,
+      street_address: [dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1, dropoff.street2 || dropoff.line2].filter(Boolean),
       city: dropoff.city,
       state: dropoff.state,
       zip_code: dropoff.zip || dropoff.postalCode,
@@ -3012,21 +2774,6 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
-
-    // Values used for downstream fulfillment and Slack notifications
-    const deliveryMethodSelected = String(body?.deliveryMethod || body?.delivery_method || '').toLowerCase() || 'pickup';
-    const orderItemsForOps = sanitizeOrderItemsPayload(body.cartItems || body.items || body.cart || body.orderItems || body.order?.items);
-    const totalsForOps = sanitizeTotalsPayload(body.totals || body.order?.totals || {});
-    const pickupStoreIdForOps = normalizeStoreId(
-      body.pickupStoreId ||
-      body.selectedDeliveryStore ||
-      body.pickupStore ||
-      body.pickupStoreLabel ||
-      body.pickupStoreName ||
-      body.store ||
-      'calle8'
-    );
-
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -3139,7 +2886,6 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const trx = result?.transactionResponse;
     const transId = trx?.transId;
-    const responseCode = String(trx?.responseCode ?? '').trim();
 
     if (!transId) {
       console.error('[Authorize.Net] Missing transaction id', {
@@ -3150,28 +2896,10 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
-    if (responseCode !== '1') {
-      const declineError = trx?.errors?.[0]?.errorText || trx?.messages?.message?.[0]?.description || 'Card was declined.';
-      console.warn('[Authorize.Net] transaction not approved', {
-        transId,
-        responseCode,
-        declineError,
-        avsResult: trx?.avsResultCode,
-        cvvResult: trx?.cvvResultCode,
-      });
-      return res.status(402).json({
-        error: declineError,
-        code: responseCode,
-        transactionId: transId,
-        avsResult: trx?.avsResultCode,
-        cvvResult: trx?.cvvResultCode,
-      });
-    }
-
     let uberDelivery = null;
     let uberError = null;
     try {
-      const deliveryMethod = deliveryMethodSelected;
+      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
         const pickupStoreId = normalizeStoreId(
           body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
@@ -3234,27 +2962,6 @@ app.post('/api/authorize/charge', async (req, res) => {
         error: uberError,
         stack: e?.stack,
       });
-    }
-
-
-
-    // Send an internal Slack notification (non-blocking for checkout)
-    try {
-      await sendSlackOrderNotification({
-        transactionId: transId,
-        chargedTotal: numericAmount,
-        deliveryMethod: deliveryMethodSelected,
-        pickupStoreId: pickupStoreIdForOps,
-        pickupStoreLabel: (typeof storeLabelFromId === 'function') ? storeLabelFromId(pickupStoreIdForOps) : pickupStoreIdForOps,
-        customer: body.customer || {},
-        billing: body.billing || {},
-        items: orderItemsForOps,
-        totals: { ...totalsForOps, total: totalsForOps.total ?? numericAmount },
-        uberDelivery,
-        uberError,
-      });
-    } catch (e) {
-      console.warn('[Slack] order notification failed', e?.message || e);
     }
 
     return res.json({
