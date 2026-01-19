@@ -2817,22 +2817,35 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
   return data;
 }
 
-function uberAddressJsonString(addressObj = {}) {
-  const street = normalizeStreetLine(addressObj.street_address);
+function formatUberAddress(addressObj = {}) {
+  const base = typeof addressObj === 'string' || Array.isArray(addressObj)
+    ? { street_address: addressObj }
+    : (addressObj || {});
+  const street = normalizeStreetLine([
+    base.street_address,
+    base.address,
+    base.address1,
+    base.address2,
+    base.street,
+    base.street1,
+    base.street2,
+    base.line1,
+    base.line2,
+  ]);
   return {
     street_address: street,
-    city: String(addressObj.city || '').trim(),
-    state: String(addressObj.state || '').trim(),
-    zip_code: String(addressObj.zip_code || '').trim(),
-    country: String(addressObj.country || 'US').trim(),
+    city: String(base.city || '').trim(),
+    state: String(base.state || '').trim(),
+    zip_code: String(base.zip_code || base.zip || '').trim(),
+    country: String(base.country || 'US').trim(),
   };
 }
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
   const store = buildStoreAddress(pickupStoreId);
   const payload = {
-    pickup_address: uberAddressJsonString(store),
-    dropoff_address: uberAddressJsonString(dropoffAddress),
+    pickup_address: formatUberAddress(store),
+    dropoff_address: formatUberAddress(dropoffAddress),
   };
 
   const data = await uberRequest(`/customers/${UBER_DIRECT.customerId}/delivery_quotes`, { method: 'POST', json: payload });
@@ -2845,11 +2858,11 @@ async function uberCreateDelivery({ quoteId, pickupStoreId, dropoffName, dropoff
     quote_id: quoteId,
     pickup_name: store.name,
     pickup_phone_number: store.phone_number || toE164US(process.env.CALLE8_PHONE || process.env.STORE_79_PHONE),
-    pickup_address: uberAddressJsonString(store),
+    pickup_address: formatUberAddress(store),
 
     dropoff_name: String(dropoffName || '').slice(0, 80) || 'Customer',
     dropoff_phone_number: toE164US(dropoffPhone),
-    dropoff_address: uberAddressJsonString(dropoffAddress),
+    dropoff_address: formatUberAddress(dropoffAddress),
 
     manifest_items: Array.isArray(manifestItems) && manifestItems.length ? manifestItems : [{ name: 'Order', quantity: 1, size: 'small', price: 0 }],
     manifest_total_value: Number.isFinite(Number(manifestTotalValueCents)) ? Number(manifestTotalValueCents) : 0,
