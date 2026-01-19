@@ -2679,8 +2679,10 @@ function storeLabelFromId(storeId) {
 function buildStoreAddress(storeId) {
   const id = normalizeStoreId(storeId);
   if (id === '79th') {
-    const line2 = (process.env.STORE_79_STREET2 || '').trim();
-    const street = [ (process.env.STORE_79_STREET1 || '').trim(), line2 ].filter(Boolean);
+    const street = [
+      (process.env.STORE_79_STREET1 || '').trim(),
+      (process.env.STORE_79_STREET2 || '').trim(),
+    ].filter(Boolean).join(' ');
     return {
       street_address: street,
       city: (process.env.STORE_79_CITY || '').trim(),
@@ -2692,7 +2694,10 @@ function buildStoreAddress(storeId) {
     };
   }
 
-  const street = [ (process.env.CALLE8_STREET1 || '').trim() ].filter(Boolean);
+  const street = [
+    (process.env.CALLE8_STREET1 || '').trim(),
+    (process.env.CALLE8_STREET2 || '').trim(),
+  ].filter(Boolean).join(' ');
   return {
     street_address: street,
     city: (process.env.CALLE8_CITY || '').trim(),
@@ -2711,9 +2716,9 @@ function buildCustomerDropoffAddress(billing = {}) {
   if (billing.address2) streetParts.push(String(billing.address2).trim());
   const unit = billing.unit || billing.street2;
   if (unit) streetParts.push(String(unit).trim());
-  const lines = streetParts.filter(Boolean);
+  const streetLine = streetParts.filter(Boolean).join(' ');
   return {
-    street_address: lines,
+    street_address: streetLine,
     city: String(billing.city || '').trim(),
     state: String(billing.state || '').trim(),
     zip_code: String(billing.zip || billing.postalCode || '').trim(),
@@ -2798,8 +2803,8 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
 
 function uberAddressJsonString(addressObj = {}) {
   const street = Array.isArray(addressObj.street_address)
-    ? addressObj.street_address.filter(Boolean)
-    : [addressObj.street_address].filter(Boolean);
+    ? addressObj.street_address.filter(Boolean).join(' ')
+    : String(addressObj.street_address || '').trim();
   return {
     street_address: street,
     city: addressObj.city || '',
