@@ -2676,13 +2676,29 @@ function storeLabelFromId(storeId) {
   return id === '79th' ? '79th Street' : 'Calle 8';
 }
 
+function normalizeStreetLine(value) {
+  if (!value) return '';
+  if (Array.isArray(value)) {
+    return value.flat().filter(Boolean).map((part) => String(part).trim()).join(' ');
+  }
+  if (typeof value === 'object') {
+    const parts = [];
+    ['street_address', 'address', 'address1', 'address2', 'street', 'street1', 'street2', 'line1', 'line2']
+      .forEach((key) => {
+        if (value[key]) parts.push(String(value[key]).trim());
+      });
+    return parts.join(' ');
+  }
+  return String(value || '').trim();
+}
+
 function buildStoreAddress(storeId) {
   const id = normalizeStoreId(storeId);
   if (id === '79th') {
-    const street = [
+    const street = normalizeStreetLine([
       (process.env.STORE_79_STREET1 || '').trim(),
       (process.env.STORE_79_STREET2 || '').trim(),
-    ].filter(Boolean).join(' ');
+    ]);
     return {
       street_address: street,
       city: (process.env.STORE_79_CITY || '').trim(),
@@ -2694,10 +2710,10 @@ function buildStoreAddress(storeId) {
     };
   }
 
-  const street = [
+  const street = normalizeStreetLine([
     (process.env.CALLE8_STREET1 || '').trim(),
     (process.env.CALLE8_STREET2 || '').trim(),
-  ].filter(Boolean).join(' ');
+  ]);
   return {
     street_address: street,
     city: (process.env.CALLE8_CITY || '').trim(),
@@ -2710,13 +2726,13 @@ function buildStoreAddress(storeId) {
 }
 
 function buildCustomerDropoffAddress(billing = {}) {
-  const streetParts = [];
-  if (billing.street) streetParts.push(String(billing.street).trim());
-  if (billing.address) streetParts.push(String(billing.address).trim());
-  if (billing.address2) streetParts.push(String(billing.address2).trim());
-  const unit = billing.unit || billing.street2;
-  if (unit) streetParts.push(String(unit).trim());
-  const streetLine = streetParts.filter(Boolean).join(' ');
+  const streetLine = normalizeStreetLine([
+    billing.street,
+    billing.address,
+    billing.address2,
+    billing.unit,
+    billing.street2,
+  ]);
   return {
     street_address: streetLine,
     city: String(billing.city || '').trim(),
@@ -2802,15 +2818,13 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
 }
 
 function uberAddressJsonString(addressObj = {}) {
-  const street = Array.isArray(addressObj.street_address)
-    ? addressObj.street_address.filter(Boolean).join(' ')
-    : String(addressObj.street_address || '').trim();
+  const street = normalizeStreetLine(addressObj.street_address);
   return {
     street_address: street,
-    city: addressObj.city || '',
-    state: addressObj.state || '',
-    zip_code: addressObj.zip_code || '',
-    country: addressObj.country || 'US',
+    city: String(addressObj.city || '').trim(),
+    state: String(addressObj.state || '').trim(),
+    zip_code: String(addressObj.zip_code || '').trim(),
+    country: String(addressObj.country || 'US').trim(),
   };
 }
 
@@ -2874,10 +2888,10 @@ app.post('/api/uber/quote', async (req, res) => {
     const pickupStoreId = normalizeStoreId(body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || body.pickupStoreLabel);
 
     const dropoff = body.dropoffAddress || body.deliveryAddress || body.shippingAddress || body.billingAddress || body.billing || {};
-    const streetLine = [
+    const streetLine = normalizeStreetLine([
       dropoff.address || dropoff.street1 || dropoff.street || dropoff.line1,
       dropoff.street2 || dropoff.line2,
-    ].filter(Boolean).join(' ');
+    ]);
     const dropoffAddress = {
       street_address: streetLine,
       city: dropoff.city,
