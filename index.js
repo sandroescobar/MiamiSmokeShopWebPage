@@ -3108,6 +3108,7 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const trx = result?.transactionResponse;
     const transId = trx?.transId;
+    const responseCode = String(trx?.responseCode ?? '').trim();
 
     if (!transId) {
       console.error('[Authorize.Net] Missing transaction id', {
@@ -3116,6 +3117,24 @@ app.post('/api/authorize/charge', async (req, res) => {
         messages: msg,
       });
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
+    }
+
+    if (responseCode !== '1') {
+      const declineError = trx?.errors?.[0]?.errorText || trx?.messages?.message?.[0]?.description || 'Card was declined.';
+      console.warn('[Authorize.Net] transaction not approved', {
+        transId,
+        responseCode,
+        declineError,
+        avsResult: trx?.avsResultCode,
+        cvvResult: trx?.cvvResultCode,
+      });
+      return res.status(402).json({
+        error: declineError,
+        code: responseCode,
+        transactionId: transId,
+        avsResult: trx?.avsResultCode,
+        cvvResult: trx?.cvvResultCode,
+      });
     }
 
     let uberDelivery = null;
