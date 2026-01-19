@@ -2774,6 +2774,29 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
+
+    const pickupStoreIdForCharge = normalizeStoreId(
+      body?.pickupStoreId ||
+      body?.selectedDeliveryStore ||
+      body?.pickupStore ||
+      body?.pickupStoreLabel ||
+      body?.store ||
+      'calle8'
+    );
+
+    const deliveryCentsInput = body?.totals?.delivery_cents ?? body?.deliveryCents ?? null;
+    const deliveryDollarsInput = body?.totals?.delivery ?? body?.deliveryFee ?? null;
+    const uberQuoteIdInput = body?.uberQuoteId ?? body?.uberQuote?.id ?? null;
+    const uberFeeCentsInput = body?.uberQuote?.fee_cents ?? body?.uberFeeCents ?? null;
+
+    console.log('[CHARGE] input', {
+      pickupStoreId: pickupStoreIdForCharge,
+      deliveryCents: deliveryCentsInput,
+      deliveryDollars: deliveryDollarsInput,
+      uberQuoteId: uberQuoteIdInput,
+      uberFeeCents: uberFeeCentsInput,
+    });
+
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -2901,9 +2924,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     try {
       const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
-        const pickupStoreId = normalizeStoreId(
-          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
-        );
+        const pickupStoreId = pickupStoreIdForCharge || 'calle8';
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
         console.log('[Uber Direct] courier branch start', {
@@ -2953,6 +2974,13 @@ app.post('/api/authorize/charge', async (req, res) => {
           quoteId: quote?.id || null,
           pickupStoreId,
         };
+
+        console.log('[UBER] final for charge', {
+          pickupStoreId,
+          uberFeeCents: delivery?.fee ?? quote?.fee ?? null,
+          uberQuoteId: quote?.id || null,
+          deliveryId: delivery?.id || null,
+        });
       } else {
         console.log('[Uber Direct] courier branch skipped (delivery not selected)');
       }
