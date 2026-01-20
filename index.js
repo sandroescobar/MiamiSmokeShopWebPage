@@ -82,6 +82,152 @@ const CONTACT_INFO = {
   ],
 };
 
+
+/* --------------------  Twilio SMS receipts (optional)  -------------------- */
+/**
+ * Notes:
+ * - Twilio trial accounts can only send SMS to *verified* recipient numbers.
+ * - Configure via env vars:
+ *     TWILIO_ACCOUNT_SID
+ *     TWILIO_AUTH_TOKEN
+ *     TWILIO_MESSAGING_SERVICE_SID  (preferred)  OR  TWILIO_FROM
+ * - SMS failures never block checkout (best-effort).
+ */
+
+let _twilioClient = null;
+
+function formatMoney(n) {
+  const num = Number(n || 0);
+  return `$${num.toFixed(2)}`;
+}
+
+function safeStr(v) {
+  return (v === null || v === undefined) ? "" : String(v);
+}
+
+function pickTrackingUrl(obj) {
+  return (
+    obj?.tracking_url ||
+    obj?.trackingUrl ||
+    obj?.tracking?.url ||
+    obj?.tracking?.href ||
+    obj?.courier_tracking_url ||
+    obj?.courierTrackingUrl ||
+    obj?.delivery?.tracking_url ||
+    obj?.delivery?.trackingUrl ||
+    null
+  );
+}
+
+function storeLabelFromIdLocal(storeId) {
+  const id = String(storeId || "").toLowerCase();
+  const match = (STORE_CHOICES || []).find(s => String(s.id || "").toLowerCase() === id);
+  return match?.label || storeId || "—";
+}
+
+function buildReceiptSmsText(order) {
+  const isDelivery = String(order?.deliveryMethod || "").toLowerCase() === "delivery";
+
+  const lines = [];
+  lines.push("✅ Miami Vape Smoke Shop receipt");
+
+  const orderId = order?.orderId || order?.transactionId || "";
+  if (orderId) lines.push(`Order: ${safeStr(orderId)}`);
+
+  lines.push(`Method: ${isDelivery ? "Delivery" : "Pickup"}`);
+
+  const storeLine = order?.pickupStoreLabel || storeLabelFromIdLocal(order?.pickupStoreId);
+  if (storeLine) lines.push(`Store: ${safeStr(storeLine)}`);
+
+  const storePhone = order?.storePhone || CONTACT_INFO?.phone || "";
+  if (storePhone) lines.push(`Store phone: ${safeStr(storePhone)}`);
+
+  if (isDelivery) {
+    const dropoff = safeStr(order?.dropoffShort || "");
+    if (dropoff) lines.push(`Dropoff: ${dropoff}`);
+  }
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (items.length) {
+    lines.push("Items:");
+    for (const it of items.slice(0, 15)) { // keep SMS readable
+      const qty = Number(it?.quantity || 1);
+      const price = Number(it?.price || 0);
+      const lineTotal = qty * price;
+      lines.push(`- ${safeStr(it?.name || "Item")} x${qty} ${formatMoney(lineTotal)}`);
+    }
+    if (items.length > 15) lines.push(`(and ${items.length - 15} more)`);
+  }
+
+  const totals = order?.totals || {};
+  if (totals?.subtotal != null) lines.push(`Subtotal: ${formatMoney(totals.subtotal)}`);
+  if (totals?.delivery != null) lines.push(`Delivery: ${formatMoney(totals.delivery)}`);
+  if (totals?.tax != null) lines.push(`Tax: ${formatMoney(totals.tax)}`);
+  if (totals?.total != null) lines.push(`Total: ${formatMoney(totals.total)}`);
+
+  if (isDelivery) {
+    const trackingUrl = order?.trackingUrl || pickTrackingUrl(order?.uberDelivery) || pickTrackingUrl(order?.receipt) || null;
+    if (trackingUrl) {
+      lines.push(`Track: ${trackingUrl}`);
+    } else {
+      lines.push("Tracking: We will text a link shortly.");
+    }
+  }
+
+  return lines.filter(Boolean).join("\n");
+}
+
+async function getTwilioClient() {
+  if (_twilioClient) return _twilioClient;
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) return null;
+
+  try {
+    const mod = await import("twilio");
+    const twilio = mod?.default || mod;
+    _twilioClient = twilio(accountSid, authToken);
+    return _twilioClient;
+  } catch (err) {
+    console.warn("[twilio] failed to load twilio client:", err?.message || err);
+    return null;
+  }
+}
+
+async function sendTwilioReceiptSms({ to, order }) {
+  const client = await getTwilioClient();
+  if (!client) {
+    console.warn("[twilio] missing client/env; skipping SMS");
+    return { ok: false, skipped: true };
+  }
+
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+  const from = process.env.TWILIO_FROM;
+
+  if (!messagingServiceSid && !from) {
+    console.warn("[twilio] TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM not set; skipping SMS");
+    return { ok: false, skipped: true };
+  }
+
+  const body = buildReceiptSmsText(order);
+
+  try {
+    const msg = await client.messages.create({
+      to,
+      body,
+      ...(messagingServiceSid ? { messagingServiceSid } : { from })
+    });
+
+    console.log("[twilio] SMS sent", { to, sid: msg?.sid });
+    return { ok: true, sid: msg?.sid };
+  } catch (err) {
+    console.warn("[twilio] SMS failed:", err?.message || err);
+    return { ok: false };
+  }
+}
+
+
 const STORE_CHOICES = [
   {
     id: 'calle8',
@@ -2736,6 +2882,39 @@ app.get('/api/authorize/test-auth', async (req, res) => {
       });
     }
 
+        // Best-effort SMS receipt (never blocks checkout)
+    try {
+      const rawPhone =
+        req.body?.customer?.phone ||
+        req.body?.billing?.phoneNumber ||
+        req.body?.dropoffAddress?.phoneNumber ||
+        req.body?.dropoffAddress?.phone ||
+        "";
+
+      const to = toE164US(rawPhone);
+      if (to) {
+        const trackingUrl = pickTrackingUrl(uberDelivery) || null;
+
+        sendTwilioReceiptSms({
+          to,
+          order: {
+            orderId: transactionId || null,
+            transactionId: transactionId || null,
+            deliveryMethod,
+            pickupStoreId,
+            pickupStoreLabel: storeLabelFromIdLocal(pickupStoreId),
+            storePhone: CONTACT_INFO?.phone || null,
+            dropoffShort: [dropoffStreet, dropoffCity, dropoffState, dropoffZip].filter(Boolean).join(", "),
+            items: Array.isArray(req.body?.items) ? req.body.items : [],
+            totals: req.body?.totals || null,
+            trackingUrl,
+            uberDelivery,
+            receipt: null
+          }
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
     return res.json({
       ok: true,
       env,
@@ -2774,29 +2953,6 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
-
-    const pickupStoreIdForCharge = normalizeStoreId(
-      body?.pickupStoreId ||
-      body?.selectedDeliveryStore ||
-      body?.pickupStore ||
-      body?.pickupStoreLabel ||
-      body?.store ||
-      'calle8'
-    );
-
-    const deliveryCentsInput = body?.totals?.delivery_cents ?? body?.deliveryCents ?? null;
-    const deliveryDollarsInput = body?.totals?.delivery ?? body?.deliveryFee ?? null;
-    const uberQuoteIdInput = body?.uberQuoteId ?? body?.uberQuote?.id ?? null;
-    const uberFeeCentsInput = body?.uberQuote?.fee_cents ?? body?.uberFeeCents ?? null;
-
-    console.log('[CHARGE] input', {
-      pickupStoreId: pickupStoreIdForCharge,
-      deliveryCents: deliveryCentsInput,
-      deliveryDollars: deliveryDollarsInput,
-      uberQuoteId: uberQuoteIdInput,
-      uberFeeCents: uberFeeCentsInput,
-    });
-
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -2924,7 +3080,9 @@ app.post('/api/authorize/charge', async (req, res) => {
     try {
       const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
-        const pickupStoreId = pickupStoreIdForCharge || 'calle8';
+        const pickupStoreId = normalizeStoreId(
+          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
+        );
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
         console.log('[Uber Direct] courier branch start', {
@@ -2974,13 +3132,6 @@ app.post('/api/authorize/charge', async (req, res) => {
           quoteId: quote?.id || null,
           pickupStoreId,
         };
-
-        console.log('[UBER] final for charge', {
-          pickupStoreId,
-          uberFeeCents: delivery?.fee ?? quote?.fee ?? null,
-          uberQuoteId: quote?.id || null,
-          deliveryId: delivery?.id || null,
-        });
       } else {
         console.log('[Uber Direct] courier branch skipped (delivery not selected)');
       }

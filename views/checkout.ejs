@@ -27,6 +27,7 @@
       font: 14px/1.4 Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
 
+    /* Page shell */
     .page{
       max-width: 1200px; margin: 24px auto; padding: 0 16px 48px;
     }
@@ -34,6 +35,7 @@
     .mast h1{font-size:28px; margin:0; font-weight:700}
     .eyebrow{font-size:13px; color:var(--ink-soft); margin-bottom: 18px;}
 
+    /* Layout */
     .grid{
       display:grid; gap: 24px;
       grid-template-columns: 1fr 360px;
@@ -42,6 +44,7 @@
       .grid{grid-template-columns: 1fr}
     }
 
+    /* Cards */
     .card{
       background:var(--card); border:1px solid var(--line);
       border-radius:12px; box-shadow: 0 4px 14px rgba(15,23,42,.06);
@@ -53,6 +56,7 @@
       color:var(--ink-dim); margin: 0 0 10px; font-weight:700;
     }
 
+    /* Option pills (pickup / delivery) */
     .option-row{
       display:grid; gap:12px; grid-template-columns: 1.2fr 1.2fr;
     }
@@ -72,6 +76,7 @@
       border-color: var(--focus); box-shadow:0 0 0 4px rgba(79,70,229,.12);
     }
 
+    /* Form fields */
     .row{ display:grid; gap:12px; grid-template-columns: 1.2fr 1.2fr; }
     .row-1{ grid-template-columns: 1fr; }
     @media (max-width: 680px){ .row{grid-template-columns:1fr} }
@@ -83,10 +88,12 @@
     }
     input:focus, select:focus, textarea:focus{ border-color:var(--focus); box-shadow:0 0 0 3px rgba(79,70,229,.15); }
 
+    /* Order summary */
     .summary .totals{ border-top:1px solid var(--line); margin-top: 14px; padding-top: 14px; }
     .line{ display:flex; justify-content:space-between; margin: 8px 0; }
     .grand{ font-weight:800; font-size:18px; }
 
+    /* Store selection */
     .store-selector { margin-top: 12px; }
     .store-option {
       position: relative; border: 1px solid var(--line); border-radius: 10px;
@@ -104,13 +111,11 @@
     .store-option .store-distance { font-size: 12px; color: var(--ink-soft); }
     .store-option:has(input:checked) { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
 
-    .store-option.disabled { opacity: .55; cursor: not-allowed; }
-    .store-option.disabled:hover { border-color: var(--line); }
-
     .availability-notice { font-size: 13px; color: #475569; margin-top: 10px; padding: 10px;
       background: #f1f5f9; border-radius: 8px; border-left: 3px solid var(--focus); }
     .loading { color: var(--ink-soft); font-size: 13px; margin-top: 8px; }
 
+    /* Buttons */
     .btn{
       display:inline-flex; align-items:center; justify-content:center; gap:8px;
       padding:12px 16px; border-radius:10px; border:1px solid transparent;
@@ -142,6 +147,7 @@
     .policy-modal__loading{color:#475569;font-size:14px;margin:0}
     .policy-modal__error{color:#b91c1c;font-size:14px;margin:0}
 
+    /* ---------------- ZenPayments Hosted Fields ---------------- */
     .zp-fields { display: grid; gap: 12px; }
     .zp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .zp-label { font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 6px; display:block; }
@@ -169,6 +175,7 @@
     <div class="eyebrow">Pick up in-store or get fast Uber Delivery</div>
 
     <div class="grid">
+      <!-- LEFT: form -->
       <div>
         <div class="card">
           <div class="card-body">
@@ -194,12 +201,14 @@
                 </label>
               </div>
 
+              <!-- Store Selection (Pickup) -->
               <div id="pickup-stores-section" style="margin-top: 16px;">
                 <h3 style="margin-top: 12px; margin-bottom: 8px;">Select pickup location</h3>
                 <div id="pickup-stores" class="store-selector"></div>
                 <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
               </div>
 
+              <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
                 <h3 style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
                 <p id="delivery-store-helper" class="loading" style="display:block; margin-top:4px;">Enter your address to compare store inventory and delivery fees.</p>
@@ -207,9 +216,7 @@
                 <div id="closest-store-info" style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 8px; border-left: 3px solid #0284c7; display:none;">
                   <div style="font-weight: 600; margin-bottom: 4px;">📍 <span id="closest-store-name"></span></div>
                   <div style="font-size: 12px; color: #475569; margin-bottom: 2px;"><span id="closest-store-address"></span></div>
-                  <div style="font-size: 12px; color: #0284c7; font-weight: 500;">
-                    ~<span id="closest-store-distance"></span> miles away • Delivery fee $<span id="closest-store-fee"></span>
-                  </div>
+                  <div style="font-size: 12px; color: #0284c7; font-weight: 500;">~<span id="closest-store-distance"></span> miles away • Delivery fee $<span id="closest-store-fee"></span></div>
                 </div>
                 <div id="delivery-stores" class="store-selector" style="display:none; margin-top: 12px;"></div>
               </div>
@@ -264,6 +271,7 @@
               </div>
             </div>
 
+            <!-- PAYMENT SECTION -->
             <div class="section">
               <div class="payment-header">
                 <h3>Payment</h3>
@@ -329,11 +337,13 @@
                 </div>
               </div>
             </div>
+            <!-- END PAYMENT SECTION -->
 
           </div>
         </div>
       </div>
 
+      <!-- RIGHT: order summary -->
       <aside class="summary">
         <div class="card">
           <div class="card-body">
@@ -358,6 +368,7 @@
     </div>
   </div>
 
+  <!-- Authorize.Net Accept.js -->
   <script src="https://js.authorize.net/v1/Accept.js"></script>
 
   <div id="policy-modal" class="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title">
@@ -372,11 +383,11 @@
     let allStores = [];
     let selectedStore = null;
     let cartProductIds = [];
-    let cartItems = [];
-    let cartItemCount = 0;
     let checkoutTotals = { subtotal: 0, tax: 0, delivery: 0, total: 0 };
     let deliveryStoreOptions = [];
     let selectedDeliveryStore = null;
+    let selectedUberQuoteId = null;
+    let selectedUberFeeCents = null;
     let userDeliveryLocation = null;
 
     // Render cart items and update totals
@@ -385,14 +396,7 @@
       const container = document.getElementById('order-items-container');
       const TAX_RATE = 0.0875;
 
-      cartItems = cart;
-
-      const rawIds = cart
-        .map((item) => item?.id ?? item?.product_id ?? item?.productId)
-        .filter((v) => v !== null && v !== undefined && v !== '');
-
-      cartProductIds = Array.from(new Set(rawIds.map((v) => parseInt(v, 10)).filter((n) => Number.isFinite(n))));
-      cartItemCount = cartProductIds.length;
+      cartProductIds = cart.map(item => item.id).filter(Boolean);
 
       if (cart.length === 0) {
         container.innerHTML = '<p style="color:#64748b; margin-bottom:16px;">Your cart is empty</p>';
@@ -455,9 +459,8 @@
       return R * c;
     }
 
-    // Fallback estimate ONLY when Uber cannot quote.
     function estimateDeliveryFee(distance) {
-      if (!distance || Number.isNaN(distance) || !Number.isFinite(distance)) return 9.99;
+      if (!distance || Number.isNaN(distance)) return 9.99;
       const surcharge = Math.max(0, distance - 4) * 1.25;
       return Math.min(24.99, 10.99 + surcharge);
     }
@@ -472,8 +475,10 @@
         (match) => map[match.toLowerCase()] || match
       );
     }
-
     async function geocodeAddressWithFallback(street, city, state, zip) {
+      // IMPORTANT: Browser-to-Nominatim requests are blocked by CORS/403.
+      // We proxy geocoding through our own backend (/api/geocode), which adds
+      // the required User-Agent and avoids leaking third-party calls to the browser.
       try {
         const qs = new URLSearchParams({
           street: (street || "").trim(),
@@ -483,16 +488,13 @@
           country: "US",
         });
 
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 6000);
-
         const resp = await fetch(`/api/geocode?${qs.toString()}`, {
           method: "GET",
           headers: { "Accept": "application/json" },
-          signal: controller.signal,
-        }).finally(() => clearTimeout(t));
+        });
 
         if (!resp.ok) {
+          // 4xx/5xx: treat as no result, but surface debug text
           let msg = "";
           try { msg = await resp.text(); } catch {}
           console.warn("[geocode] backend failed", resp.status, msg.slice(0, 200));
@@ -502,12 +504,10 @@
         const data = await resp.json();
         if (!data || !data.lat || !data.lng) return null;
 
-        // IMPORTANT FIX:
-        // return lng (not lon). The rest of this file uses coords.lng.
         return {
           lat: Number(data.lat),
-          lng: Number(data.lng),
-          display_name: data.displayName || data.display_name || "",
+          lon: Number(data.lng),
+          display_name: data.display_name || "",
         };
       } catch (err) {
         console.warn("[geocode] exception", err);
@@ -544,14 +544,6 @@
     function updateDeliveryNotice(selectedOption) {
       const notice = document.getElementById('delivery-availability-notice');
       if (!notice) return;
-
-      const eligibleCount = (deliveryStoreOptions || []).filter(o => o && o.missingCount === 0).length;
-      if (eligibleCount === 0) {
-        notice.innerHTML = 'Delivery is not available for this cart (no location has all items). Please choose pickup or adjust your cart.';
-        notice.style.display = 'block';
-        return;
-      }
-
       const messages = [];
       const closest = deliveryStoreOptions[0];
       if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
@@ -576,32 +568,23 @@
 
       if (helper) helper.style.display = 'none';
 
-      const totalItems = cartItemCount;
-      const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
-      const resolvedSelected = eligibleStores.length
-        ? (eligibleStores.find(o => o.name === selectedDeliveryStore) || eligibleStores[0]).name
-        : null;
-
+      const totalItems = cartProductIds.length;
       const cards = deliveryStoreOptions.map((option, idx) => {
-        const eligible = option.missingCount === 0;
-        const checked = eligible && (resolvedSelected ? resolvedSelected === option.name : idx === 0);
+        const checked = selectedDeliveryStore ? selectedDeliveryStore === option.name : idx === 0;
         const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
-        const availabilityClass = eligible ? 'available' : 'unavailable';
+        const availabilityClass = option.missingCount === 0 ? 'available' : 'unavailable';
         const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
-
-        const secondaryLine = eligible
-          ? `~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}`
-          : `~${distanceLabel} miles • Not available for this cart`;
-
+        const warning = option.missingCount === 0 ? '' : `<div class="store-distance" style="color:#b45309;">Missing ${option.missingCount} item(s)</div>`;
         return `
-          <label class="store-option ${eligible ? '' : 'disabled'}" ${eligible ? '' : 'title="Not available for this cart"'}>
-            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''} ${eligible ? '' : 'disabled'}>
+          <label class="store-option">
+            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
             <div class="store-header">
               <div class="store-name">${option.name}</div>
               <span class="availability ${availabilityClass}">${availabilityLabel}</span>
             </div>
             <div class="store-address">${option.address}</div>
-            <div class="store-distance">${secondaryLine}</div>
+            <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
+            ${warning}
           </label>
         `;
       }).join('');
@@ -626,41 +609,29 @@
         updateDeliveryNotice(null);
         return;
       }
+      if (!selectedDeliveryStore) selectedDeliveryStore = deliveryStoreOptions[0].name;
 
-      const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
-      if (!eligibleStores.length) {
-        setDeliveryFee(0);
-        updateClosestStoreHighlight(null);
-        updateDeliveryNotice(null);
-
-        const pickupRadio = document.querySelector('input[name="delivery_method"][value="pickup"]');
-        if (pickupRadio && !pickupRadio.checked) {
-          pickupRadio.checked = true;
-          pickupRadio.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        return;
-      }
-
-      if (!selectedDeliveryStore || !eligibleStores.some(o => o.name === selectedDeliveryStore)) {
-        selectedDeliveryStore = eligibleStores[0].name;
-      }
-
-      const selectedOption = eligibleStores.find(option => option.name === selectedDeliveryStore) || eligibleStores[0];
+      const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
       selectedDeliveryStore = selectedOption.name;
-
       setDeliveryFee(selectedOption.fee);
-      updateClosestStoreHighlight(eligibleStores[0]);
+
+      // Keep selected Uber quote metadata aligned with the chosen store
+      selectedUberQuoteId = selectedOption.uberQuoteId || null;
+      selectedUberFeeCents = Number.isFinite(selectedOption.uberFeeCents)
+        ? Number(selectedOption.uberFeeCents)
+        : (Number.isFinite(selectedOption.fee) ? Math.round(Number(selectedOption.fee) * 100) : null);
+      updateClosestStoreHighlight(deliveryStoreOptions[0]);
       updateDeliveryNotice(selectedOption);
     }
 
-    // Build a dropoff payload for /api/uber/quote
+    // Build a dropoff payload for /api/uber/quote (uses the Address section fields)
     function buildDropoffForUberQuote() {
       const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
       const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
       const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
       const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
       const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
-      const phone = document.querySelector('input[name="phone"]')?.value?.trim() || '';
+      const phone = document.querySelector('input[name="phoneNumber"]')?.value?.trim() || document.querySelector('input[name="phone"]')?.value?.trim() || '';
 
       if (!street || !city || !state || !zip) return null;
 
@@ -693,14 +664,19 @@
 
         const data = await res.json().catch(() => ({}));
 
-        if (!res.ok || !data?.ok || !data?.quote?.fee) {
-          // Any failure -> no quote available
-          return { ok: false, feeCents: null };
+        const feeCents = Number(data?.quote?.fee);
+        const quoteId = data?.quote?.quoteId || data?.quote?.id || data?.quote?.quote_id || null;
+
+        if (!res.ok || !data?.ok || !Number.isFinite(feeCents)) {
+          return { ok: false, feeCents: null, quoteId: null };
         }
 
-        return { ok: true, feeCents: Number(data.quote.fee) };
+        // Browser console visibility without completing an order
+        console.log('[UBER QUOTE]', { pickupStoreId, feeCents, quoteId });
+
+        return { ok: true, feeCents, quoteId };
       } catch (e) {
-        return { ok: false, feeCents: null };
+        return { ok: false, feeCents: null, quoteId: null };
       }
     }
 
@@ -711,7 +687,7 @@
       const dropoffAddress = buildDropoffForUberQuote();
       const manifestTotalValue = checkoutTotals?.subtotal || 0;
 
-      // We will always compute miles locally. Fee comes from Uber quote when possible.
+      // We will always compute miles locally. Fee comes from Uber quote when possible; otherwise we fall back to estimateDeliveryFee().
       const results = await Promise.all(allStores.map(async store => {
         const availability = await getStoreAvailability(store.name);
         const availableCount = Object.values(availability || {}).filter(Boolean).length;
@@ -721,8 +697,10 @@
         const storeLng = parseFloat(store.longitude);
         const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
 
-        let fee = estimateDeliveryFee(distance);   // fallback
+        let fee = estimateDeliveryFee(distance);
         let feeSource = 'estimate';
+        let uberQuoteId = null;
+        let uberFeeCents = null;
 
         // Only attempt Uber quote if we have full dropoff fields
         if (dropoffAddress) {
@@ -731,10 +709,12 @@
           if (quote.ok && Number.isFinite(quote.feeCents)) {
             fee = quote.feeCents / 100;
             feeSource = 'uber';
+            uberQuoteId = quote.quoteId;
+            uberFeeCents = quote.feeCents;
           }
         }
 
-        return { ...store, distance, fee, feeSource, availableCount, missingCount };
+        return { ...store, distance, fee, feeSource, uberQuoteId, uberFeeCents, availableCount, missingCount };
       }));
 
       results.sort((a, b) => a.distance - b.distance);
@@ -742,131 +722,18 @@
       const previousSelection = selectedDeliveryStore;
       deliveryStoreOptions = results;
 
+      // Keep previous selection if still valid and fully stocked
       if (previousSelection && results.some(option => option.name === previousSelection) && results.find(o => o.name === previousSelection)?.missingCount === 0) {
         selectedDeliveryStore = previousSelection;
       } else {
+        // Prefer the store the user selected (pickup store) if it can fulfill the cart; otherwise choose the closest eligible store.
         const preferred = results.find(option => option.name === selectedStore && option.missingCount === 0);
         const closestEligible = results.find(option => option.missingCount === 0);
-        selectedDeliveryStore = (preferred || closestEligible) ? (preferred || closestEligible).name : null;
+        const chosen = preferred || closestEligible || results[0] || null;
+        selectedDeliveryStore = chosen ? chosen.name : null;
       }
 
       renderDeliveryStores();
-    }
-
-    async function initializeStores() {
-      const pickupStoreContainer = document.getElementById('pickup-stores');
-      try {
-        const res = await fetch('/api/stores');
-        const data = await res.json();
-
-        allStores = Array.isArray(data)
-          ? data
-          : (Array.isArray(data?.stores) ? data.stores : []);
-
-        if (!allStores.length) {
-          if (pickupStoreContainer) pickupStoreContainer.innerHTML = '<p class="error-message">No pickup stores available.</p>';
-          return;
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const shopParamRaw = params.get('shop') || '';
-        const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const shopKey = normalizeKey(shopParamRaw);
-
-        let matched = null;
-        if (shopKey) {
-          matched = allStores.find((s) => {
-            const candidates = [s?.id, s?.external_store_id, s?.externalStoreId, s?.slug, s?.name, s?.title, s?.storeId];
-            return candidates.some((c) => normalizeKey(c) === shopKey);
-          }) || null;
-
-          if (!matched) {
-            matched = allStores.find((s) => {
-              const nameKey = normalizeKey(s?.name);
-              return nameKey && shopKey && (nameKey.includes(shopKey) || shopKey.includes(nameKey));
-            }) || null;
-          }
-        }
-
-        selectedStore = (matched?.name || allStores[0].name);
-        selectedDeliveryStore = selectedStore;
-
-        await renderPickupStores();
-      } catch (err) {
-        console.error('Error loading stores:', err);
-        if (pickupStoreContainer) pickupStoreContainer.innerHTML = '<p class="error-message">Failed to load pickup stores.</p>';
-      }
-    }
-
-    async function renderPickupStores() {
-      const container = document.getElementById('pickup-stores');
-      if (!container) return;
-
-      const store = allStores.find(s => s.name === selectedStore) || allStores[0];
-      if (!store) {
-        container.innerHTML = '<p class="error-message">No pickup store available.</p>';
-        return;
-      }
-
-      const availability = await getStoreAvailability(store.name);
-      const availableCount = Object.values(availability || {}).filter(Boolean).length;
-      const totalItems = cartItemCount;
-      const isFullyAvailable = totalItems ? (availableCount === totalItems) : true;
-      const statusLabel = totalItems ? `${availableCount}/${totalItems} in stock` : 'Cart empty';
-
-      container.innerHTML = `
-        <div class="store-option" style="cursor:default">
-          <div class="store-header">
-            <div class="store-name">${store.name}</div>
-            <span class="availability ${isFullyAvailable ? 'available' : 'unavailable'}">${statusLabel}</span>
-          </div>
-          <div class="store-address">${store.address || ''}</div>
-          <div class="store-distance">Pickup location (selected store)</div>
-        </div>
-      `;
-
-      await checkInventoryForStore(store.name);
-    }
-
-    async function getStoreAvailability(storeName) {
-      if (cartProductIds.length === 0) return {};
-      try {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 6000);
-
-        const res = await fetch('/api/check-inventory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_ids: cartProductIds, store_name: storeName }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(t);
-        if (!res.ok) throw new Error('Failed to check inventory');
-        const data = await res.json();
-        return data && data.availability ? data.availability : (data || {});
-      } catch (err) {
-        console.error('Error checking inventory:', err);
-        return {};
-      }
-    }
-
-    async function checkInventoryForStore(storeName) {
-      const availability = await getStoreAvailability(storeName);
-      const unavailable = Object.entries(availability)
-        .filter(([_, available]) => !available)
-        .map(([id, _]) => cartProductIds.indexOf(parseInt(id)))
-        .filter(i => i !== -1);
-
-      const notice = document.getElementById('pickup-availability-notice');
-      if (notice) {
-        if (unavailable.length > 0) {
-          notice.innerHTML = `⚠️ ${unavailable.length} item(s) not available at ${storeName}`;
-          notice.style.display = 'block';
-        } else {
-          notice.style.display = 'none';
-        }
-      }
     }
 
     (function(){
@@ -1018,6 +885,7 @@
       setupPolicyLinks();
     });
 
+    /* ---------------- Authorize.Net Accept.js init ---------------- */
     const AUTH_NET_LOGIN_ID = <%- JSON.stringify((typeof authorizeLoginId !== 'undefined') ? authorizeLoginId : '') %>;
     const AUTH_NET_CLIENT_KEY = <%- JSON.stringify((typeof authorizeClientKey !== 'undefined') ? authorizeClientKey : '') %>;
 
@@ -1079,41 +947,6 @@
       return { month, year };
     }
 
-    // Store id normalization (used for Uber pickup store selection)
-    function normalizeStoreId(v) {
-      const raw = String(v ?? '').trim().toLowerCase();
-      const s = raw.replace(/\s+/g, '');
-      if (!s) return '';
-      if (s.includes('calle8') || s.includes('sw8') || s === 'calle8') return 'calle8';
-      if (s.includes('79th') || s === '79th' || s.includes('79street') || s === '79thstreet') return '79th';
-      return s;
-    }
-
-    function storeLabelFromId(id) {
-      const s = normalizeStoreId(id);
-      if (s === 'calle8') return 'Calle 8';
-      if (s === '79th') return '79th Street';
-      return String(id ?? '').trim();
-    }
-
-    function cloneCartItemsForReceipt() {
-      if (!Array.isArray(cartItems)) return [];
-      return cartItems.map((item) => {
-        const qty = Math.max(1, Number(item?.quantity) || 1);
-        const priceValue =
-          typeof item?.price === 'number'
-            ? item.price
-            : parseFloat(String(item?.price || '').replace(/[^0-9.]/g, ''));
-        return {
-          id: item?.id ?? null,
-          name: item?.name || '',
-          flavor: item?.flavor || '',
-          quantity: qty,
-          price: Number.isFinite(priceValue) ? priceValue : 0,
-        };
-      });
-    }
-
     async function submitCharge(opaqueData) {
       const { customer, billing } = buildBillingFromForm();
 
@@ -1122,9 +955,19 @@
         ? normalizeStoreId(selectedDeliveryStore || selectedStore)
         : normalizeStoreId(selectedStore);
 
+      // Safety: ensure the delivery fee + quote metadata correspond to the pickupStoreId we will charge/create from
+      if (deliveryMethod === 'delivery' && pickupStoreId && Array.isArray(deliveryStoreOptions) && deliveryStoreOptions.length) {
+        const chosen = deliveryStoreOptions.find(o => normalizeStoreId(o.name) === pickupStoreId);
+        if (chosen && Number.isFinite(chosen.fee)) {
+          setDeliveryFee(Number(chosen.fee));
+          selectedUberQuoteId = chosen.uberQuoteId || selectedUberQuoteId;
+          selectedUberFeeCents = Number.isFinite(chosen.uberFeeCents) ? Number(chosen.uberFeeCents) : selectedUberFeeCents;
+        }
+      }
       const payload = {
         opaqueData,
         totals: checkoutTotals,
+
         customer,
         billing,
         deliveryMethod,
@@ -1133,9 +976,6 @@
         pickupStore: selectedStore,
         selectedDeliveryStore
       };
-
-       payload.cartItems = cartItems;   // sends item list to server for Slack message
-       payload.items = cartItems;
 
       const resp = await fetch('/api/authorize/charge', {
         method: 'POST',
@@ -1146,6 +986,25 @@
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data?.error || 'Payment failed. Please try again.');
       return data;
+    }
+
+
+
+    // Store id normalization (used for Uber pickup store selection)
+    function normalizeStoreId(v) {
+      const raw = String(v ?? '').trim().toLowerCase();
+      const s = raw.replace(/\s+/g, '');
+      if (!s) return '';
+      if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+      if (s.includes('79th') || s == '79th' || s.includes('79street') || s.includes('79') ) return '79th';
+      return raw; // fallback (server will normalize too)
+    }
+
+    function storeLabelFromId(id) {
+      const s = normalizeStoreId(id);
+      if (s === 'calle8') return 'Calle 8';
+      if (s === '79th') return '79th Street';
+      return String(id ?? '').trim();
     }
 
     function tokenizeAndPay() {
@@ -1212,45 +1071,19 @@
           // Persist success payload for /checkout-success
           try {
             const deliveryMethod = getSelectedDeliveryMethod();
-            const pickupStoreId =
-              deliveryMethod === 'delivery'
-                ? normalizeStoreId((window.selectedDeliveryStore || window.selectedStore) || '')
-                : normalizeStoreId(window.selectedStore || '');
-            const { customer } = buildBillingFromForm();
-            const items = cloneCartItemsForReceipt();
-            const totals = {
-              subtotal: Number(checkoutTotals?.subtotal || 0),
-              tax: Number(checkoutTotals?.tax || 0),
-              delivery: Number(checkoutTotals?.delivery || 0),
-              total: Number(checkoutTotals?.total || 0),
-            };
-            const storeLabel = storeLabelFromId(pickupStoreId) || null;
             const successPayload = {
-              items,
-              subtotal: totals.subtotal,
-              tax: totals.tax,
-              delivery: totals.delivery,
-              total: totals.total,
-              totals,
-              fulfillmentMethod: deliveryMethod,
+              receipt: serverResult?.receipt || null,
               deliveryMethod,
-              storeLabel,
-              pickupStoreLabel: storeLabel,
+              totals: checkoutTotals,
+
               pickupStoreId: pickupStoreId || null,
-              transactionId: serverResult?.transactionId || null,
-              authCode: serverResult?.authCode || null,
-              customer,
+              pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
               serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
               uberError: serverResult?.uberError || null,
-              deliveryWarning: serverResult?.uberError || null,
+              deliveryWarning: serverResult?.uberError || null
             };
-            const serialized = JSON.stringify(successPayload);
-            sessionStorage.setItem('checkoutSuccessPayload', serialized);
-            localStorage.setItem('checkoutSuccessPayloadBackup', serialized);
-          } catch (e) {
-            console.error('[checkout] failed to persist success payload:', e);
-          }
-
+            sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+          } catch (_) {}
 
           try { localStorage.removeItem('cart'); } catch (_) {}
           setTimeout(() => { window.location.href = '/checkout-success'; }, 200);

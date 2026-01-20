@@ -11,11 +11,37 @@ function safeStr(v) {
   return (v === null || v === undefined) ? "" : String(v);
 }
 
+function normalizeMethod(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function isDeliveryMethod(deliveryMethod, fulfillmentMethod) {
+  const m = normalizeMethod(deliveryMethod || fulfillmentMethod);
+  if (!m) return false;
+
+  // Be permissive: different parts of the app may label delivery differently.
+  return (
+    m === "delivery" ||
+    m === "uber" ||
+    m === "courier" ||
+    m === "uber_direct" ||
+    m === "uber-direct" ||
+    m === "uber courier" ||
+    m.includes("delivery") ||
+    m.includes("courier") ||
+    m.includes("uber")
+  );
+}
+
 function pickTrackingUrl(obj) {
+  // Accept a raw string URL
+  if (typeof obj === "string") return obj;
+
   // Tries common shapes you might return from Uber APIs
   return (
     obj?.tracking_url ||
     obj?.trackingUrl ||
+    (typeof obj?.tracking === "string" ? obj.tracking : null) ||
     obj?.tracking?.url ||
     obj?.tracking?.href ||
     obj?.courier_tracking_url ||
@@ -26,12 +52,26 @@ function pickTrackingUrl(obj) {
   );
 }
 
+function buildAddressLine(addr) {
+  if (!addr || typeof addr !== "object") return null;
+
+  const line1 = addr.address || addr.street || addr.street1 || "";
+  const line2 = addr.street2 || addr.unit || addr.apt || addr.apartment || addr.suite || "";
+  const city = addr.city || "";
+  const state = addr.state || "";
+  const zip = addr.zip || addr.postalCode || "";
+
+  const parts = [line1, line2, city, state, zip].filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
 function buildSlackPayload(order) {
   const {
     orderId,
     createdAt,
     customer,
     deliveryMethod,
+    fulfillmentMethod,
     pickupStoreId,
     pickupStoreLabel,
     pickupStoreName,
@@ -40,13 +80,18 @@ function buildSlackPayload(order) {
     totals,
     uber, // optional
     receipt // optional
-  } = order;
+  } = order || {};
 
-  const isDelivery =
-    String(deliveryMethod || "").toLowerCase() === "delivery" ||
-    String(deliveryMethod || "").toLowerCase() === "uber";
+  const isDelivery = isDeliveryMethod(deliveryMethod, fulfillmentMethod);
 
-  const trackingUrl = pickTrackingUrl(uber) || pickTrackingUrl(receipt) || null;
+  // Prefer explicit Uber object, but also allow other fields commonly used in your codebase.
+  const trackingUrl =
+    pickTrackingUrl(uber) ||
+    pickTrackingUrl(order?.serverDelivery) ||
+    pickTrackingUrl(order?.uberDelivery) ||
+    pickTrackingUrl(order?.delivery) ||
+    pickTrackingUrl(receipt) ||
+    null;
 
   const customerName =
     [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") ||
@@ -54,25 +99,19 @@ function buildSlackPayload(order) {
     "—";
 
   const email = customer?.email || "—";
-  const phone = customer?.phone || customer?.phoneNumber || "—";
 
-  const storeLine =
-    pickupStoreLabel ||
-    pickupStoreName ||
-    pickupStoreId ||
+  // Phone sometimes lives in dropoffAddress/billing instead of customer.
+  const fallbackDropoff = dropoffAddress || order?.dropoff || order?.shippingAddress || order?.shipping || order?.billing || null;
+  const phone =
+    fallbackDropoff?.phoneNumber ||
+    fallbackDropoff?.phone ||
+    customer?.phone ||
+    customer?.phoneNumber ||
     "—";
 
-  const addressLine = isDelivery
-    ? [
-        dropoffAddress?.address || dropoffAddress?.street || "",
-        dropoffAddress?.street2 || dropoffAddress?.unit || "",
-        dropoffAddress?.city || "",
-        dropoffAddress?.state || "",
-        dropoffAddress?.zip || ""
-      ]
-        .filter(Boolean)
-        .join(", ")
-    : null;
+  const storeLine = pickupStoreLabel || pickupStoreName || pickupStoreId || "—";
+
+  const addressLine = isDelivery ? (buildAddressLine(fallbackDropoff) || "—") : null;
 
   const itemLines = (items || []).map((it) => {
     const qty = Number(it.quantity || 1);
@@ -81,10 +120,12 @@ function buildSlackPayload(order) {
     return `• ${safeStr(it.name)}  ×${qty}  —  ${formatMoney(lineTotal)}`;
   });
 
+  const headerText = isDelivery ? "✅ Successful Delivery Order" : "✅ Successful Pickup Order";
+
   const blocks = [
     {
       type: "header",
-      text: { type: "plain_text", text: "✅ Successful Order", emoji: true }
+      text: { type: "plain_text", text: headerText, emoji: true }
     },
     {
       type: "section",
@@ -110,7 +151,7 @@ function buildSlackPayload(order) {
         {
           type: "mrkdwn",
           text: isDelivery
-            ? `*Dropoff:*\n${safeStr(addressLine || "—")}`
+            ? `*Dropoff:*\n${safeStr(addressLine)}`
             : `*Dropoff:*\n—`
         }
       ]
@@ -120,9 +161,7 @@ function buildSlackPayload(order) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text:
-          `*Items (${(items || []).length}):*\n` +
-          (itemLines.length ? itemLines.join("\n") : "• —")
+        text: `*Items (${(items || []).length}):*\n` + (itemLines.length ? itemLines.join("\n") : "• —")
       }
     },
     { type: "divider" },
@@ -137,7 +176,7 @@ function buildSlackPayload(order) {
     }
   ];
 
-  if (trackingUrl) {
+  if (isDelivery && trackingUrl) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: `*Uber Tracking:*\n${trackingUrl}` }
@@ -146,12 +185,10 @@ function buildSlackPayload(order) {
 
   blocks.push({
     type: "context",
-    elements: [
-      { type: "mrkdwn", text: "Sent automatically from checkout" }
-    ]
+    elements: [{ type: "mrkdwn", text: "Sent automatically from checkout" }]
   });
 
-  return { text: "Successful order", blocks };
+  return { text: isDelivery ? "Successful delivery order" : "Successful pickup order", blocks };
 }
 
 async function sendSlackOrderNotification(order) {

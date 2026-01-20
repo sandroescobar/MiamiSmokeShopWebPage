@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "authorizenet": "^1.0.10",
+    "authorizenet": "^1.0.8",
     "dotenv": "^17.2.3",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
@@ -21,6 +21,7 @@
     "install": "^0.13.0",
     "mysql": "^2.18.1",
     "mysql2": "^3.15.3",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "twilio": "^5.11.2"
   }
 }
