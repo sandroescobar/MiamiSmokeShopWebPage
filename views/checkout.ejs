@@ -111,6 +111,10 @@
     .store-option .store-distance { font-size: 12px; color: var(--ink-soft); }
     .store-option:has(input:checked) { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
 
+    /* Disabled store (not fully stocked for this cart) */
+    .store-option.disabled { opacity: .55; cursor: not-allowed; }
+    .store-option.disabled:hover { border-color: var(--line); }
+
     .availability-notice { font-size: 13px; color: #475569; margin-top: 10px; padding: 10px;
       background: #f1f5f9; border-radius: 8px; border-left: 3px solid var(--focus); }
     .loading { color: var(--ink-soft); font-size: 13px; margin-top: 8px; }
@@ -383,11 +387,11 @@
     let allStores = [];
     let selectedStore = null;
     let cartProductIds = [];
+    let cartItems = [];
+    let cartItemCount = 0;
     let checkoutTotals = { subtotal: 0, tax: 0, delivery: 0, total: 0 };
     let deliveryStoreOptions = [];
     let selectedDeliveryStore = null;
-    let selectedUberQuoteId = null;
-    let selectedUberFeeCents = null;
     let userDeliveryLocation = null;
 
     // Render cart items and update totals
@@ -396,7 +400,17 @@
       const container = document.getElementById('order-items-container');
       const TAX_RATE = 0.0875;
 
-      cartProductIds = cart.map(item => item.id).filter(Boolean);
+      cartItems = cart;
+
+      // Robust ID extraction (supports different cart item shapes)
+      const rawIds = cart
+        .map((item) => item?.id ?? item?.product_id ?? item?.productId)
+        .filter((v) => v !== null && v !== undefined && v !== '');
+
+      // Use distinct product IDs for availability checks / readiness badges.
+      cartProductIds = Array.from(new Set(rawIds.map((v) => parseInt(v, 10)).filter((n) => Number.isFinite(n))));
+      cartItemCount = cartProductIds.length;
+
 
       if (cart.length === 0) {
         container.innerHTML = '<p style="color:#64748b; margin-bottom:16px;">Your cart is empty</p>';
@@ -545,6 +559,15 @@
       const notice = document.getElementById('delivery-availability-notice');
       if (!notice) return;
       const messages = [];
+
+      // Option B: Uber delivery should only be available when at least one store
+      // can fulfill the entire cart (fully stocked). If none can, force pickup.
+      const eligibleCount = (deliveryStoreOptions || []).filter(o => o && o.missingCount === 0).length;
+      if (eligibleCount === 0) {
+        notice.innerHTML = 'Uber delivery is not available for this cart (no location has all items). Please choose pickup or adjust your cart.';
+        notice.style.display = 'block';
+        return;
+      }
       const closest = deliveryStoreOptions[0];
       if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
       if (selectedOption && selectedOption.missingCount > 0) messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
@@ -568,23 +591,32 @@
 
       if (helper) helper.style.display = 'none';
 
-      const totalItems = cartProductIds.length;
+      // Option B: disable stores that are not fully stocked for this cart.
+      const totalItems = cartItemCount;
+      const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
+      const resolvedSelected = eligibleStores.length
+        ? (eligibleStores.find(o => o.name === selectedDeliveryStore) || eligibleStores[0]).name
+        : null;
+
       const cards = deliveryStoreOptions.map((option, idx) => {
-        const checked = selectedDeliveryStore ? selectedDeliveryStore === option.name : idx === 0;
+        const eligible = option.missingCount === 0;
+        const checked = eligible && (resolvedSelected ? resolvedSelected === option.name : idx === 0);
         const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
-        const availabilityClass = option.missingCount === 0 ? 'available' : 'unavailable';
+        const availabilityClass = eligible ? 'available' : 'unavailable';
         const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
-        const warning = option.missingCount === 0 ? '' : `<div class="store-distance" style="color:#b45309;">Missing ${option.missingCount} item(s)</div>`;
+        const secondaryLine = eligible
+          ? `~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}`
+          : `~${distanceLabel} miles • Not available for this cart`;
+
         return `
-          <label class="store-option">
-            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
+          <label class="store-option ${eligible ? '' : 'disabled'}" ${eligible ? '' : 'title="Not available for this cart"'}>
+            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''} ${eligible ? '' : 'disabled'}>
             <div class="store-header">
               <div class="store-name">${option.name}</div>
               <span class="availability ${availabilityClass}">${availabilityLabel}</span>
             </div>
             <div class="store-address">${option.address}</div>
-            <div class="store-distance">~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}</div>
-            ${warning}
+            <div class="store-distance">${secondaryLine}</div>
           </label>
         `;
       }).join('');
@@ -609,85 +641,38 @@
         updateDeliveryNotice(null);
         return;
       }
-      if (!selectedDeliveryStore) selectedDeliveryStore = deliveryStoreOptions[0].name;
 
-      const selectedOption = deliveryStoreOptions.find(option => option.name === selectedDeliveryStore) || deliveryStoreOptions[0];
+      const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
+      if (!eligibleStores.length) {
+        // No store can fulfill the full cart: Uber Delivery not available.
+        setDeliveryFee(0);
+        updateClosestStoreHighlight(null);
+        updateDeliveryNotice(null);
+
+        // Force pickup selection in the UI.
+        const pickupRadio = document.querySelector('input[name="delivery_method"][value="pickup"]');
+        if (pickupRadio && !pickupRadio.checked) {
+          pickupRadio.checked = true;
+          pickupRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+
+      if (!selectedDeliveryStore || !eligibleStores.some(o => o.name === selectedDeliveryStore)) {
+        selectedDeliveryStore = eligibleStores[0].name;
+      }
+
+      const selectedOption = eligibleStores.find(option => option.name === selectedDeliveryStore) || eligibleStores[0];
       selectedDeliveryStore = selectedOption.name;
       setDeliveryFee(selectedOption.fee);
-
-      // Keep selected Uber quote metadata aligned with the chosen store
-      selectedUberQuoteId = selectedOption.uberQuoteId || null;
-      selectedUberFeeCents = Number.isFinite(selectedOption.uberFeeCents)
-        ? Number(selectedOption.uberFeeCents)
-        : (Number.isFinite(selectedOption.fee) ? Math.round(Number(selectedOption.fee) * 100) : null);
-      updateClosestStoreHighlight(deliveryStoreOptions[0]);
+      updateClosestStoreHighlight(eligibleStores[0]);
       updateDeliveryNotice(selectedOption);
-    }
-
-    // Build a dropoff payload for /api/uber/quote (uses the Address section fields)
-    function buildDropoffForUberQuote() {
-      const street = document.querySelector('input[name="street"]')?.value?.trim() || '';
-      const unit = document.querySelector('input[name="unit"]')?.value?.trim() || '';
-      const city = document.querySelector('input[name="city"]')?.value?.trim() || '';
-      const state = document.querySelector('input[name="state"]')?.value?.trim() || '';
-      const zip = document.querySelector('input[name="zip"]')?.value?.trim() || '';
-      const phone = document.querySelector('input[name="phoneNumber"]')?.value?.trim() || document.querySelector('input[name="phone"]')?.value?.trim() || '';
-
-      if (!street || !city || !state || !zip) return null;
-
-      return {
-        address: street,
-        street2: unit,
-        city,
-        state,
-        zip,
-        country: 'US',
-        phoneNumber: phone || ''
-      };
-    }
-
-    async function requestUberQuoteCentsForStore(pickupStoreId, dropoffAddress, manifestTotalValue) {
-      try {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 9000);
-
-        const res = await fetch('/api/uber/quote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({
-            pickupStoreId,
-            dropoffAddress,
-            manifestTotalValue: Number(manifestTotalValue || 0)
-          }),
-          signal: controller.signal
-        }).finally(() => clearTimeout(t));
-
-        const data = await res.json().catch(() => ({}));
-
-        const feeCents = Number(data?.quote?.fee);
-        const quoteId = data?.quote?.quoteId || data?.quote?.id || data?.quote?.quote_id || null;
-
-        if (!res.ok || !data?.ok || !Number.isFinite(feeCents)) {
-          return { ok: false, feeCents: null, quoteId: null };
-        }
-
-        // Browser console visibility without completing an order
-        console.log('[UBER QUOTE]', { pickupStoreId, feeCents, quoteId });
-
-        return { ok: true, feeCents, quoteId };
-      } catch (e) {
-        return { ok: false, feeCents: null, quoteId: null };
-      }
     }
 
     async function buildDeliveryStoreOptions(lat, lng) {
       if (!allStores.length) { clearDeliveryOptions(); return; }
 
       const totalItems = cartItemCount;
-      const dropoffAddress = buildDropoffForUberQuote();
-      const manifestTotalValue = checkoutTotals?.subtotal || 0;
-
-      // We will always compute miles locally. Fee comes from Uber quote when possible; otherwise we fall back to estimateDeliveryFee().
       const results = await Promise.all(allStores.map(async store => {
         const availability = await getStoreAvailability(store.name);
         const availableCount = Object.values(availability || {}).filter(Boolean).length;
@@ -696,25 +681,9 @@
         const storeLat = parseFloat(store.latitude);
         const storeLng = parseFloat(store.longitude);
         const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
+        const fee = estimateDeliveryFee(distance);
 
-        let fee = estimateDeliveryFee(distance);
-        let feeSource = 'estimate';
-        let uberQuoteId = null;
-        let uberFeeCents = null;
-
-        // Only attempt Uber quote if we have full dropoff fields
-        if (dropoffAddress) {
-          const pickupStoreId = normalizeStoreId(store.name);
-          const quote = await requestUberQuoteCentsForStore(pickupStoreId, dropoffAddress, manifestTotalValue);
-          if (quote.ok && Number.isFinite(quote.feeCents)) {
-            fee = quote.feeCents / 100;
-            feeSource = 'uber';
-            uberQuoteId = quote.quoteId;
-            uberFeeCents = quote.feeCents;
-          }
-        }
-
-        return { ...store, distance, fee, feeSource, uberQuoteId, uberFeeCents, availableCount, missingCount };
+        return { ...store, distance, fee, availableCount, missingCount };
       }));
 
       results.sort((a, b) => a.distance - b.distance);
@@ -722,18 +691,132 @@
       const previousSelection = selectedDeliveryStore;
       deliveryStoreOptions = results;
 
-      // Keep previous selection if still valid and fully stocked
       if (previousSelection && results.some(option => option.name === previousSelection) && results.find(o => o.name === previousSelection)?.missingCount === 0) {
+        // Keep previous selection only if it is still eligible.
         selectedDeliveryStore = previousSelection;
       } else {
-        // Prefer the store the user selected (pickup store) if it can fulfill the cart; otherwise choose the closest eligible store.
+        // Option B:
+        // 1) Prefer the shopping store if it can fulfill the entire cart.
+        // 2) Otherwise, pick the closest fully-stocked store.
         const preferred = results.find(option => option.name === selectedStore && option.missingCount === 0);
         const closestEligible = results.find(option => option.missingCount === 0);
-        const chosen = preferred || closestEligible || results[0] || null;
-        selectedDeliveryStore = chosen ? chosen.name : null;
+        selectedDeliveryStore = (preferred || closestEligible) ? (preferred || closestEligible).name : null;
       }
 
       renderDeliveryStores();
+    }
+    async function initializeStores() {
+      try {
+        const res = await fetch('/api/stores');
+        const data = await res.json();
+        allStores = Array.isArray(data?.stores) ? data.stores : [];
+
+        if (!allStores.length) {
+          pickupStoreContainer.innerHTML = '<p class="error-message">No pickup stores available.</p>';
+          return;
+        }
+
+    window.initializeStores = initializeStores;
+
+
+        // Respect the store the user is shopping from (passed via ?shop=...)
+        const params = new URLSearchParams(window.location.search);
+        const shopParamRaw = params.get('shop') || '';
+        const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const shopKey = normalizeKey(shopParamRaw);
+
+        let matched = null;
+        if (shopKey) {
+          matched = allStores.find((s) => {
+            const candidates = [s?.id, s?.external_store_id, s?.externalStoreId, s?.slug, s?.name, s?.title, s?.storeId];
+            return candidates.some((c) => normalizeKey(c) === shopKey);
+          }) || null;
+
+          // Fallback: allow partial matches like 'calle8' vs 'calle 8'
+          if (!matched) {
+            matched = allStores.find((s) => {
+              const nameKey = normalizeKey(s?.name);
+              return nameKey && shopKey && (nameKey.includes(shopKey) || shopKey.includes(nameKey));
+            }) || null;
+          }
+        }
+
+        selectedStore = (matched?.name || allStores[0].name);
+
+        // For Uber Delivery, prefer the shopping store when possible;
+        // buildDeliveryStoreOptions() will fall back to the closest fully-stocked store if needed.
+        selectedDeliveryStore = selectedStore;
+
+        await renderPickupStores();
+
+      } catch (err) {
+        console.error('Error loading stores:', err);
+        pickupStoreContainer.innerHTML = '<p class="error-message">Failed to load pickup stores.</p>';
+      }
+    }
+
+    async function renderPickupStores() {
+      const container = document.getElementById('pickup-stores');
+      if (!container) return;
+
+      // Pickup should only show the store the user selected on the products page (selectedStore).
+      const store = allStores.find(s => s.name === selectedStore) || allStores[0];
+      if (!store) {
+        container.innerHTML = '<p class="error-message">No pickup store available.</p>';
+        return;
+      }
+
+      const availability = await getStoreAvailability(store.name);
+      const availableCount = Object.values(availability || {}).filter(Boolean).length;
+      const totalItems = cartItemCount;
+      const isFullyAvailable = totalItems ? (availableCount === totalItems) : true;
+      const statusLabel = totalItems ? `${availableCount}/${totalItems} in stock` : 'Cart empty';
+
+      container.innerHTML = `
+        <div class="store-option" style="cursor:default">
+          <div class="store-header">
+            <div class="store-name">${store.name}</div>
+            <span class="availability ${isFullyAvailable ? 'available' : 'unavailable'}">${statusLabel}</span>
+          </div>
+          <div class="store-address">${store.address || ''}</div>
+          <div class="store-distance">Pickup location (selected store)</div>
+        </div>
+      `;
+
+      // Show pickup availability warning if needed.
+      await checkInventoryForStore(store.name);
+    }
+
+    async function getStoreAvailability(storeName) {
+      if (cartProductIds.length === 0) return {};
+      try {
+        const res = await fetch('/api/check-inventory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_ids: cartProductIds, store_name: storeName })
+        });
+        if (!res.ok) throw new Error('Failed to check inventory');
+        return await res.json();
+      } catch (err) {
+        console.error('Error checking inventory:', err);
+        return {};
+      }
+    }
+
+    async function checkInventoryForStore(storeName) {
+      const availability = await getStoreAvailability(storeName);
+      const unavailable = Object.entries(availability)
+        .filter(([_, available]) => !available)
+        .map(([id, _]) => cartProductIds.indexOf(parseInt(id)))
+        .filter(i => i !== -1);
+
+      const notice = document.getElementById('pickup-availability-notice');
+      if (unavailable.length > 0) {
+        notice.innerHTML = `⚠️ ${unavailable.length} item(s) not available at ${storeName}`;
+        notice.style.display = 'block';
+      } else {
+        notice.style.display = 'none';
+      }
     }
 
     (function(){
@@ -949,27 +1032,14 @@
 
     async function submitCharge(opaqueData) {
       const { customer, billing } = buildBillingFromForm();
-      const cart = JSON.parse(localStorage.getItem('cart')) || [];
 
       const deliveryMethod = getSelectedDeliveryMethod();
       const pickupStoreId = (deliveryMethod === 'delivery')
         ? normalizeStoreId(selectedDeliveryStore || selectedStore)
         : normalizeStoreId(selectedStore);
-
-      // Safety: ensure the delivery fee + quote metadata correspond to the pickupStoreId we will charge/create from
-      if (deliveryMethod === 'delivery' && pickupStoreId && Array.isArray(deliveryStoreOptions) && deliveryStoreOptions.length) {
-        const chosen = deliveryStoreOptions.find(o => normalizeStoreId(o.name) === pickupStoreId);
-        if (chosen && Number.isFinite(chosen.fee)) {
-          setDeliveryFee(Number(chosen.fee));
-          selectedUberQuoteId = chosen.uberQuoteId || selectedUberQuoteId;
-          selectedUberFeeCents = Number.isFinite(chosen.uberFeeCents) ? Number(chosen.uberFeeCents) : selectedUberFeeCents;
-        }
-      }
       const payload = {
         opaqueData,
         totals: checkoutTotals,
-        cartItems: cart,
-        items: cart,
         customer,
         billing,
         deliveryMethod,
@@ -1072,34 +1142,34 @@
 
           // Persist success payload for /checkout-success
           try {
-            const cart = JSON.parse(localStorage.getItem('cart')) || [];
+            const orderId =
+              serverResult?.receipt?.order_id ||
+              serverResult?.receiptPayload?.orderId ||
+              null;
+
             const deliveryMethod = getSelectedDeliveryMethod();
-            const storeLabel = storeLabelFromId(pickupStoreId);
-            const successPayload = {
-              items: cart,
-              customer: customer || {},
-              transactionId: serverResult?.transactionId || null,
-              authCode: serverResult?.authCode || null,
+
+            // If the server provided a full payload (includes orderId + totals, etc.), prefer it.
+            const successPayload = serverResult?.receiptPayload || {
+              receipt: serverResult?.receipt || (orderId ? { order_id: orderId } : null),
+              orderId,
               deliveryMethod,
-              fulfillmentMethod: deliveryMethod,
-              subtotal: checkoutTotals?.subtotal || 0,
-              tax: checkoutTotals?.tax || 0,
-              delivery: checkoutTotals?.delivery || 0,
-              total: checkoutTotals?.total || 0,
               totals: checkoutTotals,
               pickupStoreId: pickupStoreId || null,
-              pickupStoreLabel: storeLabel || null,
-              storeLabel: storeLabel || null,
+              pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
               serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
               uberError: serverResult?.uberError || null,
               deliveryWarning: serverResult?.uberError || null
             };
-            sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
-          } catch (_) {}
 
-          try { localStorage.removeItem('cart'); } catch (_) {}
-          setTimeout(() => { window.location.href = '/checkout-success'; }, 200);
-        } catch (err) {
+            sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+
+            const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : '';
+            setTimeout(() => { window.location.href = `/checkout-success${qs}`; }, 200);
+          } catch (_) {
+            setTimeout(() => { window.location.href = '/checkout-success'; }, 200);
+          }
+} catch (err) {
           paySetError(err?.message || 'Payment failed.');
           paySetHint('Please review your card details and try again.');
           btn.disabled = false;

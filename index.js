@@ -82,152 +82,6 @@ const CONTACT_INFO = {
   ],
 };
 
-
-/* --------------------  Twilio SMS receipts (optional)  -------------------- */
-/**
- * Notes:
- * - Twilio trial accounts can only send SMS to *verified* recipient numbers.
- * - Configure via env vars:
- *     TWILIO_ACCOUNT_SID
- *     TWILIO_AUTH_TOKEN
- *     TWILIO_MESSAGING_SERVICE_SID  (preferred)  OR  TWILIO_FROM
- * - SMS failures never block checkout (best-effort).
- */
-
-let _twilioClient = null;
-
-function formatMoney(n) {
-  const num = Number(n || 0);
-  return `$${num.toFixed(2)}`;
-}
-
-function safeStr(v) {
-  return (v === null || v === undefined) ? "" : String(v);
-}
-
-function pickTrackingUrl(obj) {
-  return (
-    obj?.tracking_url ||
-    obj?.trackingUrl ||
-    obj?.tracking?.url ||
-    obj?.tracking?.href ||
-    obj?.courier_tracking_url ||
-    obj?.courierTrackingUrl ||
-    obj?.delivery?.tracking_url ||
-    obj?.delivery?.trackingUrl ||
-    null
-  );
-}
-
-function storeLabelFromIdLocal(storeId) {
-  const id = String(storeId || "").toLowerCase();
-  const match = (STORE_CHOICES || []).find(s => String(s.id || "").toLowerCase() === id);
-  return match?.label || storeId || "—";
-}
-
-function buildReceiptSmsText(order) {
-  const isDelivery = String(order?.deliveryMethod || "").toLowerCase() === "delivery";
-
-  const lines = [];
-  lines.push("✅ Miami Vape Smoke Shop receipt");
-
-  const orderId = order?.orderId || order?.transactionId || "";
-  if (orderId) lines.push(`Order: ${safeStr(orderId)}`);
-
-  lines.push(`Method: ${isDelivery ? "Delivery" : "Pickup"}`);
-
-  const storeLine = order?.pickupStoreLabel || storeLabelFromIdLocal(order?.pickupStoreId);
-  if (storeLine) lines.push(`Store: ${safeStr(storeLine)}`);
-
-  const storePhone = order?.storePhone || CONTACT_INFO?.phone || "";
-  if (storePhone) lines.push(`Store phone: ${safeStr(storePhone)}`);
-
-  if (isDelivery) {
-    const dropoff = safeStr(order?.dropoffShort || "");
-    if (dropoff) lines.push(`Dropoff: ${dropoff}`);
-  }
-
-  const items = Array.isArray(order?.items) ? order.items : [];
-  if (items.length) {
-    lines.push("Items:");
-    for (const it of items.slice(0, 15)) { // keep SMS readable
-      const qty = Number(it?.quantity || 1);
-      const price = Number(it?.price || 0);
-      const lineTotal = qty * price;
-      lines.push(`- ${safeStr(it?.name || "Item")} x${qty} ${formatMoney(lineTotal)}`);
-    }
-    if (items.length > 15) lines.push(`(and ${items.length - 15} more)`);
-  }
-
-  const totals = order?.totals || {};
-  if (totals?.subtotal != null) lines.push(`Subtotal: ${formatMoney(totals.subtotal)}`);
-  if (totals?.delivery != null) lines.push(`Delivery: ${formatMoney(totals.delivery)}`);
-  if (totals?.tax != null) lines.push(`Tax: ${formatMoney(totals.tax)}`);
-  if (totals?.total != null) lines.push(`Total: ${formatMoney(totals.total)}`);
-
-  if (isDelivery) {
-    const trackingUrl = order?.trackingUrl || pickTrackingUrl(order?.uberDelivery) || pickTrackingUrl(order?.receipt) || null;
-    if (trackingUrl) {
-      lines.push(`Track: ${trackingUrl}`);
-    } else {
-      lines.push("Tracking: We will text a link shortly.");
-    }
-  }
-
-  return lines.filter(Boolean).join("\n");
-}
-
-async function getTwilioClient() {
-  if (_twilioClient) return _twilioClient;
-
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!accountSid || !authToken) return null;
-
-  try {
-    const mod = await import("twilio");
-    const twilio = mod?.default || mod;
-    _twilioClient = twilio(accountSid, authToken);
-    return _twilioClient;
-  } catch (err) {
-    console.warn("[twilio] failed to load twilio client:", err?.message || err);
-    return null;
-  }
-}
-
-async function sendTwilioReceiptSms({ to, order }) {
-  const client = await getTwilioClient();
-  if (!client) {
-    console.warn("[twilio] missing client/env; skipping SMS");
-    return { ok: false, skipped: true };
-  }
-
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-  const from = process.env.TWILIO_FROM;
-
-  if (!messagingServiceSid && !from) {
-    console.warn("[twilio] TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM not set; skipping SMS");
-    return { ok: false, skipped: true };
-  }
-
-  const body = buildReceiptSmsText(order);
-
-  try {
-    const msg = await client.messages.create({
-      to,
-      body,
-      ...(messagingServiceSid ? { messagingServiceSid } : { from })
-    });
-
-    console.log("[twilio] SMS sent", { to, sid: msg?.sid });
-    return { ok: true, sid: msg?.sid };
-  } catch (err) {
-    console.warn("[twilio] SMS failed:", err?.message || err);
-    return { ok: false };
-  }
-}
-
-
 const STORE_CHOICES = [
   {
     id: 'calle8',
@@ -2340,6 +2194,34 @@ async function ensureSnapshotTables() {
   }
 }
 
+
+async function ensureOrderReceiptsTable() {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS order_receipts (
+      order_id VARCHAR(64) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      store_id VARCHAR(16) NULL,
+      delivery_option VARCHAR(16) NULL,
+      pickup_store_id VARCHAR(32) NULL,
+      customer_email VARCHAR(255) NULL,
+      customer_first_name VARCHAR(255) NULL,
+      customer_last_name VARCHAR(255) NULL,
+      customer_phone VARCHAR(64) NULL,
+      items_json JSON NULL,
+      totals_json JSON NULL,
+      uber_response_json JSON NULL,
+      uber_error TEXT NULL,
+      checkout_payload_json JSON NULL,
+      PRIMARY KEY (order_id),
+      INDEX idx_created_at (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `;
+  await queryWithRetry(sql);
+  console.log('Order receipts table ensured.');
+}
+
+
+
 async function seedVariantImages() {
   if (!VARIANT_IMAGE_LOOKUP.size) return;
   try {
@@ -2397,7 +2279,7 @@ app.get('/checkout', (req, res) => {
     
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
-});
+
 
 // Success page (client-side reads sessionStorage checkoutSuccessPayload)
 app.get('/checkout-success', (req, res) => {
@@ -2411,6 +2293,7 @@ app.get('/checkout-success', (req, res) => {
     storeOptions: STORE_CHOICES,
     storeNameMap: STORE_NAME_BY_ID,
   });
+});
 });
 
 
@@ -2593,6 +2476,7 @@ function normalizeStoreId(v) {
   const s = raw.replace(/\s+/g, '');
   if (!s) return 'calle8';
   if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+  if (s.includes('calleocho') || raw.includes('ocho')) return 'calle8';
   if (s.includes('79th') || s.includes('79') || s == '79th') return '79th';
   // Accept "Calle 8" / "79th Street" labels
   if (raw.includes('calle') && raw.includes('8')) return 'calle8';
@@ -2726,31 +2610,17 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
 }
 
 function uberAddressJsonString(addressObj = {}) {
-  // Uber Direct expects pickup_address/dropoff_address as a *string* containing JSON (not a nested object).
-  // street_address must be an array of address lines.
-
-  const rawLine1 = addressObj.street_address ?? addressObj.address ?? addressObj.address1 ?? addressObj.street1 ?? '';
-  const rawLine2 = addressObj.street2 ?? addressObj.address2 ?? '';
-
-  let streetLines;
-  if (Array.isArray(rawLine1)) {
-    streetLines = rawLine1.filter(Boolean).map(String);
-  } else {
-    streetLines = [rawLine1].filter(Boolean).map(String);
-  }
-  if (rawLine2) streetLines.push(String(rawLine2));
-
-  const normalized = {
-    street_address: streetLines,
-    city: String(addressObj.city || ''),
-    state: String(addressObj.state || ''),
-    zip_code: String(addressObj.zip_code || addressObj.zip || ''),
-    country: String(addressObj.country || 'US'),
+  const street = Array.isArray(addressObj.street_address)
+    ? addressObj.street_address.filter(Boolean)
+    : [addressObj.street_address].filter(Boolean);
+  return {
+    street_address: street,
+    city: addressObj.city || '',
+    state: addressObj.state || '',
+    zip_code: addressObj.zip_code || '',
+    country: addressObj.country || 'US',
   };
-
-  return JSON.stringify(normalized);
 }
-
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
   const store = buildStoreAddress(pickupStoreId);
@@ -2881,39 +2751,6 @@ app.get('/api/authorize/test-auth', async (req, res) => {
       });
     }
 
-        // Best-effort SMS receipt (never blocks checkout)
-    try {
-      const rawPhone =
-        req.body?.customer?.phone ||
-        req.body?.billing?.phoneNumber ||
-        req.body?.dropoffAddress?.phoneNumber ||
-        req.body?.dropoffAddress?.phone ||
-        "";
-
-      const to = toE164US(rawPhone);
-      if (to) {
-        const trackingUrl = pickTrackingUrl(uberDelivery) || null;
-
-        sendTwilioReceiptSms({
-          to,
-          order: {
-            orderId: transactionId || null,
-            transactionId: transactionId || null,
-            deliveryMethod,
-            pickupStoreId,
-            pickupStoreLabel: storeLabelFromIdLocal(pickupStoreId),
-            storePhone: CONTACT_INFO?.phone || null,
-            dropoffShort: [dropoffStreet, dropoffCity, dropoffState, dropoffZip].filter(Boolean).join(", "),
-            items: Array.isArray(req.body?.items) ? req.body.items : [],
-            totals: req.body?.totals || null,
-            trackingUrl,
-            uberDelivery,
-            receipt: null
-          }
-        }).catch(() => {});
-      }
-    } catch (_) {}
-
     return res.json({
       ok: true,
       env,
@@ -2931,143 +2768,6 @@ app.get('/api/authorize/auth-test', async (req, res) => {
   return res.redirect(302, '/api/authorize/test-auth');
 });
 
-async function decrementInventory(normalizedStoreId, cartItems) {
-  if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-    console.log('[inventory] No items to decrement');
-    return { success: true, decremented: 0 };
-  }
-
-  const tables = SHOP_TABLES[normalizedStoreId];
-  if (!tables || !Array.isArray(tables) || tables.length === 0) {
-    console.warn('[inventory] Invalid store ID:', normalizedStoreId);
-    return { success: false, error: 'Invalid store' };
-  }
-
-  const tableName = tables[0];
-
-  try {
-    let totalDecremented = 0;
-
-    for (const item of cartItems) {
-      const productName = (item?.name || '').trim();
-      const quantity = Math.max(1, Number(item?.quantity) || 1);
-
-      if (!productName) {
-        console.warn('[inventory] Skipping item with no name:', item);
-        continue;
-      }
-
-      const [result] = await queryWithRetry(
-        `UPDATE \`${tableName}\` SET quantity = GREATEST(0, quantity - ?) WHERE name = ?`,
-        [quantity, productName]
-      );
-
-      if (result?.affectedRows > 0) {
-        totalDecremented += quantity;
-        console.log('[inventory] Decremented', productName, 'in', tableName, 'quantity:', quantity);
-      } else {
-        console.warn('[inventory] No entry found for product:', productName, 'in table:', tableName);
-      }
-    }
-
-    console.log('[inventory] Total items decremented:', totalDecremented, 'in', tableName);
-    return { success: true, decremented: totalDecremented };
-  } catch (err) {
-    console.error('[inventory] Error decrementing inventory:', err);
-    return { success: false, error: err?.message };
-  }
-}
-
-async function sendSlackNotification(order) {
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-  if (!webhookUrl) {
-    console.log('[Slack] No webhook URL configured, skipping notification');
-    return;
-  }
-
-  try {
-    const { transactionId, storeName, fulfillmentMethod, items, total, customer, billing } = order;
-    
-    const firstName = customer?.firstName || billing?.firstName || '';
-    const lastName = customer?.lastName || billing?.lastName || '';
-    const email = customer?.email || billing?.email || '';
-    const phone = customer?.phone || customer?.phoneNumber || billing?.phoneNumber || billing?.phone || '';
-    const city = customer?.city || billing?.city || 'destination';
-    
-    const customerName = `${firstName} ${lastName}`.trim() || 'Guest';
-    const contactInfo = [email, phone].filter(Boolean).join(' • ') || 'No contact info';
-
-    const itemsList = (items || [])
-      .map(item => `• ${item?.name || 'Unknown'} ${item?.flavor ? `(${item.flavor})` : ''} x${item?.quantity || 1}`)
-      .join('\n');
-
-    const fulfillmentText = fulfillmentMethod === 'delivery' 
-      ? `📍 **Delivery** to ${city}`
-      : `🏪 **Pickup** at ${storeName}`;
-
-    const message = {
-      text: `New Order #${transactionId}`,
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: `📦 New Order: ${transactionId}`,
-          },
-        },
-        {
-          type: 'section',
-          fields: [
-            {
-              type: 'mrkdwn',
-              text: `*Store:*\n${storeName}`,
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Method:*\n${fulfillmentText}`,
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Total:*\n$${Number(total || 0).toFixed(2)}`,
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Customer:*\n${customerName}`,
-            },
-          ],
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*Contact:*\n${contactInfo}`,
-          },
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*Items:*\n${itemsList || 'No items'}`,
-          },
-        },
-      ],
-    };
-
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
-    });
-
-    if (!response.ok) {
-      console.error('[Slack] Failed to send notification:', response.status, response.statusText);
-    } else {
-      console.log('[Slack] Notification sent successfully');
-    }
-  } catch (err) {
-    console.error('[Slack] Error sending notification:', err?.message);
-  }
-}
 
 app.post('/api/authorize/charge', async (req, res) => {
   try {
@@ -3089,16 +2789,6 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
-
-    const pickupStoreIdForCharge = normalizeStoreId(
-      body?.pickupStoreId ||
-      body?.selectedDeliveryStore ||
-      body?.pickupStore ||
-      body?.pickupStoreLabel ||
-      body?.store ||
-      'calle8'
-    );
-
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -3226,7 +2916,9 @@ app.post('/api/authorize/charge', async (req, res) => {
     try {
       const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
-        const pickupStoreId = pickupStoreIdForCharge;
+        const pickupStoreId = normalizeStoreId(
+          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
+        );
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
         console.log('[Uber Direct] courier branch start', {
@@ -3287,45 +2979,143 @@ app.post('/api/authorize/charge', async (req, res) => {
       });
     }
 
-    try {
-      const cartItems = body?.cartItems || body?.items || [];
-      const inventoryResult = await decrementInventory(pickupStoreIdForCharge, cartItems);
-      console.log('[CHARGE] inventory update result:', inventoryResult);
-    } catch (err) {
-      console.error('[CHARGE] Inventory decrement failed:', err);
-    }
+    
+    // --- Persist order receipt + decrement inventory (best-effort) ---
+    const orderId = crypto.randomUUID();
+    const createdAtIso = new Date().toISOString();
+
+    const receiptPayload = {
+      orderId,
+      createdAt: createdAtIso,
+      deliveryMethod: deliveryOption,
+      pickupStoreId,
+      pickupStoreLabel: storeLabelFromId(pickupStoreId),
+      pickupStoreAddress: buildStoreAddress(pickupStoreId),
+      customer: { email, firstName, lastName, phone },
+      items,
+      totals: { subtotal, tax: taxAmount, delivery: deliveryFee, total: orderTotal },
+      uber: uberDelivery || null,
+      uberError: uberError || null
+    };
 
     try {
-      const storeName = storeLabelFromId(pickupStoreIdForCharge);
-      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
-      const cartItems = body?.cartItems || body?.items || [];
-      
-      await sendSlackNotification({
-        transactionId: transId,
-        storeName: storeName,
-        fulfillmentMethod: deliveryMethod,
-        items: cartItems,
-        total: body?.totals?.total || body?.amount || 0,
-        customer: body?.customer || {},
-        billing: body?.billing || {},
-      });
+      const inventoryTable = normalizeStoreId(pickupStoreId) === '79th' ? 'inventory_79th' : 'inventory_calle8';
+
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        await conn.query(
+          `INSERT INTO order_receipts
+            (order_id, store_id, delivery_option, pickup_store_id, customer_email, customer_first_name, customer_last_name, customer_phone,
+             items_json, totals_json, uber_response_json, uber_error, checkout_payload_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            orderId,
+            normalizeStoreId(pickupStoreId),
+            String(deliveryOption || ''),
+            String(pickupStoreId || ''),
+            String(email || ''),
+            String(firstName || ''),
+            String(lastName || ''),
+            String(phone || ''),
+            JSON.stringify(items || []),
+            JSON.stringify({ subtotal, tax: taxAmount, delivery: deliveryFee, total: orderTotal }),
+            uberDelivery ? JSON.stringify(uberDelivery) : null,
+            uberError ? String(uberError) : null,
+            JSON.stringify(req.body || {})
+          ]
+        );
+
+        if (inventoryTable && Array.isArray(items) && items.length) {
+          for (const it of items) {
+            const name = String(it?.name || '').trim();
+            const qty = Number(it?.quantity || 0);
+            if (!name || !Number.isFinite(qty) || qty <= 0) continue;
+
+            await conn.query(
+              `UPDATE ${inventoryTable}
+               SET quantity = GREATEST(quantity - ?, 0)
+               WHERE name = ? AND is_active = 1`,
+              [qty, name]
+            );
+          }
+        }
+
+        await conn.commit();
+      } catch (dbErr) {
+        try { await conn.rollback(); } catch {}
+        console.error('[order_receipts] persist failed:', dbErr?.message || dbErr);
+      } finally {
+        conn.release();
+      }
     } catch (err) {
-      console.error('[CHARGE] Slack notification failed:', err);
+      console.error('[order_receipts] connection failed:', err?.message || err);
     }
 
     return res.json({
       ok: true,
-      transactionId: transId,
-      authCode: trx?.authCode,
-      responseCode: trx?.responseCode,
+      success: true,
+      transactionId,
+      authCode,
+      responseCode,
+      orderTotal,
+      taxAmount,
+      deliveryFee,
       uberDelivery,
       uberError,
+      receipt: { order_id: orderId },
+      receiptPayload
     });
   } catch (err) {
     console.error('[Authorize.Net] charge exception', err);
     return res.status(500).json({ error: 'Server error while charging card.' });
   }
 });
+
+
+// Fetch a persisted receipt payload so /checkout-success works even after refresh
+app.get('/api/order-receipts/:orderId', async (req, res) => {
+  try {
+    const orderId = String(req.params.orderId || '').trim();
+    if (!orderId) return res.status(400).json({ ok: false, error: 'Missing orderId' });
+
+    const [rows] = await queryWithRetry('SELECT * FROM order_receipts WHERE order_id = ? LIMIT 1', [orderId]);
+    if (!rows || !rows.length) return res.status(404).json({ ok: false, error: 'Receipt not found' });
+
+    const r = rows[0];
+
+    const items = (() => { try { return r.items_json ? JSON.parse(r.items_json) : []; } catch { return []; } })();
+    const totals = (() => { try { return r.totals_json ? JSON.parse(r.totals_json) : {}; } catch { return {}; } })();
+    const uber = (() => { try { return r.uber_response_json ? JSON.parse(r.uber_response_json) : null; } catch { return null; } })();
+
+    const payload = {
+      orderId: r.order_id,
+      createdAt: r.created_at,
+      deliveryMethod: r.delivery_option,
+      pickupStoreId: r.pickup_store_id,
+      pickupStoreLabel: storeLabelFromId(r.pickup_store_id),
+      pickupStoreAddress: buildStoreAddress(r.pickup_store_id),
+      customer: {
+        email: r.customer_email,
+        firstName: r.customer_first_name,
+        lastName: r.customer_last_name,
+        phone: r.customer_phone
+      },
+      items,
+      totals,
+      uber,
+      uberError: r.uber_error || null
+    };
+
+    return res.json({ ok: true, payload });
+  } catch (err) {
+    console.error('Error fetching receipt:', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+});
+
+
 
 /* --------------------  Products (SSR)  -------------------- */
 app.get('/products', async (req, res) => {
@@ -3520,6 +3310,7 @@ app.listen(PORT, async () => {
   await initStoresTable();
   await ensureProductImagesTable();
   await ensureSnapshotTables();
+  await ensureOrderReceiptsTable();
   await seedVariantImages();
 });
 
