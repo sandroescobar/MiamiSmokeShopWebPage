@@ -949,6 +949,7 @@
 
     async function submitCharge(opaqueData) {
       const { customer, billing } = buildBillingFromForm();
+      const cart = JSON.parse(localStorage.getItem('cart')) || [];
 
       const deliveryMethod = getSelectedDeliveryMethod();
       const pickupStoreId = (deliveryMethod === 'delivery')
@@ -967,7 +968,8 @@
       const payload = {
         opaqueData,
         totals: checkoutTotals,
-
+        cartItems: cart,
+        items: cart,
         customer,
         billing,
         deliveryMethod,
@@ -1070,14 +1072,24 @@
 
           // Persist success payload for /checkout-success
           try {
+            const cart = JSON.parse(localStorage.getItem('cart')) || [];
             const deliveryMethod = getSelectedDeliveryMethod();
+            const storeLabel = storeLabelFromId(pickupStoreId);
             const successPayload = {
-              receipt: serverResult?.receipt || null,
+              items: cart,
+              customer: customer || {},
+              transactionId: serverResult?.transactionId || null,
+              authCode: serverResult?.authCode || null,
               deliveryMethod,
+              fulfillmentMethod: deliveryMethod,
+              subtotal: checkoutTotals?.subtotal || 0,
+              tax: checkoutTotals?.tax || 0,
+              delivery: checkoutTotals?.delivery || 0,
+              total: checkoutTotals?.total || 0,
               totals: checkoutTotals,
-
               pickupStoreId: pickupStoreId || null,
-              pickupStoreLabel: storeLabelFromId(pickupStoreId) || null,
+              pickupStoreLabel: storeLabel || null,
+              storeLabel: storeLabel || null,
               serverDelivery: serverResult?.uberDelivery || serverResult?.delivery || null,
               uberError: serverResult?.uberError || null,
               deliveryWarning: serverResult?.uberError || null

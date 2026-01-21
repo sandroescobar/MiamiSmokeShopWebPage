@@ -2989,14 +2989,23 @@ async function sendSlackNotification(order) {
   }
 
   try {
-    const { transactionId, storeName, fulfillmentMethod, items, total, customer } = order;
+    const { transactionId, storeName, fulfillmentMethod, items, total, customer, billing } = order;
+    
+    const firstName = customer?.firstName || billing?.firstName || '';
+    const lastName = customer?.lastName || billing?.lastName || '';
+    const email = customer?.email || billing?.email || '';
+    const phone = customer?.phone || customer?.phoneNumber || billing?.phoneNumber || billing?.phone || '';
+    const city = customer?.city || billing?.city || 'destination';
+    
+    const customerName = `${firstName} ${lastName}`.trim() || 'Guest';
+    const contactInfo = [email, phone].filter(Boolean).join(' • ') || 'No contact info';
 
     const itemsList = (items || [])
       .map(item => `• ${item?.name || 'Unknown'} ${item?.flavor ? `(${item.flavor})` : ''} x${item?.quantity || 1}`)
       .join('\n');
 
     const fulfillmentText = fulfillmentMethod === 'delivery' 
-      ? `📍 **Delivery** to ${customer?.city || 'destination'}`
+      ? `📍 **Delivery** to ${city}`
       : `🏪 **Pickup** at ${storeName}`;
 
     const message = {
@@ -3026,9 +3035,16 @@ async function sendSlackNotification(order) {
             },
             {
               type: 'mrkdwn',
-              text: `*Customer:*\n${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || '*Customer:*\nGuest',
+              text: `*Customer:*\n${customerName}`,
             },
           ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Contact:*\n${contactInfo}`,
+          },
         },
         {
           type: 'section',
@@ -3298,7 +3314,8 @@ app.post('/api/authorize/charge', async (req, res) => {
         fulfillmentMethod: deliveryMethod,
         items: cartItems,
         total: body?.totals?.total || body?.amount || 0,
-        customer: body?.customer || body?.billing || {},
+        customer: body?.customer || {},
+        billing: body?.billing || {},
       });
     } catch (err) {
       console.error('[CHARGE] Slack notification failed:', err);
