@@ -2397,7 +2397,7 @@ app.get('/checkout', (req, res) => {
     
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
   });
-
+});
 
 // Success page (client-side reads sessionStorage checkoutSuccessPayload)
 app.get('/checkout-success', (req, res) => {
@@ -2411,7 +2411,6 @@ app.get('/checkout-success', (req, res) => {
     storeOptions: STORE_CHOICES,
     storeNameMap: STORE_NAME_BY_ID,
   });
-});
 });
 
 
@@ -3077,6 +3076,16 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
+
+    const pickupStoreIdForCharge = normalizeStoreId(
+      body?.pickupStoreId ||
+      body?.selectedDeliveryStore ||
+      body?.pickupStore ||
+      body?.pickupStoreLabel ||
+      body?.store ||
+      'calle8'
+    );
+
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -3204,9 +3213,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     try {
       const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
       if (deliveryMethod === 'delivery') {
-        const pickupStoreId = normalizeStoreId(
-          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
-        );
+        const pickupStoreId = pickupStoreIdForCharge;
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
         console.log('[Uber Direct] courier branch start', {
