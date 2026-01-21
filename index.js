@@ -2932,6 +2932,130 @@ app.get('/api/authorize/auth-test', async (req, res) => {
   return res.redirect(302, '/api/authorize/test-auth');
 });
 
+async function getStoreIdFromNormalizedId(normalizedId) {
+  try {
+    const storeName = normalizedId === '79th' ? '79th Street' : 'Calle 8';
+    const [stores] = await queryWithRetry('SELECT id FROM stores WHERE name = ?', [storeName]);
+    return stores.length > 0 ? stores[0].id : null;
+  } catch (err) {
+    console.error('[inventory] Error getting store ID:', err);
+    return null;
+  }
+}
+
+async function decrementInventory(storeId, cartItems) {
+  if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+    console.log('[inventory] No items to decrement');
+    return { success: true, decremented: 0 };
+  }
+
+  try {
+    let totalDecremented = 0;
+
+    for (const item of cartItems) {
+      const productId = Number(item?.id);
+      const quantity = Math.max(1, Number(item?.quantity) || 1);
+
+      if (!Number.isFinite(productId) || productId <= 0) {
+        console.warn('[inventory] Skipping invalid product ID:', item?.id);
+        continue;
+      }
+
+      const [result] = await queryWithRetry(
+        'UPDATE product_inventory SET quantity_on_hand = GREATEST(0, quantity_on_hand - ?) WHERE product_id = ? AND store_id = ?',
+        [quantity, productId, storeId]
+      );
+
+      if (result?.affectedRows > 0) {
+        totalDecremented += quantity;
+        console.log('[inventory] Decremented product_id:', productId, 'store_id:', storeId, 'quantity:', quantity);
+      } else {
+        console.warn('[inventory] No inventory entry found for product_id:', productId, 'store_id:', storeId);
+      }
+    }
+
+    console.log('[inventory] Total items decremented:', totalDecremented);
+    return { success: true, decremented: totalDecremented };
+  } catch (err) {
+    console.error('[inventory] Error decrementing inventory:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+async function sendSlackNotification(order) {
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.log('[Slack] No webhook URL configured, skipping notification');
+    return;
+  }
+
+  try {
+    const { transactionId, storeName, fulfillmentMethod, items, total, customer } = order;
+
+    const itemsList = (items || [])
+      .map(item => `• ${item?.name || 'Unknown'} ${item?.flavor ? `(${item.flavor})` : ''} x${item?.quantity || 1}`)
+      .join('\n');
+
+    const fulfillmentText = fulfillmentMethod === 'delivery' 
+      ? `📍 **Delivery** to ${customer?.city || 'destination'}`
+      : `🏪 **Pickup** at ${storeName}`;
+
+    const message = {
+      text: `New Order #${transactionId}`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `📦 New Order: ${transactionId}`,
+          },
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Store:*\n${storeName}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Method:*\n${fulfillmentText}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Total:*\n$${Number(total || 0).toFixed(2)}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Customer:*\n${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || '*Customer:*\nGuest',
+            },
+          ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Items:*\n${itemsList || 'No items'}`,
+          },
+        },
+      ],
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      console.error('[Slack] Failed to send notification:', response.status, response.statusText);
+    } else {
+      console.log('[Slack] Notification sent successfully');
+    }
+  } catch (err) {
+    console.error('[Slack] Error sending notification:', err?.message);
+  }
+}
 
 app.post('/api/authorize/charge', async (req, res) => {
   try {
@@ -3141,6 +3265,36 @@ app.post('/api/authorize/charge', async (req, res) => {
         error: uberError,
         stack: e?.stack,
       });
+    }
+
+    try {
+      const storeId = await getStoreIdFromNormalizedId(pickupStoreIdForCharge);
+      if (storeId) {
+        const cartItems = body?.cartItems || body?.items || [];
+        const inventoryResult = await decrementInventory(storeId, cartItems);
+        console.log('[CHARGE] inventory update result:', inventoryResult);
+      } else {
+        console.warn('[CHARGE] Could not resolve store ID for:', pickupStoreIdForCharge);
+      }
+    } catch (err) {
+      console.error('[CHARGE] Inventory decrement failed:', err);
+    }
+
+    try {
+      const storeName = storeLabelFromId(pickupStoreIdForCharge);
+      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
+      const cartItems = body?.cartItems || body?.items || [];
+      
+      await sendSlackNotification({
+        transactionId: transId,
+        storeName: storeName,
+        fulfillmentMethod: deliveryMethod,
+        items: cartItems,
+        total: body?.totals?.total || body?.amount || 0,
+        customer: body?.customer || body?.billing || {},
+      });
+    } catch (err) {
+      console.error('[CHARGE] Slack notification failed:', err);
     }
 
     return res.json({
