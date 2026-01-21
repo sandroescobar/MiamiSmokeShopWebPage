@@ -2931,49 +2931,46 @@ app.get('/api/authorize/auth-test', async (req, res) => {
   return res.redirect(302, '/api/authorize/test-auth');
 });
 
-async function getStoreIdFromNormalizedId(normalizedId) {
-  try {
-    const storeName = normalizedId === '79th' ? '79th Street' : 'Calle 8';
-    const [stores] = await queryWithRetry('SELECT id FROM stores WHERE name = ?', [storeName]);
-    return stores.length > 0 ? stores[0].id : null;
-  } catch (err) {
-    console.error('[inventory] Error getting store ID:', err);
-    return null;
-  }
-}
-
-async function decrementInventory(storeId, cartItems) {
+async function decrementInventory(normalizedStoreId, cartItems) {
   if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
     console.log('[inventory] No items to decrement');
     return { success: true, decremented: 0 };
   }
 
+  const tables = SHOP_TABLES[normalizedStoreId];
+  if (!tables || !Array.isArray(tables) || tables.length === 0) {
+    console.warn('[inventory] Invalid store ID:', normalizedStoreId);
+    return { success: false, error: 'Invalid store' };
+  }
+
+  const tableName = tables[0];
+
   try {
     let totalDecremented = 0;
 
     for (const item of cartItems) {
-      const productId = Number(item?.id);
+      const productName = (item?.name || '').trim();
       const quantity = Math.max(1, Number(item?.quantity) || 1);
 
-      if (!Number.isFinite(productId) || productId <= 0) {
-        console.warn('[inventory] Skipping invalid product ID:', item?.id);
+      if (!productName) {
+        console.warn('[inventory] Skipping item with no name:', item);
         continue;
       }
 
       const [result] = await queryWithRetry(
-        'UPDATE product_inventory SET quantity_on_hand = GREATEST(0, quantity_on_hand - ?) WHERE product_id = ? AND store_id = ?',
-        [quantity, productId, storeId]
+        `UPDATE \`${tableName}\` SET quantity = GREATEST(0, quantity - ?) WHERE name = ?`,
+        [quantity, productName]
       );
 
       if (result?.affectedRows > 0) {
         totalDecremented += quantity;
-        console.log('[inventory] Decremented product_id:', productId, 'store_id:', storeId, 'quantity:', quantity);
+        console.log('[inventory] Decremented', productName, 'in', tableName, 'quantity:', quantity);
       } else {
-        console.warn('[inventory] No inventory entry found for product_id:', productId, 'store_id:', storeId);
+        console.warn('[inventory] No entry found for product:', productName, 'in table:', tableName);
       }
     }
 
-    console.log('[inventory] Total items decremented:', totalDecremented);
+    console.log('[inventory] Total items decremented:', totalDecremented, 'in', tableName);
     return { success: true, decremented: totalDecremented };
   } catch (err) {
     console.error('[inventory] Error decrementing inventory:', err);
@@ -3291,14 +3288,9 @@ app.post('/api/authorize/charge', async (req, res) => {
     }
 
     try {
-      const storeId = await getStoreIdFromNormalizedId(pickupStoreIdForCharge);
-      if (storeId) {
-        const cartItems = body?.cartItems || body?.items || [];
-        const inventoryResult = await decrementInventory(storeId, cartItems);
-        console.log('[CHARGE] inventory update result:', inventoryResult);
-      } else {
-        console.warn('[CHARGE] Could not resolve store ID for:', pickupStoreIdForCharge);
-      }
+      const cartItems = body?.cartItems || body?.items || [];
+      const inventoryResult = await decrementInventory(pickupStoreIdForCharge, cartItems);
+      console.log('[CHARGE] inventory update result:', inventoryResult);
     } catch (err) {
       console.error('[CHARGE] Inventory decrement failed:', err);
     }
