@@ -707,12 +707,16 @@
     }
     async function initializeStores() {
       try {
+        // Container for pickup store buttons
+        const pickupStoreContainer = document.getElementById('pickup-stores');
         const res = await fetch('/api/stores');
         const data = await res.json();
         allStores = Array.isArray(data?.stores) ? data.stores : [];
 
         if (!allStores.length) {
-          pickupStoreContainer.innerHTML = '<p class="error-message">No pickup stores available.</p>';
+          if (pickupStoreContainer) {
+            pickupStoreContainer.innerHTML = '<p class="error-message">No pickup stores available.</p>';
+          }
           return;
         }
 
@@ -751,7 +755,10 @@
 
       } catch (err) {
         console.error('Error loading stores:', err);
-        pickupStoreContainer.innerHTML = '<p class="error-message">Failed to load pickup stores.</p>';
+        const pickupStoreContainer = document.getElementById('pickup-stores');
+        if (pickupStoreContainer) {
+          pickupStoreContainer.innerHTML = '<p class="error-message">Failed to load pickup stores.</p>';
+        }
       }
     }
 

@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
@@ -2770,6 +2771,12 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 
 
 app.post('/api/authorize/charge', async (req, res) => {
+  // Important: if something fails AFTER the card is successfully charged,
+  // return 200 with a warning (not 500) so the client does not retry and risk double-charging.
+  let chargeResponse = null;
+  let transactionId = null;
+  let orderId = null;
+
   try {
     const { endpoint, env, apiLoginId, transactionKey } = _getAuthNetConfig();
 
@@ -2911,6 +2918,9 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
     }
 
+    // From this point forward, the charge was successful.
+    transactionId = transId;
+
     let uberDelivery = null;
     let uberError = null;
     try {
@@ -2981,7 +2991,7 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     
     // --- Persist order receipt + decrement inventory (best-effort) ---
-    const orderId = crypto.randomUUID();
+    orderId = crypto.randomUUID();
     const createdAtIso = new Date().toISOString();
 
     const receiptPayload = {
@@ -3069,6 +3079,17 @@ app.post('/api/authorize/charge', async (req, res) => {
     });
   } catch (err) {
     console.error('[Authorize.Net] charge exception', err);
+    // If a transactionId exists, the payment likely succeeded; do not return 500.
+    if (transactionId) {
+      return res.status(200).json({
+        ok: true,
+        success: true,
+        transactionId,
+        receipt: { order_id: orderId || null },
+        warning: 'post_charge_error',
+        warningMessage: err?.message || String(err)
+      });
+    }
     return res.status(500).json({ error: 'Server error while charging card.' });
   }
 });
