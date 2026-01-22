@@ -87,7 +87,11 @@ export function buildSlackPayload(order) {
   mrkdwnText += `*Customer*\n${customerName}\n`;
   mrkdwnText += `*Email*\n${email}\n`;
   mrkdwnText += `*Phone*\n${phone}\n`;
-  mrkdwnText += `*Method*\n${isDelivery ? "Uber Delivery" : "Pickup"}\n`;
+  
+  const methodLabel = isDelivery 
+    ? (uberError ? "🚨 Manual Delivery Fallback" : "🚗 Uber Delivery")
+    : "🏪 Pickup";
+  mrkdwnText += `*Method*\n${methodLabel}\n`;
   
   if (isDelivery) {
     mrkdwnText += `*Dropoff*\n${dropoffLine}\n`;

@@ -2943,6 +2943,9 @@ app.post('/api/authorize/charge', async (req, res) => {
     const deliveryFee = Number(totals.delivery ?? 0);
 
     const deliveryOption = String(body.deliveryMethod || '').toLowerCase();
+    const isManualSelection = !!body.isManual;
+    const manualWarning = body.deliveryWarning || null;
+
     const pickupStoreId = normalizeStoreId(
       body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || 'calle8'
     );
@@ -3068,55 +3071,60 @@ app.post('/api/authorize/charge', async (req, res) => {
     let uberError = null;
     try {
       if (deliveryOption === 'delivery') {
-        const billingInfo = body?.billing || {};
-        const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
-        console.log('[Uber Direct] courier branch start', {
-          pickupStoreId,
-          billingKeys: Object.keys(billingInfo || {}),
-          dropoffStreetLines: dropoffAddress.street_address,
-          dropoffCity: dropoffAddress.city,
-          dropoffState: dropoffAddress.state,
-          dropoffZip: dropoffAddress.zip_code,
-        });
-        if (!dropoffAddress.street_address.length || !dropoffAddress.city || !dropoffAddress.state || !dropoffAddress.zip_code) {
-          throw new Error('Missing delivery address fields.');
+        if (isManualSelection) {
+          uberError = manualWarning || 'Manual delivery fallback (out of Uber range).';
+          console.log('[Uber Direct] skipping courier (manual selection)', { uberError });
+        } else {
+          const billingInfo = body?.billing || {};
+          const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
+          console.log('[Uber Direct] courier branch start', {
+            pickupStoreId,
+            billingKeys: Object.keys(billingInfo || {}),
+            dropoffStreetLines: dropoffAddress.street_address,
+            dropoffCity: dropoffAddress.city,
+            dropoffState: dropoffAddress.state,
+            dropoffZip: dropoffAddress.zip_code,
+          });
+          if (!dropoffAddress.street_address.length || !dropoffAddress.city || !dropoffAddress.state || !dropoffAddress.zip_code) {
+            throw new Error('Missing delivery address fields.');
+          }
+          const dropoffPhone = toE164US(billingInfo.phoneNumber || body?.customer?.phone || '');
+          if (!dropoffPhone) {
+            throw new Error('Missing delivery phone number.');
+          }
+          const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
+          console.log('[Uber Direct] courier contact', { dropoffName, dropoffPhone });
+          const manifestCents = Math.max(0, Math.round(orderTotal * 100));
+          console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
+
+          const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
+          console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
+
+          const delivery = await uberCreateDelivery({
+            quoteId: quote?.id,
+            pickupStoreId,
+            dropoffName,
+            dropoffPhone,
+            dropoffAddress,
+            manifestTotalValueCents: manifestCents,
+            manifestReference: `order-${transId}`,
+          });
+          console.log('[Uber Direct] delivery response', {
+            deliveryId: delivery?.id,
+            status: delivery?.status,
+            tracking: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url,
+            fee: delivery?.fee,
+          });
+
+          uberDelivery = {
+            deliveryId: delivery?.id || null,
+            trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url || null,
+            status: delivery?.status || null,
+            fee: delivery?.fee || null,
+            quoteId: quote?.id || null,
+            pickupStoreId,
+          };
         }
-        const dropoffPhone = toE164US(billingInfo.phoneNumber || body?.customer?.phone || '');
-        if (!dropoffPhone) {
-          throw new Error('Missing delivery phone number.');
-        }
-        const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
-        console.log('[Uber Direct] courier contact', { dropoffName, dropoffPhone });
-        const manifestCents = Math.max(0, Math.round(orderTotal * 100));
-        console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
-
-        const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
-        console.log('[Uber Direct] quote response', { quoteId: quote?.id, fee: quote?.fee, currency: quote?.currency_code });
-
-        const delivery = await uberCreateDelivery({
-          quoteId: quote?.id,
-          pickupStoreId,
-          dropoffName,
-          dropoffPhone,
-          dropoffAddress,
-          manifestTotalValueCents: manifestCents,
-          manifestReference: `order-${transId}`,
-        });
-        console.log('[Uber Direct] delivery response', {
-          deliveryId: delivery?.id,
-          status: delivery?.status,
-          tracking: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url,
-          fee: delivery?.fee,
-        });
-
-        uberDelivery = {
-          deliveryId: delivery?.id || null,
-          trackingUrl: delivery?.tracking_url || delivery?.trackingUrl || delivery?.share_url || null,
-          status: delivery?.status || null,
-          fee: delivery?.fee || null,
-          quoteId: quote?.id || null,
-          pickupStoreId,
-        };
       } else {
         console.log('[Uber Direct] courier branch skipped (delivery not selected)');
       }
@@ -3145,15 +3153,23 @@ app.post('/api/authorize/charge', async (req, res) => {
       totals: { subtotal, tax: taxAmount, delivery: deliveryFee, total: orderTotal },
       uber: uberDelivery || null,
       uberError: uberError || null,
-      transactionId
+      transactionId,
+      billing: billing || {}
     };
 
     try {
-      const inventoryTable = normalizeStoreId(pickupStoreId) === '79th' ? 'inventory_79th' : 'inventory_calle8';
+      const normalizedId = normalizeStoreId(pickupStoreId);
+      const inventoryTable = normalizedId === '79th' ? 'inventory_79th' : 'inventory_calle8';
 
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+
+        // Get numeric store ID for product_inventory table
+        const [storeRows] = await conn.query('SELECT id FROM stores WHERE name LIKE ?', [
+          normalizedId === '79th' ? '%79th%' : '%Calle 8%'
+        ]);
+        const numericStoreId = storeRows[0]?.id || (normalizedId === '79th' ? 2 : 1);
 
         await conn.query(
           `INSERT INTO order_receipts
@@ -3186,7 +3202,7 @@ app.post('/api/authorize/charge', async (req, res) => {
             const fallbackName = String(it?.name || '').trim();
 
             if (productId) {
-              // Safest match: use the product ID to find the canonical name, then update inventory
+              // 1. Update legacy snapshot table (used for frontend listing)
               await conn.query(
                 `UPDATE ${inventoryTable} i
                  JOIN products p ON UPPER(p.name) = UPPER(i.name)
@@ -3194,12 +3210,28 @@ app.post('/api/authorize/charge', async (req, res) => {
                  WHERE p.id = ? AND i.is_active = 1`,
                 [qty, productId]
               );
+              // 2. Update central product_inventory table (used for real-time checks)
+              await conn.query(
+                `UPDATE product_inventory 
+                 SET quantity_on_hand = GREATEST(CAST(quantity_on_hand AS SIGNED) - ?, 0)
+                 WHERE product_id = ? AND store_id = ?`,
+                [qty, productId, numericStoreId]
+              );
             } else if (fallbackName) {
+              // 1. Update legacy snapshot table
               await conn.query(
                 `UPDATE ${inventoryTable}
                  SET quantity = GREATEST(quantity - ?, 0)
                  WHERE name = ? AND is_active = 1`,
                 [qty, fallbackName]
+              );
+              // 2. Update central product_inventory table
+              await conn.query(
+                `UPDATE product_inventory pi
+                 JOIN products p ON p.id = pi.product_id
+                 SET pi.quantity_on_hand = GREATEST(CAST(pi.quantity_on_hand AS SIGNED) - ?, 0)
+                 WHERE UPPER(p.name) = UPPER(?) AND pi.store_id = ?`,
+                [qty, fallbackName, numericStoreId]
               );
             }
           }

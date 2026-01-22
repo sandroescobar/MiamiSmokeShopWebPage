@@ -214,7 +214,7 @@
 
               <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
-                <h3 style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
+                <h3 id="delivery-header" style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
                 <p id="delivery-store-helper" class="loading" style="display:block; margin-top:4px;">Enter your address to compare store inventory and delivery fees.</p>
                 <div id="delivery-availability-notice" class="availability-notice" style="display:none;"></div>
                 <div id="closest-store-info" style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 8px; border-left: 3px solid #0284c7; display:none;">
@@ -520,8 +520,8 @@
 
         return {
           lat: Number(data.lat),
-          lon: Number(data.lng),
-          display_name: data.display_name || "",
+          lng: Number(data.lng),
+          display_name: data.display_name || data.displayName || "",
         };
       } catch (err) {
         console.warn("[geocode] exception", err);
@@ -532,6 +532,8 @@
     function clearDeliveryOptions() {
       deliveryStoreOptions = [];
       selectedDeliveryStore = null;
+      const header = document.getElementById('delivery-header');
+      if (header) header.textContent = 'Delivery to';
       const container = document.getElementById('delivery-stores');
       if (container) { container.innerHTML = ''; container.style.display = 'none'; }
       const info = document.getElementById('closest-store-info');
@@ -667,7 +669,7 @@
       const selectedOption = eligibleStores.find(option => option.name === selectedDeliveryStore) || eligibleStores[0];
       selectedDeliveryStore = selectedOption.name;
       setDeliveryFee(selectedOption.fee);
-      updateClosestStoreHighlight(eligibleStores[0]);
+      updateClosestStoreHighlight(selectedOption);
       updateDeliveryNotice(selectedOption);
     }
 
@@ -961,6 +963,12 @@
           }
 
           userDeliveryLocation = coords;
+          
+          const header = document.getElementById('delivery-header');
+          if (header) {
+            header.textContent = coords.display_name ? `Delivery to: ${coords.display_name.split(',').slice(0, 2).join(',')}` : 'Delivery to';
+          }
+
           await buildDeliveryStoreOptions(coords.lat, coords.lng);
         } catch (err) {
           console.error('Error finding closest store:', err);
@@ -1108,12 +1116,19 @@
       const pickupStoreId = (deliveryMethod === 'delivery')
         ? normalizeStoreId(selectedDeliveryStore || selectedStore)
         : normalizeStoreId(selectedStore);
+
+      const selectedOption = (deliveryMethod === 'delivery' && deliveryStoreOptions.length)
+        ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
+        : null;
+
       const payload = {
         opaqueData,
         totals: checkoutTotals,
         customer,
         billing,
         deliveryMethod,
+        isManual: !!selectedOption?.isManual,
+        deliveryWarning: selectedOption?.warning || null,
         pickupStoreId,
         pickupStoreLabel: storeLabelFromId(pickupStoreId),
         pickupStore: selectedStore,
