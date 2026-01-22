@@ -42,7 +42,6 @@
     .tracking-card .btn{width:100%;text-align:center;margin-top:12px}
     .warning-card{background:#fff8ef;border:1px solid #ffd9b8}
     .warning-card p{color:#8a4b16}
-    .debug-card pre{margin:0;padding:12px;background:#f5f7ff;border-radius:12px;font-size:13px;line-height:1.35;overflow:auto}
     .fallback{margin-top:24px;padding:20px;background:#fff0f0;border-radius:16px;color:#7a1f1f;border:1px solid #ffd8d8}
   </style>
 </head>
@@ -100,10 +99,6 @@
         <div class="card warning-card" id="deliveryWarningCard" hidden>
           <h2>Delivery Update</h2>
           <p class="muted" id="deliveryWarningText"></p>
-        </div>
-        <div class="card debug-card" id="deliveryDebugCard" hidden>
-          <h2>Delivery Debug</h2>
-          <pre id="deliveryDebugPre"></pre>
         </div>
       </div>
     </section>
@@ -236,25 +231,13 @@
           if (deliveryWarningText) {
             deliveryWarningText.textContent = payload.deliveryWarning || payload.uberError;
           }
+          // Log debug info for developers
+          console.log('[Delivery Debug]', {
+            delivery: uber || null,
+            error: payload.uberError || payload.deliveryWarning || null
+          });
         } else {
           deliveryWarningCard.hidden = true;
-        }
-      }
-      const deliveryDebugCard = document.getElementById('deliveryDebugCard');
-      if (deliveryDebugCard) {
-        const hasDebug = !!(uber || payload.uberError || payload.deliveryWarning);
-        if (hasDebug) {
-          deliveryDebugCard.hidden = false;
-          const deliveryDebugPre = document.getElementById('deliveryDebugPre');
-          if (deliveryDebugPre) {
-            const debugData = {
-              delivery: uber || null,
-              error: payload.uberError || payload.deliveryWarning || null
-            };
-            deliveryDebugPre.textContent = JSON.stringify(debugData, null, 2);
-          }
-        } else {
-          deliveryDebugCard.hidden = true;
         }
       }
     }
