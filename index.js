@@ -1720,17 +1720,21 @@ app.get('/health', async (_req, res) => {
 });
 
 /* --------------------  API: Get all stores  -------------------- */
-app.get('/api/stores', async (_req, res) => {
-  try {
-    const [stores] = await queryWithRetry(
-      'SELECT id, name, address, latitude, longitude FROM stores WHERE is_active = true ORDER BY id'
-    );
-    res.json(stores);
-  } catch (err) {
-    console.error('Error fetching stores:', err);
-    res.status(500).json({ error: 'Failed to fetch stores' });
-  }
+app.get('/api/stores', (_req, res) => {
+  // Keep store identifiers consistent across the app (frontend + backend + Slack/dispatch).
+  const stores = STORE_CHOICES
+    .filter(s => s.id !== 'either')
+    .map(s => ({
+      id: s.id,
+      name: s.name,
+      address: s.address || '',
+      latitude: s.latitude || null,
+      longitude: s.longitude || null
+    }));
+
+  res.json(stores);
 });
+
 
 /* --------------------  API: Check inventory by store  -------------------- */
 app.post('/api/check-inventory', async (req, res) => {

@@ -136,10 +136,19 @@
     }
 
     function loadPayload() {
+      const raw =
+        sessionStorage.getItem(SUCCESS_STORAGE_KEY) ||
+        localStorage.getItem(SUCCESS_STORAGE_KEY + '_backup') ||
+        localStorage.getItem('checkoutSuccessPayload_backup');
+
+      if (!raw) return null;
+
       try {
-        const raw = sessionStorage.getItem(SUCCESS_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch (err) {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    } catch (err) {
         return null;
       }
     }
@@ -267,31 +276,38 @@
     }
 
     async function initSuccessPage() {
-      let payload = loadPayload();
+      const payload = loadPayload();
+
+      // If storage was cleared, fall back to query params (at least show transaction id).
+      const params = new URLSearchParams(window.location.search);
+      const txParam = params.get('tx') || params.get('transactionId');
+      const orderIdParam = params.get('orderId');
 
       if (!payload) {
-        const orderId = new URLSearchParams(window.location.search).get('orderId');
-        if (orderId) {
-          try {
-            const resp = await fetch(`/api/order-receipts/${encodeURIComponent(orderId)}`);
-            const data = await resp.json().catch(() => ({}));
-            if (resp.ok && data && data.ok && data.payload) {
-              payload = data.payload;
-              try { sessionStorage.setItem(SUCCESS_STORAGE_KEY, JSON.stringify(payload)); } catch {}
-            }
-          } catch {}
-        }
-      }
+        // Populate whatever we can.
+        if (txParam) transactionIdEl.textContent = txParam;
+        if (orderIdParam) orderIdEl.textContent = orderIdParam;
 
-      if (!payload) {
-        showFallback();
+        showEmptyState();
         return;
       }
 
-      try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
-      renderSummary(payload);
-    }
-      try { sessionStorage.removeItem(SUCCESS_STORAGE_KEY); } catch {}
+      // Clean up so refresh doesn't show a stale receipt forever.
+      try {
+        sessionStorage.removeItem(SUCCESS_STORAGE_KEY);
+      } catch (_) {}
+      try {
+        localStorage.removeItem(SUCCESS_STORAGE_KEY + '_backup');
+        localStorage.removeItem('checkoutSuccessPayload_backup');
+      } catch (_) {}
+
+      // Prefer server transaction id if present; otherwise use query param.
+      if (payload?.server?.transactionId) transactionIdEl.textContent = payload.server.transactionId;
+      else if (txParam) transactionIdEl.textContent = txParam;
+
+      if (payload?.server?.orderId) orderIdEl.textContent = payload.server.orderId;
+      else if (orderIdParam) orderIdEl.textContent = orderIdParam;
+
       renderSummary(payload);
     }
 

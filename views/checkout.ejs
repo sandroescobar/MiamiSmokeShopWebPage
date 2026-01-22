@@ -1170,9 +1170,13 @@
             };
 
             sessionStorage.setItem('checkoutSuccessPayload', JSON.stringify(successPayload));
+            try { localStorage.setItem('checkoutSuccessPayload_backup', JSON.stringify(successPayload)); } catch (_) {}
 
-            const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : '';
-            setTimeout(() => { window.location.href = `/checkout-success${qs}`; }, 200);
+            const tx = serverResult?.transactionId ? `tx=${encodeURIComponent(serverResult.transactionId)}` : '';
+            const oid = orderId ? `orderId=${encodeURIComponent(orderId)}` : '';
+            const qs = [oid, tx].filter(Boolean).join('&');
+            const qsPart = qs ? `?${qs}` : '';
+            setTimeout(() => { window.location.href = `/checkout-success${qsPart}`; }, 200);
           } catch (_) {
             setTimeout(() => { window.location.href = '/checkout-success'; }, 200);
           }

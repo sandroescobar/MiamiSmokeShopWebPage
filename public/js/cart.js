@@ -161,7 +161,21 @@ function initMiniCart() {
   if (miniCartState.checkoutBtn) {
     miniCartState.checkoutBtn.addEventListener('click', () => {
       closeMiniCart();
-      window.location.href = '/checkout';
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const shopFromUrl = params.get('shop') || params.get('store');
+        const shopFromStorage =
+          localStorage.getItem('selectedShop') ||
+          localStorage.getItem('selectedStore') ||
+          localStorage.getItem('shop') ||
+          sessionStorage.getItem('selectedShop') ||
+          sessionStorage.getItem('selectedStore') ||
+          sessionStorage.getItem('shop');
+
+        const shop = (shopFromUrl || shopFromStorage || '').toString().trim();
+        const qs = shop ? `?shop=${encodeURIComponent(shop)}` : '';
+        window.location.href = `/checkout${qs}`;
+      })();
     });
   }
   miniCartState.overlay.addEventListener('click', (event) => {
