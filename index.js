@@ -2524,13 +2524,12 @@ function buildStoreAddress(storeId) {
 }
 
 function buildCustomerDropoffAddress(billing = {}) {
-  const streetParts = [];
-  if (billing.street) streetParts.push(String(billing.street).trim());
-  if (billing.address) streetParts.push(String(billing.address).trim());
-  if (billing.address2) streetParts.push(String(billing.address2).trim());
-  const unit = billing.unit || billing.street2;
-  if (unit) streetParts.push(String(unit).trim());
-  const lines = streetParts.filter(Boolean);
+  const lines = [];
+  const s1 = String(billing.street || billing.address || '').trim();
+  if (s1) lines.push(s1);
+  const s2 = String(billing.address2 || billing.unit || billing.street2 || '').trim();
+  if (s2 && s2 !== s1) lines.push(s2);
+
   return {
     street_address: lines,
     city: String(billing.city || '').trim(),
@@ -3053,16 +3052,29 @@ app.post('/api/authorize/charge', async (req, res) => {
 
         if (inventoryTable && Array.isArray(items) && items.length) {
           for (const it of items) {
-            const name = String(it?.name || '').trim();
             const qty = Number(it?.quantity || 0);
-            if (!name || !Number.isFinite(qty) || qty <= 0) continue;
+            if (!Number.isFinite(qty) || qty <= 0) continue;
 
-            await conn.query(
-              `UPDATE ${inventoryTable}
-               SET quantity = GREATEST(quantity - ?, 0)
-               WHERE name = ? AND is_active = 1`,
-              [qty, name]
-            );
+            const productId = it?.id;
+            const fallbackName = String(it?.name || '').trim();
+
+            if (productId) {
+              // Safest match: use the product ID to find the canonical name, then update inventory
+              await conn.query(
+                `UPDATE ${inventoryTable} i
+                 JOIN products p ON UPPER(p.name) = UPPER(i.name)
+                 SET i.quantity = GREATEST(i.quantity - ?, 0)
+                 WHERE p.id = ? AND i.is_active = 1`,
+                [qty, productId]
+              );
+            } else if (fallbackName) {
+              await conn.query(
+                `UPDATE ${inventoryTable}
+                 SET quantity = GREATEST(quantity - ?, 0)
+                 WHERE name = ? AND is_active = 1`,
+                [qty, fallbackName]
+              );
+            }
           }
         }
 

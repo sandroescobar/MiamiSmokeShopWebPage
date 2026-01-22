@@ -33,12 +33,21 @@ function isDeliveryMethod(deliveryMethod, fulfillmentMethod) {
 
 function buildAddressLine(addr) {
   if (!addr || typeof addr !== "object") return null;
-  const line1 = addr.address || addr.street || addr.street1 || "";
-  const line2 = addr.street2 || addr.unit || addr.apt || addr.apartment || addr.suite || "";
+
+  let street = "";
+  if (Array.isArray(addr.street_address)) {
+    street = addr.street_address.filter(Boolean).join(", ");
+  } else {
+    const s1 = addr.street_address || addr.address || addr.street || addr.street1 || "";
+    const s2 = addr.street2 || addr.unit || addr.apt || addr.apartment || addr.suite || "";
+    street = [s1, s2].filter(Boolean).join(", ");
+  }
+
   const city = addr.city || "";
   const state = addr.state || "";
-  const zip = addr.zip || addr.postalCode || "";
-  const parts = [line1, line2, city, state, zip].filter(Boolean);
+  const zip = addr.zip || addr.postalCode || addr.zip_code || "";
+
+  const parts = [street, city, state, zip].filter(Boolean);
   return parts.length ? parts.join(", ") : null;
 }
 

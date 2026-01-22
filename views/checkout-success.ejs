@@ -148,9 +148,6 @@
       } catch (e) {
         return null;
       }
-    } catch (err) {
-        return null;
-      }
     }
 
     function renderItems(items) {
@@ -185,12 +182,15 @@
       const totalItems = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0);
       document.getElementById('itemCount').textContent = totalItems === 1 ? '1 item' : totalItems + ' items';
       renderItems(items);
-      document.getElementById('subtotalValue').textContent = money(payload.subtotal);
-      document.getElementById('taxValue').textContent = money(payload.tax);
-      document.getElementById('deliveryValue').textContent = money(payload.delivery);
-      document.getElementById('totalValue').textContent = money(payload.total);
-      const method = formatMethod(payload.fulfillmentMethod);
-      const storeLabel = payload.storeLabel || DEFAULT_STORE_LABEL;
+
+      const totals = payload.totals || {};
+      document.getElementById('subtotalValue').textContent = money(payload.subtotal || totals.subtotal);
+      document.getElementById('taxValue').textContent = money(payload.tax || totals.tax);
+      document.getElementById('deliveryValue').textContent = money(payload.delivery || totals.delivery);
+      document.getElementById('totalValue').textContent = money(payload.total || totals.total);
+
+      const method = formatMethod(payload.fulfillmentMethod || payload.deliveryMethod);
+      const storeLabel = payload.storeLabel || payload.pickupStoreLabel || DEFAULT_STORE_LABEL;
       document.getElementById('fulfillmentText').textContent = method;
       document.getElementById('methodNote').textContent = method === 'Delivery' ? 'We will text courier updates shortly.' : 'We will let you know when pickup is ready.';
       document.getElementById('storeBadge').textContent = storeLabel;
@@ -200,7 +200,10 @@
       const heroSubtitle = document.getElementById('heroSubtitle');
       const heroNote = document.getElementById('heroNote');
       const firstName = payload.customer && payload.customer.firstName ? payload.customer.firstName : '';
-      const hasTracking = !!(payload.serverDelivery && (payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl));
+      
+      const uber = payload.serverDelivery || payload.uber || payload.delivery;
+      const hasTracking = !!(uber && (uber.trackingUrl || uber.shareUrl || uber.tracking_url || uber.share_url));
+
       heroTitle.textContent = firstName ? `Thanks, ${firstName}!` : 'Order confirmed';
       heroSubtitle.textContent = payload.transactionId ? `Transaction ${payload.transactionId}` : 'Receipt saved';
       heroNote.textContent = method === 'Delivery'
@@ -212,13 +215,13 @@
           trackingCard.hidden = false;
           const trackingLink = document.getElementById('trackingLink');
           const trackingStatusText = document.getElementById('trackingStatusText');
-          const trackingUrl = payload.serverDelivery.trackingUrl || payload.serverDelivery.shareUrl;
+          const trackingUrl = uber.trackingUrl || uber.shareUrl || uber.tracking_url || uber.share_url;
           if (trackingLink && trackingUrl) {
             trackingLink.href = trackingUrl;
           }
           if (trackingStatusText) {
-            trackingStatusText.textContent = payload.serverDelivery.status
-              ? `Status: ${payload.serverDelivery.status}`
+            trackingStatusText.textContent = (uber.status)
+              ? `Status: ${uber.status}`
               : 'Courier assigned.';
           }
         } else {
@@ -227,11 +230,11 @@
       }
       const deliveryWarningCard = document.getElementById('deliveryWarningCard');
       if (deliveryWarningCard) {
-        if (method === 'Delivery' && payload.deliveryWarning) {
+        if (method === 'Delivery' && (payload.deliveryWarning || payload.uberError)) {
           deliveryWarningCard.hidden = false;
           const deliveryWarningText = document.getElementById('deliveryWarningText');
           if (deliveryWarningText) {
-            deliveryWarningText.textContent = payload.deliveryWarning;
+            deliveryWarningText.textContent = payload.deliveryWarning || payload.uberError;
           }
         } else {
           deliveryWarningCard.hidden = true;
@@ -239,13 +242,13 @@
       }
       const deliveryDebugCard = document.getElementById('deliveryDebugCard');
       if (deliveryDebugCard) {
-        const hasDebug = !!(payload.serverDelivery || payload.uberError || payload.deliveryWarning);
+        const hasDebug = !!(uber || payload.uberError || payload.deliveryWarning);
         if (hasDebug) {
           deliveryDebugCard.hidden = false;
           const deliveryDebugPre = document.getElementById('deliveryDebugPre');
           if (deliveryDebugPre) {
             const debugData = {
-              delivery: payload.serverDelivery || null,
+              delivery: uber || null,
               error: payload.uberError || payload.deliveryWarning || null
             };
             deliveryDebugPre.textContent = JSON.stringify(debugData, null, 2);
@@ -276,37 +279,45 @@
     }
 
     async function initSuccessPage() {
-      const payload = loadPayload();
+      let payload = loadPayload();
 
-      // If storage was cleared, fall back to query params (at least show transaction id).
       const params = new URLSearchParams(window.location.search);
       const txParam = params.get('tx') || params.get('transactionId');
       const orderIdParam = params.get('orderId');
 
-      if (!payload) {
-        // Populate whatever we can.
-        if (txParam) transactionIdEl.textContent = txParam;
-        if (orderIdParam) orderIdEl.textContent = orderIdParam;
+      // If no payload but we have an orderId, try to fetch it from server
+      if (!payload && orderIdParam) {
+        try {
+          const resp = await fetch(`/api/order-receipts/${orderIdParam}`);
+          const data = await resp.json();
+          if (data.ok && data.payload) {
+            payload = data.payload;
+          }
+        } catch (err) {
+          console.error('Failed to fetch fallback receipt:', err);
+        }
+      }
 
-        showEmptyState();
+      if (!payload) {
+        // Fallback: just show IDs if available
+        if (txParam) document.getElementById('transactionId').textContent = txParam;
+        if (orderIdParam) {
+          document.getElementById('heroSubtitle').textContent = `Order ID: ${orderIdParam}`;
+        }
+        showFallback();
         return;
       }
 
-      // Clean up so refresh doesn't show a stale receipt forever.
-      try {
-        sessionStorage.removeItem(SUCCESS_STORAGE_KEY);
-      } catch (_) {}
-      try {
-        localStorage.removeItem(SUCCESS_STORAGE_KEY + '_backup');
-        localStorage.removeItem('checkoutSuccessPayload_backup');
-      } catch (_) {}
+      // Clean up storage so refresh doesn't keep showing it (optional)
+      // sessionStorage.removeItem(SUCCESS_STORAGE_KEY);
 
       // Prefer server transaction id if present; otherwise use query param.
-      if (payload?.server?.transactionId) transactionIdEl.textContent = payload.server.transactionId;
-      else if (txParam) transactionIdEl.textContent = txParam;
-
-      if (payload?.server?.orderId) orderIdEl.textContent = payload.server.orderId;
-      else if (orderIdParam) orderIdEl.textContent = orderIdParam;
+      if (!payload.transactionId && txParam) {
+        payload.transactionId = txParam;
+      }
+      if (!payload.orderId && orderIdParam) {
+        payload.orderId = orderIdParam;
+      }
 
       renderSummary(payload);
     }
