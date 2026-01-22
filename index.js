@@ -2481,9 +2481,9 @@ function normalizeStoreId(v) {
   const raw = String(v ?? '').trim().toLowerCase();
   const s = raw.replace(/\s+/g, '');
   if (!s) return 'calle8';
-  if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+  if (s === '1' || s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
   if (s.includes('calleocho') || raw.includes('ocho')) return 'calle8';
-  if (s.includes('79th') || s.includes('79') || s == '79th') return '79th';
+  if (s === '2' || s.includes('79th') || s.includes('79') || s == '79th') return '79th';
   // Accept "Calle 8" / "79th Street" labels
   if (raw.includes('calle') && raw.includes('8')) return 'calle8';
   if (raw.includes('79')) return '79th';
@@ -2703,6 +2703,93 @@ app.post('/api/uber/quote', async (req, res) => {
     return res.json({ ok: true, pickupStoreId, quote });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message, details: e.data || undefined });
+  }
+});
+
+/**
+ * Fetch quotes and inventory for ALL active stores simultaneously.
+ * Used by checkout flow to auto-select the best fulfillment center.
+ */
+app.post('/api/uber/delivery-options', async (req, res) => {
+  try {
+    const { dropoffAddress, productIds } = req.body;
+
+    if (!dropoffAddress || !productIds || !Array.isArray(productIds)) {
+      return res.status(400).json({ error: 'dropoffAddress and productIds (array) are required.' });
+    }
+
+    // 1. Get all active stores from DB
+    const [dbStores] = await queryWithRetry(
+      'SELECT id, name, address, latitude, longitude FROM stores WHERE is_active = true'
+    );
+
+    if (!dbStores || dbStores.length === 0) {
+      return res.json({ options: [] });
+    }
+
+    // 2. Check inventory for all stores in one (or two) queries
+    const placeholders = productIds.length > 0 ? productIds.map(() => '?').join(',') : 'NULL';
+    const [invRows] = productIds.length > 0 
+      ? await queryWithRetry(
+          `SELECT product_id, quantity_on_hand, store_id
+           FROM product_inventory
+           WHERE product_id IN (${placeholders})`,
+          [...productIds]
+        )
+      : [[]];
+
+    const invMap = {}; // storeId -> { productId -> hasStock }
+    dbStores.forEach(s => {
+      invMap[s.id] = {};
+      productIds.forEach(pid => { invMap[s.id][pid] = false; });
+    });
+
+    invRows.forEach(row => {
+      if (invMap[row.store_id]) {
+        invMap[row.store_id][row.product_id] = (row.quantity_on_hand > 0);
+      }
+    });
+
+    // 3. Request Uber quotes for each store in parallel
+    const options = await Promise.all(dbStores.map(async (store) => {
+      let quote = null;
+      let error = null;
+
+      try {
+        // We only attempt a quote if we have a basic address
+        if (dropoffAddress.street_address?.length || dropoffAddress.address) {
+          quote = await uberCreateQuote({ pickupStoreId: store.id, dropoffAddress });
+        }
+      } catch (e) {
+        console.warn(`[delivery-options] Quote failed for store ${store.id}: ${e.message}`);
+        error = e.message;
+      }
+
+      const storeInv = invMap[store.id] || {};
+      const availableCount = Object.values(storeInv).filter(Boolean).length;
+      const missingCount = Math.max(0, productIds.length - availableCount);
+
+      return {
+        id: store.id,
+        name: store.name,
+        address: store.address,
+        latitude: store.latitude,
+        longitude: store.longitude,
+        quote,
+        error,
+        inventory: {
+          availableCount,
+          missingCount,
+          isFullyStocked: (missingCount === 0 && productIds.length > 0),
+          details: storeInv
+        }
+      };
+    }));
+
+    return res.json({ options });
+  } catch (err) {
+    console.error('[delivery-options] Fatal error:', err);
+    return res.status(500).json({ error: 'Failed to fetch delivery options.' });
   }
 });
 

@@ -672,38 +672,73 @@
     async function buildDeliveryStoreOptions(lat, lng) {
       if (!allStores.length) { clearDeliveryOptions(); return; }
 
-      const totalItems = cartItemCount;
-      const results = await Promise.all(allStores.map(async store => {
-        const availability = await getStoreAvailability(store.name);
-        const availableCount = Object.values(availability || {}).filter(Boolean).length;
-        const missingCount = Math.max(totalItems - availableCount, 0);
+      const helper = document.getElementById('delivery-store-helper');
+      const container = document.getElementById('delivery-stores');
+      const street = document.querySelector('input[name="street"]').value.trim();
+      const city = document.querySelector('input[name="city"]').value.trim();
+      const state = document.querySelector('input[name="state"]').value.trim();
+      const zip = document.querySelector('input[name="zip"]').value.trim();
 
-        const storeLat = parseFloat(store.latitude);
-        const storeLng = parseFloat(store.longitude);
-        const distance = Number.isNaN(storeLat) || Number.isNaN(storeLng) ? Infinity : haversineMiles(lat, lng, storeLat, storeLng);
-        const fee = estimateDeliveryFee(distance);
+      const dropoffAddress = {
+        street_address: [street].filter(Boolean),
+        address: street,
+        city,
+        state,
+        zip_code: zip,
+        country: 'US'
+      };
 
-        return { ...store, distance, fee, availableCount, missingCount };
-      }));
+      try {
+        if (helper) helper.textContent = 'Comparing store inventory and delivery fees…';
 
-      results.sort((a, b) => a.distance - b.distance);
+        const res = await fetch('/api/uber/delivery-options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dropoffAddress, productIds: cartProductIds })
+        });
 
-      const previousSelection = selectedDeliveryStore;
-      deliveryStoreOptions = results;
+        if (!res.ok) throw new Error('Failed to fetch delivery options');
 
-      if (previousSelection && results.some(option => option.name === previousSelection) && results.find(o => o.name === previousSelection)?.missingCount === 0) {
-        // Keep previous selection only if it is still eligible.
-        selectedDeliveryStore = previousSelection;
-      } else {
-        // Option B:
-        // 1) Prefer the shopping store if it can fulfill the entire cart.
-        // 2) Otherwise, pick the closest fully-stocked store.
-        const preferred = results.find(option => option.name === selectedStore && option.missingCount === 0);
-        const closestEligible = results.find(option => option.missingCount === 0);
-        selectedDeliveryStore = (preferred || closestEligible) ? (preferred || closestEligible).name : null;
+        const { options } = await res.json();
+        
+        // Map backend response to frontend format
+        const results = (options || []).map(opt => ({
+          ...opt,
+          // Use real Uber distance/fee if available, fallback to 0/Infinity
+          distance: opt.quote ? (opt.quote.estimated_distance_miles || 0) : Infinity,
+          fee: opt.quote ? (opt.quote.fee / 100) : 0,
+          availableCount: opt.inventory.availableCount,
+          missingCount: opt.inventory.missingCount
+        }));
+
+        // Sort: 
+        // 1. Fully stocked stores first
+        // 2. Then by distance (closest first)
+        results.sort((a, b) => {
+          if (a.missingCount === 0 && b.missingCount > 0) return -1;
+          if (a.missingCount > 0 && b.missingCount === 0) return 1;
+          return a.distance - b.distance;
+        });
+
+        deliveryStoreOptions = results;
+
+        // Intelligent Auto-selection:
+        // Pick the closest store that can fulfill the entire cart.
+        const best = results.find(o => o.missingCount === 0);
+        if (best) {
+          selectedDeliveryStore = best.name;
+        } else {
+          // Fallback to closest even if incomplete (applyDeliverySelection will handle the UI warning)
+          selectedDeliveryStore = results[0] ? results[0].name : null;
+        }
+
+        renderDeliveryStores();
+
+      } catch (err) {
+        console.error('Error fetching delivery options:', err);
+        if (helper) helper.textContent = 'Something went wrong while finding nearby stores. Please try again.';
+        clearDeliveryOptions();
       }
-
-      renderDeliveryStores();
     }
     async function initializeStores() {
       try {
@@ -771,32 +806,54 @@
       const container = document.getElementById('pickup-stores');
       if (!container) return;
 
-      // Pickup should only show the store the user selected on the products page (selectedStore).
-      const store = allStores.find(s => s.name === selectedStore) || allStores[0];
-      if (!store) {
-        container.innerHTML = '<p class="error-message">No pickup store available.</p>';
+      if (!allStores.length) {
+        container.innerHTML = '<p class="error-message">No pickup stores available.</p>';
         return;
       }
 
-      const availability = await getStoreAvailability(store.name);
-      const availableCount = Object.values(availability || {}).filter(Boolean).length;
       const totalItems = cartItemCount;
-      const isFullyAvailable = totalItems ? (availableCount === totalItems) : true;
-      const statusLabel = totalItems ? `${availableCount}/${totalItems} in stock` : 'Cart empty';
+      const results = await Promise.all(allStores.map(async store => {
+        const availability = await getStoreAvailability(store.name);
+        const availableCount = Object.values(availability || {}).filter(Boolean).length;
+        const isFullyAvailable = totalItems ? (availableCount === totalItems) : true;
+        return { ...store, availableCount, isFullyAvailable };
+      }));
 
-      container.innerHTML = `
-        <div class="store-option" style="cursor:default">
-          <div class="store-header">
-            <div class="store-name">${store.name}</div>
-            <span class="availability ${isFullyAvailable ? 'available' : 'unavailable'}">${statusLabel}</span>
-          </div>
-          <div class="store-address">${store.address || ''}</div>
-          <div class="store-distance">Pickup location (selected store)</div>
-        </div>
-      `;
+      container.innerHTML = results.map(store => {
+        const checked = selectedStore === store.name;
+        const statusLabel = totalItems ? `${store.availableCount}/${totalItems} ready` : 'Cart empty';
+        return `
+          <label class="store-option">
+            <input type="radio" name="store_pickup" value="${store.name}" ${checked ? 'checked' : ''}>
+            <div class="store-header">
+              <div class="store-name">${store.name}</div>
+              <span class="availability ${store.isFullyAvailable ? 'available' : 'unavailable'}">${statusLabel}</span>
+            </div>
+            <div class="store-address">${store.address || ''}</div>
+          </label>
+        `;
+      }).join('');
 
-      // Show pickup availability warning if needed.
-      await checkInventoryForStore(store.name);
+      container.querySelectorAll('input[name="store_pickup"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          selectedStore = e.target.value;
+          // Synchronize with selectedDeliveryStore if not already set by address
+          if (!userDeliveryLocation) {
+             selectedDeliveryStore = selectedStore;
+          }
+          checkInventoryForStore(selectedStore);
+        });
+      });
+
+      if (selectedStore) {
+        checkInventoryForStore(selectedStore);
+      } else {
+        const notice = document.getElementById('pickup-availability-notice');
+        if (notice) {
+          notice.innerHTML = 'Please select a pickup location.';
+          notice.style.display = 'block';
+        }
+      }
     }
 
     async function getStoreAvailability(storeName) {
@@ -1080,8 +1137,8 @@
       const raw = String(v ?? '').trim().toLowerCase();
       const s = raw.replace(/\s+/g, '');
       if (!s) return '';
-      if (s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
-      if (s.includes('79th') || s == '79th' || s.includes('79street') || s.includes('79') ) return '79th';
+      if (s === '1' || s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
+      if (s === '2' || s.includes('79th') || s == '79th' || s.includes('79street') || s.includes('79') ) return '79th';
       return raw; // fallback (server will normalize too)
     }
 
