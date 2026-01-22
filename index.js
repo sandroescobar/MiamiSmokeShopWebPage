@@ -2713,7 +2713,7 @@ app.post('/api/uber/quote', async (req, res) => {
  */
 app.post('/api/uber/delivery-options', async (req, res) => {
   try {
-    const { dropoffAddress, productIds } = req.body;
+    const { dropoffAddress, productIds, lat, lng } = req.body;
 
     if (!dropoffAddress || !productIds || !Array.isArray(productIds)) {
       return res.status(400).json({ error: 'dropoffAddress and productIds (array) are required.' });
@@ -2752,18 +2752,53 @@ app.post('/api/uber/delivery-options', async (req, res) => {
     });
 
     // 3. Request Uber quotes for each store in parallel
+    const userLat = parseFloat(lat);
+    const userLng = parseFloat(lng);
+
     const options = await Promise.all(dbStores.map(async (store) => {
       let quote = null;
       let error = null;
+      let isManual = false;
+      let warning = null;
 
       try {
-        // We only attempt a quote if we have a basic address
         if (dropoffAddress.street_address?.length || dropoffAddress.address) {
           quote = await uberCreateQuote({ pickupStoreId: store.id, dropoffAddress });
         }
       } catch (e) {
         console.warn(`[delivery-options] Quote failed for store ${store.id}: ${e.message}`);
         error = e.message;
+        
+        // If it's a known range error or API failure, we flag as manual
+        if (e.message.toLowerCase().includes('range') || e.message.toLowerCase().includes('out of service')) {
+          isManual = true;
+          warning = "Uber Direct cannot deliver this distance; order will be handled manually.";
+        } else {
+          isManual = true;
+          warning = "Courier service unavailable; fallback to manual delivery.";
+        }
+      }
+
+      // Calculate fallback distance if Uber distance is missing or it's manual
+      let distance = quote?.estimated_distance_miles;
+      if ((distance === undefined || distance === null) && !isNaN(userLat) && !isNaN(userLng) && store.latitude && store.longitude) {
+        // Use backend haversine fallback
+        function haversineDist(l1, n1, l2, n2) {
+          const R = 3959;
+          const dLat = ((l2 - l1) * Math.PI) / 180;
+          const dLon = ((n2 - n1) * Math.PI) / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((l1 * Math.PI) / 180) * Math.cos((l2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+        distance = haversineDist(userLat, userLng, parseFloat(store.latitude), parseFloat(store.longitude));
+      }
+
+      // Fallback fee if Uber quote failed
+      let fee = (quote?.fee || 0) / 100;
+      if (!quote && distance) {
+        // Manual fee estimation: $10.99 base + $1.25 per mile over 4 miles
+        const surcharge = Math.max(0, distance - 4) * 1.25;
+        fee = Math.min(24.99, 10.99 + surcharge);
       }
 
       const storeInv = invMap[store.id] || {};
@@ -2778,6 +2813,10 @@ app.post('/api/uber/delivery-options', async (req, res) => {
         longitude: store.longitude,
         quote,
         error,
+        isManual,
+        warning,
+        distance: distance || 0,
+        fee: fee || 0,
         inventory: {
           availableCount,
           missingCount,

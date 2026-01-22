@@ -571,6 +571,8 @@
       const closest = deliveryStoreOptions[0];
       if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
       if (selectedOption && selectedOption.missingCount > 0) messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
+      if (selectedOption && selectedOption.warning) messages.push(`<strong>Note:</strong> ${selectedOption.warning}`);
+      
       if (messages.length > 0) { notice.innerHTML = messages.join('<br>'); notice.style.display = 'block'; }
       else { notice.style.display = 'none'; }
     }
@@ -694,7 +696,7 @@
         const res = await fetch('/api/uber/delivery-options', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dropoffAddress, productIds: cartProductIds })
+          body: JSON.stringify({ dropoffAddress, productIds: cartProductIds, lat, lng })
         });
 
         if (!res.ok) throw new Error('Failed to fetch delivery options');
@@ -704,9 +706,9 @@
         // Map backend response to frontend format
         const results = (options || []).map(opt => ({
           ...opt,
-          // Use real Uber distance/fee if available, fallback to 0/Infinity
-          distance: opt.quote ? (opt.quote.estimated_distance_miles || 0) : Infinity,
-          fee: opt.quote ? (opt.quote.fee / 100) : 0,
+          // Use backend provided distance and fee
+          distance: opt.distance || 0,
+          fee: opt.fee || 0,
           availableCount: opt.inventory.availableCount,
           missingCount: opt.inventory.missingCount
         }));
