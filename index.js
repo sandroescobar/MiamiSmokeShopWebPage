@@ -2616,15 +2616,16 @@ async function uberRequest(path, { method = 'GET', json = null } = {}) {
 
 function uberAddressJsonString(addressObj = {}) {
   const street = Array.isArray(addressObj.street_address)
-    ? addressObj.street_address.filter(Boolean)
-    : [addressObj.street_address].filter(Boolean);
-  return {
+    ? addressObj.street_address.filter(Boolean).join(' ')
+    : String(addressObj.street_address || '').trim();
+
+  return JSON.stringify({
     street_address: street,
     city: addressObj.city || '',
     state: addressObj.state || '',
     zip_code: addressObj.zip_code || '',
     country: addressObj.country || 'US',
-  };
+  });
 }
 
 async function uberCreateQuote({ pickupStoreId, dropoffAddress }) {
