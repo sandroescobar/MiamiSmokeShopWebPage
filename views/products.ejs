@@ -438,7 +438,13 @@
   }
   function setSavedShop(value) {
     try {
-      window.localStorage.setItem(storageKey, value);
+      window.localStorage.setItem('preferredShop', value);
+      window.localStorage.setItem('selectedShop', value);
+      window.localStorage.setItem('selectedStore', value);
+      window.localStorage.setItem('shop', value);
+      window.sessionStorage.setItem('preferredShop', value);
+      window.sessionStorage.setItem('selectedShop', value);
+      window.sessionStorage.setItem('selectedStore', value);
     } catch (err) {}
   }
   function openOverlay() {

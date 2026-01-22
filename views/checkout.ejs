@@ -711,7 +711,8 @@
         const pickupStoreContainer = document.getElementById('pickup-stores');
         const res = await fetch('/api/stores');
         const data = await res.json();
-        allStores = Array.isArray(data?.stores) ? data.stores : [];
+        // Support both { stores: [] } and direct array response
+        allStores = Array.isArray(data) ? data : (Array.isArray(data?.stores) ? data.stores : []);
 
         if (!allStores.length) {
           if (pickupStoreContainer) {
@@ -720,12 +721,16 @@
           return;
         }
 
-    window.initializeStores = initializeStores;
+        window.initializeStores = initializeStores;
 
-
-        // Respect the store the user is shopping from (passed via ?shop=...)
+        // Respect the store the user is shopping from (passed via ?shop=... or from storage)
         const params = new URLSearchParams(window.location.search);
-        const shopParamRaw = params.get('shop') || '';
+        const shopParamRaw = params.get('shop') || 
+                            localStorage.getItem('preferredShop') || 
+                            localStorage.getItem('selectedShop') || 
+                            localStorage.getItem('selectedStore') || 
+                            localStorage.getItem('shop') || 
+                            '';
         const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const shopKey = normalizeKey(shopParamRaw);
 
@@ -1053,7 +1058,8 @@
         pickupStoreId,
         pickupStoreLabel: storeLabelFromId(pickupStoreId),
         pickupStore: selectedStore,
-        selectedDeliveryStore
+        selectedDeliveryStore,
+        items: cartItems
       };
 
       const resp = await fetch('/api/authorize/charge', {

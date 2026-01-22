@@ -165,9 +165,11 @@ function initMiniCart() {
         const params = new URLSearchParams(window.location.search);
         const shopFromUrl = params.get('shop') || params.get('store');
         const shopFromStorage =
+          localStorage.getItem('preferredShop') ||
           localStorage.getItem('selectedShop') ||
           localStorage.getItem('selectedStore') ||
           localStorage.getItem('shop') ||
+          sessionStorage.getItem('preferredShop') ||
           sessionStorage.getItem('selectedShop') ||
           sessionStorage.getItem('selectedStore') ||
           sessionStorage.getItem('shop');

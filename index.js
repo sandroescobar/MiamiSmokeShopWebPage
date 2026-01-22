@@ -7,6 +7,7 @@ import express from 'express';
 import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
+import { sendSlackOrderNotification } from './utils/slack.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1726,13 +1727,13 @@ app.get('/api/stores', (_req, res) => {
     .filter(s => s.id !== 'either')
     .map(s => ({
       id: s.id,
-      name: s.name,
+      name: s.label || s.name,
       address: s.address || '',
       latitude: s.latitude || null,
       longitude: s.longitude || null
     }));
 
-  res.json(stores);
+  res.json({ stores });
 });
 
 
@@ -2800,6 +2801,26 @@ app.post('/api/authorize/charge', async (req, res) => {
       try { body = JSON.parse(body); } catch { /* ignore */ }
     }
     body = body || {};
+
+    // Extract common fields from body
+    const items = Array.isArray(body.items) ? body.items : [];
+    const customer = body.customer || {};
+    const email = customer.email || body.email || '';
+    const firstName = customer.firstName || '';
+    const lastName = customer.lastName || '';
+    const phone = customer.phone || '';
+
+    const totals = body.totals || {};
+    const orderTotal = Number(body.amount ?? totals.total ?? 0);
+    const subtotal = Number(totals.subtotal ?? 0);
+    const taxAmount = Number(totals.tax ?? 0);
+    const deliveryFee = Number(totals.delivery ?? 0);
+
+    const deliveryOption = String(body.deliveryMethod || '').toLowerCase();
+    const pickupStoreId = normalizeStoreId(
+      body.pickupStoreId || body.selectedDeliveryStore || body.pickupStore || 'calle8'
+    );
+
     const opaque = body.opaqueData || {};
     const opaqueDataDescriptor = body.opaqueDataDescriptor || opaque.dataDescriptor;
     const opaqueDataValue = body.opaqueDataValue || opaque.dataValue;
@@ -2816,19 +2837,10 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(400).json({ error: 'Missing payment token (opaqueData).' });
     }
 
-    const numericAmount = Number(
-      body.amount ??
-      body.totals?.total ??
-      body.order?.total ??
-      body.order?.totalAmount ??
-      body.order?.amount ??
-      0
-    );
-
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    if (!Number.isFinite(orderTotal) || orderTotal <= 0) {
       return res.status(400).json({ error: 'Invalid charge amount.' });
     }
-    const amountStr = numericAmount.toFixed(2);
+    const amountStr = orderTotal.toFixed(2);
 
     const payload = {
       createTransactionRequest: {
@@ -2848,9 +2860,8 @@ app.post('/api/authorize/charge', async (req, res) => {
     };
 
     // Optional data (kept minimal, but useful)
-    const customerEmail = body.customer?.email || body.email;
-    if (customerEmail) {
-      payload.createTransactionRequest.transactionRequest.customer = { email: String(customerEmail).slice(0, 255) };
+    if (email) {
+      payload.createTransactionRequest.transactionRequest.customer = { email: String(email).slice(0, 255) };
     }
 
     const billing = body.billing || {};
@@ -2912,6 +2923,8 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     const trx = result?.transactionResponse;
     const transId = trx?.transId;
+    const authCode = trx?.authCode;
+    const responseCode = trx?.responseCode;
 
     if (!transId) {
       console.error('[Authorize.Net] Missing transaction id', {
@@ -2928,11 +2941,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     let uberDelivery = null;
     let uberError = null;
     try {
-      const deliveryMethod = String(body?.deliveryMethod || '').toLowerCase();
-      if (deliveryMethod === 'delivery') {
-        const pickupStoreId = normalizeStoreId(
-          body?.pickupStoreId || body?.selectedDeliveryStore || body?.pickupStore || 'calle8'
-        );
+      if (deliveryOption === 'delivery') {
         const billingInfo = body?.billing || {};
         const dropoffAddress = buildCustomerDropoffAddress(billingInfo);
         console.log('[Uber Direct] courier branch start', {
@@ -2952,7 +2961,7 @@ app.post('/api/authorize/charge', async (req, res) => {
         }
         const dropoffName = `${billingInfo.firstName || ''} ${billingInfo.lastName || ''}`.trim() || 'Customer';
         console.log('[Uber Direct] courier contact', { dropoffName, dropoffPhone });
-        const manifestCents = Math.max(0, Math.round(Number(body?.amount || body?.totals?.total || 0) * 100));
+        const manifestCents = Math.max(0, Math.round(orderTotal * 100));
         console.log('[Uber Direct] quote request input', { pickupStoreId, manifestCents });
 
         const quote = await uberCreateQuote({ pickupStoreId, dropoffAddress });
@@ -3009,7 +3018,8 @@ app.post('/api/authorize/charge', async (req, res) => {
       items,
       totals: { subtotal, tax: taxAmount, delivery: deliveryFee, total: orderTotal },
       uber: uberDelivery || null,
-      uberError: uberError || null
+      uberError: uberError || null,
+      transactionId
     };
 
     try {
@@ -3057,6 +3067,13 @@ app.post('/api/authorize/charge', async (req, res) => {
         }
 
         await conn.commit();
+        
+        // Notify Slack (async, don't await if you don't want to delay response, 
+        // but we're in an async block already and it's best-effort)
+        sendSlackOrderNotification(receiptPayload).catch(e => 
+          console.error('[Slack] notification failed:', e?.message || e)
+        );
+
       } catch (dbErr) {
         try { await conn.rollback(); } catch {}
         console.error('[order_receipts] persist failed:', dbErr?.message || dbErr);
