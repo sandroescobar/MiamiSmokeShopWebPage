@@ -134,7 +134,9 @@ const FEATURED_FULL_PRODUCTS = [
 
 const FEATURED_IMAGE_GAPS = new Set([
   'OLIT HOOKALIT 60K',
-  'BACKWOODS 5PK'
+  'BACKWOODS 5PK',
+  'LOST MARY ULTRASONIC',
+  'DESTINO PRE ROLL 1GR'
 ].map(name => name.toUpperCase()));
 const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
@@ -2458,6 +2460,9 @@ async function geocodeNominatim(query) {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
       return { lat, lng, displayName: data[0].display_name || null };
+    } catch (err) {
+      console.error('[geocode] Nominatim request failed:', err.message);
+      return null;
     } finally {
       // Clear in-flight marker
       const cur = __geocodeCache.get(q);
@@ -3048,7 +3053,7 @@ app.post('/api/authorize/charge', async (req, res) => {
 
         if (availableQty < reqQty) {
           return res.status(400).json({ 
-            error: `THIS ITEMS QUANTITY IS ALREADY IN YOUR CART`
+            error: `Insufficient stock for one or more items in your cart. Please review your order.`
           });
         }
       }
