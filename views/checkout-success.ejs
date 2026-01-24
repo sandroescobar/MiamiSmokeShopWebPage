@@ -96,10 +96,6 @@
           <p class="muted" id="trackingStatusText">Waiting for courier assignment.</p>
           <a class="btn btn-primary" id="trackingLink" href="#" target="_blank" rel="noopener noreferrer">Open Tracking</a>
         </div>
-        <div class="card warning-card" id="deliveryWarningCard" hidden>
-          <h2>Delivery Update</h2>
-          <p class="muted" id="deliveryWarningText"></p>
-        </div>
       </div>
     </section>
 
@@ -221,23 +217,6 @@
           }
         } else {
           trackingCard.hidden = true;
-        }
-      }
-      const deliveryWarningCard = document.getElementById('deliveryWarningCard');
-      if (deliveryWarningCard) {
-        if (method === 'Delivery' && (payload.deliveryWarning || payload.uberError)) {
-          deliveryWarningCard.hidden = false;
-          const deliveryWarningText = document.getElementById('deliveryWarningText');
-          if (deliveryWarningText) {
-            deliveryWarningText.textContent = payload.deliveryWarning || payload.uberError;
-          }
-          // Log debug info for developers
-          console.log('[Delivery Debug]', {
-            delivery: uber || null,
-            error: payload.uberError || payload.deliveryWarning || null
-          });
-        } else {
-          deliveryWarningCard.hidden = true;
         }
       }
     }

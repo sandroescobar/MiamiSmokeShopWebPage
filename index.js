@@ -97,25 +97,22 @@ const STORE_CHOICES = [
     address: CONTACT_INFO.addresses[1],
     note: 'Best for Upper Eastside, Wynwood, Miami Shores, Biscayne Corridor',
   },
-  {
-    id: 'either',
-    label: 'Either location',
-    address: 'Show everything we can source from both stores',
-    note: 'Browse the full catalog and we will confirm pickup or delivery availability',
-  },
 ];
 
 const STORE_CHOICE_MAP = new Map(STORE_CHOICES.map((choice) => [choice.id, choice]));
 const STORE_NAME_BY_ID = Object.fromEntries(STORE_CHOICES.map((choice) => [choice.id, choice.label]));
-const DEFAULT_SHOP = 'either';
+const DEFAULT_SHOP = 'calle8';
 
 const FEATURED_FULL_PRODUCTS = [
   'LOST MARY TURBO 35K',
   'LOST MARY ULTRASONIC',
   'GEEKBAR X 25K',
   'RAZ LTX 25K',
+  'RAZ LTX 25K ZERO NIC',
   'RAZ 9K',
+  'RAZ 9K ZERO NIC',
   'OLIT HOOKALIT 40K',
+  'OLIT HOOKALIT 60K',
   'CUVIE PLUS',
   'HQD CUVIE PLUS',
   'CUVIE GLAZE',
@@ -126,12 +123,19 @@ const FEATURED_FULL_PRODUCTS = [
   'FUME ULTRA',
   'FUME INFINITY',
   'FUME PRO 30K',
+  'FUME PRO 30K ZERO NIC',
   'DESTINO PRE ROLL 1GR',
   'GRABBA LEAF SMALL',
-  'GEEKBAR 15K'
+  'GEEKBAR 15K',
+  'BACKWOODS 5PK',
+  'ZYN 3MG',
+  'ZYN 6MG'
 ];
 
-const FEATURED_IMAGE_GAPS = new Set([]);
+const FEATURED_IMAGE_GAPS = new Set([
+  'OLIT HOOKALIT 60K',
+  'BACKWOODS 5PK'
+].map(name => name.toUpperCase()));
 const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
@@ -155,15 +159,10 @@ const PRODUCT_EXCLUSION_KEYWORDS = [
 const PRODUCTS_PAGE_SIZE = 30;
 const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th'];
 const SHOP_TABLES = {
-  either: SNAPSHOT_TABLES,
   calle8: ['inventory_calle8'],
   '79th': ['inventory_79th']
 };
 const SHOP_ALIAS_MAP = new Map([
-  ['either', 'either'],
-  ['either store', 'either'],
-  ['both', 'either'],
-  ['all', 'either'],
   ['calle8', 'calle8'],
   ['calle 8', 'calle8'],
   ['calle-8', 'calle8'],
@@ -1896,6 +1895,10 @@ function isRestrictedProduct(normalizedName = '', normalizedKey = '', rawName = 
 function normalizeProductName(name) {
   let value = String(name || '').trim();
   if (!value) return value;
+  
+  // Normalize ZERO NICOTINE to ZERO NIC for consistent matching
+  value = value.replace(/\bZERO\s+NICOTINE\b/gi, 'ZERO NIC');
+
   if (/^RA[ZX]\s*LTX\b/i.test(value)) {
     value = value.replace(/^RA[ZX]\s*LTX\b/i, 'RAZ LTX');
     if (!/\b25K\b/i.test(value)) {
@@ -1948,7 +1951,12 @@ function normalizeProductName(name) {
     }
   }
   if (/^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)\b/i.test(value)) {
-    value = value.replace(/^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?\b/i, 'OLIT HOOKALIT 40K');
+    if (/\b60K\b/i.test(value)) {
+      value = value.replace(/^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?(?:\s+PRO)?(?:\s+60K)?\b/i, 'OLIT HOOKALIT 60K');
+    } else {
+      value = value.replace(/^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?\b/i, 'OLIT HOOKALIT 40K');
+    }
+    value = value.replace(/\bVAPE\b/gi, '');
   }
   if (/^HQD\s+CUVIE\b/i.test(value)) {
     value = value.replace(/^HQD\s+/, '');
@@ -1997,34 +2005,54 @@ function extractProductVariantKey(name) {
   const sizePattern = /\d+(?:\.\d+)?(?:K|KMG|GR|MG|ML|OZ|PK|CT|G)\b/;
 
   const words = name.split(/\s+/);
+  let baseKey = '';
 
   // Find the position of the first size spec
   for (let i = 0; i < words.length; i++) {
     if (sizePattern.test(words[i])) {
       // Found size spec at position i
       // Include all words up to and including this one
-      return words.slice(0, i + 1).join(' ');
+      baseKey = words.slice(0, i + 1).join(' ');
+      break;
     }
   }
 
-  // No size spec found - fall back to original logic (first 2-3 words)
-  if (words.length < 2) return name;
+  if (!baseKey) {
+    // No size spec found - fall back to original logic (first 2-3 words)
+    if (words.length < 2) {
+      baseKey = name;
+    } else {
+      let baseWords = words.slice(0, 2);
 
-  let baseWords = words.slice(0, 2);
-
-  // If there's a 3rd word and it looks like a descriptor/quantity, include it
-  // (e.g., "SINGLE", "ORIGINAL", "KINGS", "SLIM", etc.)
-  if (words.length > 2 &&
-      /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL)$/.test(words[2])) {
-    baseWords.push(words[2]);
+      // If there's a 3rd word and it looks like a descriptor/quantity, include it
+      // (e.g., "SINGLE", "ORIGINAL", "KINGS", "SLIM", etc.)
+      if (words.length > 2 &&
+          /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL)$/.test(words[2])) {
+        baseWords.push(words[2]);
+      }
+      baseKey = baseWords.join(' ');
+    }
   }
 
-  return baseWords.join(' ');
+  // Handle ZERO NICOTINE separation as a distinct product base
+  if (name.includes('ZERO NICOTINE') || name.includes('ZERO NIC')) {
+    return `${baseKey} ZERO NIC`.trim();
+  }
+
+  return baseKey;
 }
 
 function extractFlavor(name, baseKey) {
   // Extract flavor from product name by removing the base key
-  const flavor = name.replace(new RegExp(`^${baseKey}\\s*`, 'i'), '').trim();
+  let flavor = name.replace(new RegExp(`^${baseKey}\\s*`, 'i'), '').trim();
+
+  // If the base key was artificially augmented with ZERO NIC, we may need to strip it from the middle/end of the flavor too
+  if (baseKey.includes('ZERO NIC')) {
+    const baseWithoutNic = baseKey.replace(/\s*ZERO\s*NIC(OTINE)?/i, '').trim();
+    flavor = name.replace(new RegExp(`^${baseWithoutNic}\\s*`, 'i'), '').trim();
+    flavor = flavor.replace(/\s*ZERO\s*NIC(OTINE)?/gi, '').trim();
+  }
+
   return flavor || 'Original';
 }
 
@@ -2035,6 +2063,12 @@ function groupProductsByVariant(products) {
     const normalizedName = normalizeProductName(product.name) || '';
     const baseKey = extractProductVariantKey(normalizedName);
     const normalizedKey = (baseKey || '').toUpperCase();
+
+    // Skip products explicitly marked as inactive in snapshot tables
+    if (product.any_active === 0) {
+      return;
+    }
+
     if (isRestrictedProduct(normalizedName, normalizedKey, product.name)) {
       return;
     }
@@ -2072,8 +2106,13 @@ function groupProductsByVariant(products) {
     const group = grouped[normalizedKey];
     const variantKey = flavor.toUpperCase() || 'ORIGINAL';
     const existingVariant = group.variantMap.get(variantKey);
+    const inventoryNameKey = (product.name || '').toUpperCase();
+
     if (existingVariant) {
-      existingVariant.total_qty = Number(existingVariant.total_qty || 0) + Number(product.total_qty || 0);
+      if (!existingVariant.countedInventoryNames.has(inventoryNameKey)) {
+        existingVariant.total_qty = Number(existingVariant.total_qty || 0) + Number(product.total_qty || 0);
+        existingVariant.countedInventoryNames.add(inventoryNameKey);
+      }
       if (!existingVariant.has_image && variantHasImage) {
         existingVariant.image_url = variantImageUrl;
         existingVariant.image_alt = variantImageAlt;
@@ -2088,7 +2127,8 @@ function groupProductsByVariant(products) {
         total_qty: product.total_qty,
         image_url: variantImageUrl,
         image_alt: variantImageAlt,
-        has_image: variantHasImage
+        has_image: variantHasImage,
+        countedInventoryNames: new Set([inventoryNameKey])
       };
       group.variantMap.set(variantKey, variantPayload);
       group.variants.push(variantPayload);
@@ -2096,6 +2136,9 @@ function groupProductsByVariant(products) {
   });
 
   Object.values(grouped).forEach(group => {
+    group.variants.forEach(v => {
+      delete v.countedInventoryNames;
+    });
     group.variants.sort((a, b) => {
       if (!!a.has_image === !!b.has_image) {
         return a.flavor.localeCompare(b.flavor);
@@ -2106,6 +2149,10 @@ function groupProductsByVariant(products) {
   });
 
   return Object.values(grouped).filter(group => {
+    if (group.variants.length === 0) {
+      return false;
+    }
+
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
       const baseKey = (group.base_name || group.name || '').toUpperCase();
       return SINGLE_VARIANT_FEATURED_BASES.has(baseKey);
@@ -2969,6 +3016,46 @@ app.post('/api/authorize/charge', async (req, res) => {
     if (!Number.isFinite(orderTotal) || orderTotal <= 0) {
       return res.status(400).json({ error: 'Invalid charge amount.' });
     }
+
+    // --- PRE-CHARGE INVENTORY VALIDATION ---
+    try {
+      const normalizedId = normalizeStoreId(pickupStoreId);
+      const inventoryTable = normalizedId === '79th' ? 'inventory_79th' : 'inventory_calle8';
+      
+      for (const it of items) {
+        const reqQty = Number(it?.quantity || 0);
+        if (reqQty <= 0) continue;
+        const productId = it?.id;
+        const fallbackName = String(it?.name || '').trim();
+
+        let availableQty = 0;
+        if (productId) {
+          const [rows] = await queryWithRetry(
+            `SELECT i.quantity 
+             FROM ${inventoryTable} i
+             JOIN products p ON UPPER(p.name) = UPPER(i.name)
+             WHERE p.id = ? AND i.is_active = 1`,
+            [productId]
+          );
+          availableQty = Number(rows[0]?.quantity || 0);
+        } else if (fallbackName) {
+          const [rows] = await queryWithRetry(
+            `SELECT quantity FROM ${inventoryTable} WHERE name = ? AND is_active = 1`,
+            [fallbackName]
+          );
+          availableQty = Number(rows[0]?.quantity || 0);
+        }
+
+        if (availableQty < reqQty) {
+          return res.status(400).json({ 
+            error: `THIS ITEMS QUANTITY IS ALREADY IN YOUR CART`
+          });
+        }
+      }
+    } catch (invErr) {
+      console.error('[Inventory Validation] Failed:', invErr);
+    }
+
     const amountStr = orderTotal.toFixed(2);
 
     const payload = {
@@ -3053,15 +3140,26 @@ app.post('/api/authorize/charge', async (req, res) => {
     const trx = result?.transactionResponse;
     const transId = trx?.transId;
     const authCode = trx?.authCode;
-    const responseCode = trx?.responseCode;
+    const responseCode = String(trx?.responseCode || '');
 
     if (!transId) {
       console.error('[Authorize.Net] Missing transaction id', {
-        responseCode: trx?.responseCode,
+        responseCode,
         errors: trx?.errors,
         messages: msg,
       });
       return res.status(502).json({ error: 'Authorize.Net did not return a transaction id.' });
+    }
+
+    // responseCode '1' is Approved. '2' is Declined, '3' is Error, '4' is Held for Review.
+    if (responseCode !== '1') {
+      const errorText = trx?.errors?.[0]?.errorText || 'Transaction was declined or held for review.';
+      console.error('[Authorize.Net] Transaction not approved', { responseCode, transId, errorText });
+      return res.status(402).json({ 
+        error: errorText, 
+        responseCode, 
+        transactionId: transId 
+      });
     }
 
     // From this point forward, the charge was successful.
@@ -3377,7 +3475,8 @@ app.get('/products', async (req, res) => {
     });
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const inventoryJoinSql = SHOW_ALL_LOCAL
+    const isStrictStore = selectedShop !== 'either';
+    const inventoryJoinSql = (SHOW_ALL_LOCAL && !isStrictStore)
       ? `
         LEFT JOIN (
           ${snapshotAggSql}
@@ -3407,6 +3506,7 @@ app.get('/products', async (req, res) => {
         p.unit_price AS price,
         COALESCE(snap.total_qty, 0) AS total_qty,
         p.supplier AS brand,
+        COALESCE(snap.any_active, 0) AS any_active,
         NULL AS rating,
         NULL AS review_count
       FROM products p
@@ -3431,7 +3531,7 @@ app.get('/products', async (req, res) => {
       const baseKeys = [...new Set(paginatedProducts.map(p => (p.base_name || '').toUpperCase()).filter(Boolean))];
       if (baseKeys.length) {
         const variantConditions = baseKeys.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
-        const variantParams = baseKeys.map(key => `${key}%`);
+        const variantParams = baseKeys.map(key => buildFeaturedNamePattern(key));
         const variantSql = `
           SELECT
             p.id,
@@ -3442,13 +3542,14 @@ app.get('/products', async (req, res) => {
             p.unit_price AS price,
             COALESCE(snap.total_qty, 0) AS total_qty,
             p.supplier AS brand,
+            COALESCE(snap.any_active, 0) AS any_active,
             NULL AS rating,
             NULL AS review_count
           FROM products p
           ${inventoryJoinSql}
-          WHERE ${variantConditions}
+          WHERE (${variantConditions}) ${where.length ? 'AND ' + where.join(' AND ') : ''}
         `;
-        const [variantRows] = await queryWithRetry(variantSql, variantParams);
+        const [variantRows] = await queryWithRetry(variantSql, [...variantParams, ...params]);
         applyLocalQtyOverride(variantRows);
         const variantGroups = groupProductsByVariant(variantRows);
         const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
@@ -3457,33 +3558,10 @@ app.get('/products', async (req, res) => {
           if (!fullGroup) {
             return group;
           }
-          const normalizeFlavorKey = (value) => {
-            const trimmed = (value || 'Original').trim();
-            return (trimmed || 'Original').toUpperCase();
-          };
-          const flavorMap = new Map();
-          const mergedVariants = [];
-          const registerVariant = (variant) => {
-            const key = normalizeFlavorKey(variant.flavor);
-            const existing = flavorMap.get(key);
-            if (existing) {
-              existing.total_qty = Number(existing.total_qty || 0) + Number(variant.total_qty || 0);
-              if (!existing.has_image && variant.has_image) {
-                existing.image_url = variant.image_url;
-                existing.image_alt = variant.image_alt;
-                existing.has_image = true;
-              }
-              return;
-            }
-            const payload = { ...variant };
-            flavorMap.set(key, payload);
-            mergedVariants.push(payload);
-          };
-          group.variants.forEach(registerVariant);
-          fullGroup.variants.forEach(registerVariant);
+          // Use fullGroup variants directly as they are already correctly aggregated and merged
           return {
             ...group,
-            variants: mergedVariants,
+            variants: fullGroup.variants,
           };
         });
       }

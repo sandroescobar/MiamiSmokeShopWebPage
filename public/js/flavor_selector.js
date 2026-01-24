@@ -9,9 +9,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (qty > 0) {
       btn.disabled = false;
       btn.textContent = inStock;
+      card.classList.remove('sold-out');
     } else {
       btn.disabled = true;
       btn.textContent = outStock;
+      card.classList.add('sold-out');
     }
   }
 
@@ -128,13 +130,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (productName && priceText) {
+      const carousel = card.querySelector('.flavor-carousel');
+      let maxQty = 999;
+      if (isGrouped && carousel) {
+        let idx = parseInt(carousel.dataset.flavorIndex || 0, 10);
+        const variant = carousel.querySelectorAll('.flavor-variant')[idx];
+        if (variant) {
+          maxQty = parseInt(variant.dataset.qty || 999, 10);
+        }
+      } else {
+        maxQty = parseInt(card.dataset.qty || 999, 10);
+      }
+
       addToCart({
         id: productId,
         name: productName,
         price: priceText,
         image: imageSrc,
         brand: brandText
-      });
+      }, 1, maxQty);
     }
   });
 });

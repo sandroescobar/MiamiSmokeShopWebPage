@@ -255,7 +255,11 @@ def apply_brand_specific_rules(name):
         if not re.search(r'\b35K\b', text, re.IGNORECASE):
             text = re.sub(r'^LOST MARY TURBO\b', 'LOST MARY TURBO 35K', text, flags=re.IGNORECASE)
     if re.search(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)\b', text, re.IGNORECASE):
-        text = re.sub(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?\b', 'OLIT HOOKALIT 40K', text, flags=re.IGNORECASE)
+        if re.search(r'\b60K\b', text, re.IGNORECASE):
+            text = re.sub(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?(?:\s+PRO)?(?:\s+60K)?\b', 'OLIT HOOKALIT 60K', text, flags=re.IGNORECASE)
+        else:
+            text = re.sub(r'^(?:G?OLIT\s+HOOKALIT|HOOKALIT\s+VAPE)(?:\s+40K)?\b', 'OLIT HOOKALIT 40K', text, flags=re.IGNORECASE)
+        text = re.sub(r'\bVAPE\b', '', text, flags=re.IGNORECASE)
     if re.search(r'^LOST\s*MARY\s*ULTRASONIC\b', text, re.IGNORECASE):
         text = re.sub(r'^LOST\s*MARY\s*ULTRASONIC\b', 'LOST MARY ULTRASONIC', text, flags=re.IGNORECASE)
         if not re.search(r'\b25K\b', text, re.IGNORECASE):
@@ -266,6 +270,11 @@ def apply_brand_specific_rules(name):
             text = re.sub(r'\b1G\b', '1GR', text, flags=re.IGNORECASE)
         if not re.search(r'\b1GR\b', text, re.IGNORECASE):
             text = re.sub(r'^BB CART\b', 'BB CART 1GR', text, flags=re.IGNORECASE)
+    
+    # Fix ZYN Peppermint typo
+    if "PPEPERMINT" in text.upper():
+        text = text.upper().replace("PPEPERMINT", "PEPPERMINT")
+
     text = ' '.join(text.split())
     return text
 
@@ -392,6 +401,11 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
     df["QtyOnHand"] = df["QtyOnHand"].apply(clamp_int)
     df["UnitPrice"] = df["UnitPrice"].apply(clamp_price)
     df["Category"] = df["Category"].apply(as_str)
+    
+    # Exclude specific flavors as requested by user
+    df = df[~df["Name"].str.upper().str.contains("RAZ 9K CACTUS JACK", na=False)].copy()
+    df = df[~df["Name"].str.upper().str.contains("RAZ 9K ORANGE RASBERRY", na=False)].copy()
+
     df = df[df["Name"].str.len() > 0].copy()
     rows = len(df)
     if rows == 0:

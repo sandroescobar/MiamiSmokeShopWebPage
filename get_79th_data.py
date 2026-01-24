@@ -37,6 +37,13 @@ wait = WebDriverWait(driver, 20)
 # ─────────────────────────────────────────────────────────────────────────────
 # 1) Open login page
 # ─────────────────────────────────────────────────────────────────────────────
+# Pre-cleanup: remove old items-*.csv files to ensure we pick the fresh one
+for old_file in glob.glob(os.path.join(DOWNLOAD_DIR, "items-*.csv")):
+    try:
+        os.remove(old_file)
+    except Exception:
+        pass
+
 driver.get("https://mvss.cigarspos.com/index.html?nocache=07")
 
 
@@ -174,21 +181,23 @@ export_btn.click()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6) Wait for download to finish and rename to downloads/inventory.csv
+# 6) Wait for download to finish and rename to downloads/inventory_79th.csv
 # ─────────────────────────────────────────────────────────────────────────────
 def wait_for_csv(dir_path: str, timeout: int = 90) -> str:
-   """Wait until a .csv appears and all .crdownload files are gone."""
+   """Wait until a new items-*.csv appears and all .crdownload files are gone."""
    end = time.time() + timeout
    while time.time() < end:
-       csvs = glob.glob(os.path.join(dir_path, "*.csv"))
+       # ONLY look for the POS export pattern, ignore inventory*.csv
+       csvs = glob.glob(os.path.join(dir_path, "items-*.csv"))
        crdl = glob.glob(os.path.join(dir_path, "*.crdownload"))
        if csvs and not crdl:
            return max(csvs, key=os.path.getmtime)
        time.sleep(0.5)
-   raise TimeoutException(f"No CSV found in {dir_path} within {timeout}s")
+   raise TimeoutException(f"No new items-*.csv found in {dir_path} within {timeout}s")
 
 
 csv_path = wait_for_csv(DOWNLOAD_DIR)
+print(f"Detected raw download: {csv_path}")
 dest = os.path.join(DOWNLOAD_DIR, "inventory_79th.csv")
 
 
@@ -326,6 +335,10 @@ allowed = {
    "HOOKAH RELATED",
 }
 out = out[out["Category"].str.upper().str.strip().isin(allowed)]
+
+# Exclude specific flavors as requested by user
+out = out[~out["Name"].str.upper().str.contains("RAZ 9K CACTUS JACK", na=False)]
+out = out[~out["Name"].str.upper().str.contains("RAZ 9K ORANGE RASBERRY", na=False)]
 
 
 # final column order

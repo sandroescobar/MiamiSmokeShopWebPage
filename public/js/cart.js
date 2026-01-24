@@ -226,21 +226,36 @@ function showAddToCartNotification() {
   }, 2000);
 }
 
-function addToCart(product, quantity = 1) {
+function addToCart(product, quantity = 1, maxQty = 999) {
   const cart = readCartStorage();
   const wasEmpty = cart.length === 0;
   const existingItem = cart.find((item) => item.id === product.id);
+
   if (existingItem) {
-    existingItem.quantity += quantity;
+    if (existingItem.quantity >= maxQty) {
+      alert("THIS ITEMS QUANTITY IS ALREADY IN YOUR CART");
+      return;
+    }
+    if (existingItem.quantity + quantity > maxQty) {
+      existingItem.quantity = maxQty;
+    } else {
+      existingItem.quantity += quantity;
+    }
   } else {
     const priceNum = parsePrice(product.price);
+    const initialQty = Math.min(quantity, maxQty);
+    if (quantity > maxQty) {
+      // If someone tries to add 5 but only 2 available
+      // Not explicitly requested for first add, but consistent
+    }
     cart.push({
       id: product.id,
       name: product.name,
       price: priceNum || product.price,
       image: product.image,
       brand: product.brand || 'Miami Vape',
-      quantity
+      quantity: initialQty,
+      maxQty: maxQty
     });
   }
   writeCartStorage(cart);

@@ -107,7 +107,8 @@
   #product-grabba-leaf-small .product-spacer{flex:1}
   #product-grabba-leaf-small .buy-row{margin-top:auto;padding-top:.35rem}
   .btn-accent{border:0;padding:.4rem .6rem;border-radius:10px;cursor:pointer;background:var(--accent);color:#0a1222;font-weight:600;font-size:.85rem}
-  .sold-out,.product-card.sold-out .btn-accent{pointer-events:none;opacity:.6}
+  .product-card.sold-out .product-media{opacity:.7}
+  .product-card.sold-out .btn-accent{pointer-events:none;opacity:.6}
   
   /* Flavor carousel */
   .product-name-section{display:flex;flex-direction:column;gap:.12rem}
@@ -118,10 +119,9 @@
   .flavor-nav-btn:disabled{opacity:.4;pointer-events:none}
   .flavor-display{flex:1;text-align:center;font-size:.7rem;color:var(--ink-dim);padding:0 .25rem;display:flex;align-items:center;justify-content:center;min-width:0}
   .flavor-text{display:block;white-space:nowrap;padding:0;overflow:visible}
-  .soldout-overlay{position:absolute;inset:0;background:rgba(8,18,31,.6);display:grid;place-items:center;text-transform:uppercase;letter-spacing:.18em;font-weight:600;color:#fff}
   .no-image-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.55);color:#fff;font-weight:600;font-size:.9rem;padding:.5rem .75rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);text-align:center;pointer-events:none}
   .no-image-badge.is-hidden{display:none}
-
+  
   .store-filter{display:flex;align-items:center;gap:.45rem;min-width:200px}
   .store-filter select{height:42px;border-radius:10px;padding:0 12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--ink);min-width:180px}
   .store-filter button{height:42px;border-radius:10px;padding:0 .9rem;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:var(--ink);font-weight:600;font-size:.8rem;white-space:nowrap}
@@ -346,11 +346,15 @@
        const baseName = (p.base_name || p.name || '').trim();
        const isGrabbaLeafSmall = baseName.toUpperCase() === 'GRABBA LEAF SMALL';
   %>
-    <article class="product-card <%= !anyAvailable ? 'sold-out' : '' %>" <%= isGrabbaLeafSmall ? 'id="product-grabba-leaf-small"' : '' %> data-product-id="<%= displayVariant.id || firstVariant.id %>" data-product-price="<%= firstVariant.price || 0 %>" data-product-name="<%= baseName %>" data-is-grouped="<%= isGrouped ? 'true' : 'false' %>">
+    <article class="product-card <%= !anyAvailable ? 'sold-out' : '' %>" <%= isGrabbaLeafSmall ? 'id="product-grabba-leaf-small"' : '' %> 
+             data-product-id="<%= displayVariant.id || firstVariant.id %>" 
+             data-product-price="<%= firstVariant.price || 0 %>" 
+             data-product-name="<%= baseName %>" 
+             data-is-grouped="<%= isGrouped ? 'true' : 'false' %>"
+             data-qty="<%= displayQty %>">
       <div class="product-media">
         <img src="<%= imgSrc %>" alt="<%= alt %>">
         <div class="no-image-badge <%= hasImage ? 'is-hidden' : '' %>"><%= (displayVariant.image_alt || firstVariant.image_alt || 'Image coming soon') %></div>
-        <% if (!anyAvailable) { %><div class="soldout-overlay">Sold out</div><% } %>
       </div>
 
       <div class="product-info">

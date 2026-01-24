@@ -429,8 +429,19 @@ function renderCart() {
 
 function updateQuantity(index, change) {
   const cart = JSON.parse(localStorage.getItem('cart')) || [];
-  cart[index].quantity += change;
-  if (cart[index].quantity < 1) {
+  const item = cart[index];
+  if (!item) return;
+
+  const newQty = item.quantity + change;
+  const maxQty = item.maxQty || 999;
+
+  if (change > 0 && newQty > maxQty) {
+    alert("THIS ITEMS QUANTITY IS ALREADY IN YOUR CART");
+    return;
+  }
+
+  item.quantity = newQty;
+  if (item.quantity < 1) {
     cart.splice(index, 1);
   }
   localStorage.setItem('cart', JSON.stringify(cart));

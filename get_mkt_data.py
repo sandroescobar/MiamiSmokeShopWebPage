@@ -1,15 +1,13 @@
-import os, time, glob, shutil, re
+import os
+import glob
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
-import pandas as pd
 
-
-
-
-
+import pandas as pd  # keeping since you had it (not used yet)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 0) Configure downloads BEFORE launching Chrome (single driver only)
@@ -18,134 +16,102 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))       # folder with this s
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-
 chrome_options = webdriver.ChromeOptions()
 chrome_prefs = {
-   "download.default_directory": DOWNLOAD_DIR,
-   "download.prompt_for_download": False,
-   "download.directory_upgrade": True,
-   "safebrowsing.enabled": True,
-   "profile.default_content_setting_values.automatic_downloads": 1,
+    "download.default_directory": DOWNLOAD_DIR,
+    "download.prompt_for_download": False,
+    "download.directory_upgrade": True,
+    "safebrowsing.enabled": True,
+    "profile.default_content_setting_values.automatic_downloads": 1,
 }
 chrome_options.add_experimental_option("prefs", chrome_prefs)
-
 
 driver = webdriver.Chrome(options=chrome_options)
 wait = WebDriverWait(driver, 20)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1) Open login page
+# Helpers
 # ─────────────────────────────────────────────────────────────────────────────
-# Pre-cleanup: remove old items-*.csv files to ensure we pick the fresh one
-for old_file in glob.glob(os.path.join(DOWNLOAD_DIR, "items-*.csv")):
+def close_ok_dialog_if_present(timeout: int = 3) -> None:
+    """
+    Close a visible jQuery UI dialog that has an OK button, if it appears.
+    Safe to call even when no dialog exists.
+    """
+    short_wait = WebDriverWait(driver, timeout)
     try:
-        os.remove(old_file)
-    except Exception:
+        dialog = "//div[contains(@class,'ui-dialog') and not(contains(@style,'display: none'))]"
+        ok_btns = (
+            f"{dialog}//button[@title='Ok' or normalize-space(.)='Ok' "
+            f"or .//i[contains(@class,'icon-ok')]]"
+        )
+        short_wait.until(EC.element_to_be_clickable((By.XPATH, f"({ok_btns})[last()]"))).click()
+        short_wait.until(
+            EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ui-widget-overlay.ui-front"))
+        )
+    except TimeoutException:
         pass
 
-driver.get("https://miamismoke.cigarspos.com/index.html?nocache=07")
+
+def switch_into_frame_with_login_fields() -> None:
+    """
+    Some deployments embed the login form in an iframe.
+    This scans iframes and switches into the first one that contains #loguser.
+    If no iframe contains it, stays in default content.
+    """
+    driver.switch_to.default_content()
+
+    # If it's already in default content, we're done.
+    if driver.find_elements(By.CSS_SELECTOR, "#loguser"):
+        return
+
+    for fr in driver.find_elements(By.TAG_NAME, "iframe"):
+        driver.switch_to.default_content()
+        driver.switch_to.frame(fr)
+        if driver.find_elements(By.CSS_SELECTOR, "#loguser"):
+            return
+
+    # If not found, go back to default content.
+    driver.switch_to.default_content()
 
 
-# If a jQuery UI "Ok" alert appears, close it
+# ─────────────────────────────────────────────────────────────────────────────
+# 1) Open login page (start at /admin/ for reliability)
+# ─────────────────────────────────────────────────────────────────────────────
+driver.get("https://ms.bottlepos.com/admin/")
+
+# Close any initial dialog(s)
+close_ok_dialog_if_present()
+close_ok_dialog_if_present()
+
+# Hop into the correct iframe if needed
+switch_into_frame_with_login_fields()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2) Login (use CSS selectors to avoid XPath issues)
+# ─────────────────────────────────────────────────────────────────────────────
+user = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#loguser")))
+user.clear()
+user.send_keys("sandro")
+
+pwd = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#logpass")))
+pwd.clear()
+pwd.send_keys("12301230")
+
+login_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "#loginbutton")))
 try:
-   dialog = "//div[contains(@class,'ui-dialog') and not(contains(@style,'display: none'))]"
-   ok_btns = (f"{dialog}//button[@title='Ok' or normalize-space(.)='Ok' "
-              f"or .//i[contains(@class,'icon-ok')]]")
-   wait.until(EC.element_to_be_clickable((By.XPATH, f"({ok_btns})[last()]"))).click()
-   wait.until(EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.ui-widget-overlay.ui-front")))
-except TimeoutException:
-   pass
-
-
-# Some deployments stick the form in an iframe. Hop through iframes until we see username.
-driver.switch_to.default_content()
-for fr in driver.find_elements(By.TAG_NAME, "iframe"):
-   driver.switch_to.frame(fr)
-   if driver.find_elements(By.XPATH, "//input[@id='username' or @name='username']"):
-       break
-   driver.switch_to.default_content()
-
-
-# Fill credentials and login
-user = wait.until(EC.visibility_of_element_located(
-   (By.XPATH, "//input[@id='username' or @name='username' or @placeholder='Username*']")))
-user.clear(); user.send_keys("sandro")
-
-
-pwd = wait.until(EC.visibility_of_element_located(
-   (By.XPATH, "//input[@type='password' and (@id='password' or @name='password' or @placeholder='Password*')]")))
-pwd.clear(); pwd.send_keys("12301230")
-
-
-login_btn = wait.until(EC.element_to_be_clickable(
-   (By.XPATH, "//button[@id='loginbutton' or @id='loginButton' or @title='Login' or normalize-space(.)='Login']")))
-try:
-   login_btn.click()
+    login_btn.click()
 except Exception:
-   driver.execute_script("arguments[0].click();", login_btn)
+    driver.execute_script("arguments[0].click();", login_btn)
+
+# Optional: after login, go to the items page you were targeting
+driver.get("https://ms.bottlepos.com/admin/?nocache=1765836647#!items_1")
+
+# Close any post-login dialogs if they appear
+close_ok_dialog_if_present()
 
 
-# Back to the top doc for the device setup dialog
-driver.switch_to.default_content()
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2) Initial Device Setup → pick "Register1 (Inventory)" and "Inventory" → Register
-# ─────────────────────────────────────────────────────────────────────────────
-el = wait.until(EC.presence_of_element_located((By.ID, "posdevices")))
-sel = Select(el)
-wait.until(lambda d: len(sel.options) >= 2)
-sel.select_by_index(1)  # 2nd option (Register1...)
-
-
-loc = wait.until(EC.presence_of_element_located((By.ID, "poslocations")))
-sel2 = Select(loc)
-wait.until(EC.presence_of_element_located(
-   (By.XPATH, "//select[@id='poslocations']/option[normalize-space(.)='Inventory']")))
-sel2.select_by_visible_text("Inventory")
-
-
-register_button = wait.until(EC.element_to_be_clickable(
-   (By.XPATH, "//button[normalize-space(.)='Register']")))
-register_button.click()
-
-
-# Close the "Electron print support..." alert if it shows
-try:
-   ok_btn = wait.until(EC.element_to_be_clickable((
-       By.XPATH,
-       "(//div[contains(@class,'ui-dialog') and not(contains(@style,'display: none'))]"
-       "//div[contains(@class,'ui-dialog-buttonset')]//button"
-       "[normalize-space(.)='Ok' or .//i[contains(@class,'icon-ok')]])[last()]"
-   )))
-   ok_btn.click()
-except TimeoutException:
-   pass
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3) Go to Admin (opens in a new tab) and switch to it
-# ─────────────────────────────────────────────────────────────────────────────
-admin_button = wait.until(EC.element_to_be_clickable((By.ID, "admin_btn")))
-admin_button.click()
-
-
-wait.until(lambda d: len(d.window_handles) >= 2)
-current = driver.current_window_handle
-for h in driver.window_handles:
-   driver.switch_to.window(h)
-   if "/admin" in driver.current_url.lower() or "administration" in (driver.title or ""):
-       break
-
-
-# Sidebar present?
-wait.until(EC.presence_of_element_located((By.ID, "sidebar")))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4) Open "Items" (if not open) → click "Inventory"
-# ─────────────────────────────────────────────────────────────────────────────
 items_li = driver.find_element(By.ID, "menuparentitems")
 if "open" not in (items_li.get_attribute("class") or ""):
    toggle = items_li.find_element(By.CSS_SELECTOR, "a.dropdown-toggle")
@@ -167,14 +133,6 @@ try:
 except Exception:
    driver.execute_script("arguments[0].click();", inv_link)
 
-
-# Ensure we’re on Inventory view
-wait.until(lambda d: '#stock' in d.current_url.lower() or d.find_elements(By.ID, 'menustock'))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 5) Export CSV
-# ─────────────────────────────────────────────────────────────────────────────
 export_btn = wait.until(EC.element_to_be_clickable(
    (By.XPATH, "//button[normalize-space(.)='Export CSV']")))
 export_btn.click()
@@ -184,20 +142,18 @@ export_btn.click()
 # 6) Wait for download to finish and rename to downloads/inventory.csv
 # ─────────────────────────────────────────────────────────────────────────────
 def wait_for_csv(dir_path: str, timeout: int = 90) -> str:
-   """Wait until a new items-*.csv appears and all .crdownload files are gone."""
+   """Wait until a .csv appears and all .crdownload files are gone."""
    end = time.time() + timeout
    while time.time() < end:
-       # ONLY look for the POS export pattern, ignore inventory*.csv
-       csvs = glob.glob(os.path.join(dir_path, "items-*.csv"))
+       csvs = glob.glob(os.path.join(dir_path, "*.csv"))
        crdl = glob.glob(os.path.join(dir_path, "*.crdownload"))
        if csvs and not crdl:
            return max(csvs, key=os.path.getmtime)
        time.sleep(0.5)
-   raise TimeoutException(f"No new items-*.csv found in {dir_path} within {timeout}s")
+   raise TimeoutException(f"No CSV found in {dir_path} within {timeout}s")
 
 
 csv_path = wait_for_csv(DOWNLOAD_DIR)
-print(f"Detected raw download: {csv_path}")
 dest = os.path.join(DOWNLOAD_DIR, "inventory.csv")
 
 
@@ -321,19 +277,17 @@ else:
    out["Category"] = ""
 
 
-# keep only the categories you care about
 allowed = {
    "NICOTINE VAPES",
    "THCA PRODUCTS",
-   "THCA RELATED: FLOWER, CARTS & VAPES",
-   "TOBACCO PRODUCTS",
-   "EDIBLES",
-   "GRINDERS",
-   "ROLLING PAPERS & CONES",
-   "VAPE JUICES",
-   "DEVICES: BATTERIES & MODS",
    "HOOKAH RELATED",
+   "KRATOM",
+   "EDIBLES",
+   "TOBACCO PRODUCTS"
+
+
 }
+
 out = out[out["Category"].str.upper().str.strip().isin(allowed)]
 
 # Exclude specific flavors as requested by user
@@ -350,33 +304,7 @@ out = out[cols]
 cleaned_path = os.path.join(DOWNLOAD_DIR, "inventory_clean.csv")
 out.to_csv(cleaned_path, index=False)
 print(f"Cleaned CSV → {cleaned_path}  ({len(out)} rows)")
-# ─────────────────────── End single-CSV cleaner ───────────────────────
+# ───────────────
 
-
-print("\n📦 Loading data into database...")
-import subprocess
-try:
-    result = subprocess.run(
-        ["python3", os.path.join(BASE_DIR, "clean_data.py"), cleaned_path, "Calle 8"],
-        capture_output=True,
-        text=True,
-        timeout=480
-    )
-    print(result.stdout)
-    if result.stderr:
-        print("⚠️  Warnings:", result.stderr)
-    if result.returncode == 0:
-        print("✅ Database updated with Calle 8 inventory!")
-    else:
-        print(f"❌ Error loading data (exit code {result.returncode})")
-except Exception as e:
-    print(f"❌ Error running loader: {e}")
-
-
-# brew services start mysql run this line to start
-# mysql -u root run this to connect to mysql server
-
-
-# OPTIONAL: auto-update DB after cleaning
-
-
+input("press enter to quit")
+driver.quit()
