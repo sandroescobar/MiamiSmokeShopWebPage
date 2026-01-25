@@ -233,7 +233,14 @@ function addToCart(product, quantity = 1, maxQty = 999) {
 
   if (existingItem) {
     if (existingItem.quantity >= maxQty) {
-      alert("THIS ITEMS QUANTITY IS ALREADY IN YOUR CART");
+      Swal.fire({
+        icon: 'warning',
+        title: 'Limit reached',
+        text: 'This item\'s quantity is already in your cart',
+        background: '#0e1828',
+        color: '#fff',
+        confirmButtonColor: '#69CEE9'
+      });
       return;
     }
     if (existingItem.quantity + quantity > maxQty) {

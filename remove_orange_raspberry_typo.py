@@ -45,7 +45,7 @@ def remove_typo():
     conn = get_conn()
     cur = conn.cursor()
     
-    target_name = "RAZ 9K ORANGE RASBERRY"
+    target_name = "RAZ 9K ORANGE RASPBERRY"
     
     print(f"🚀 Starting removal of typo '{target_name}'...")
     

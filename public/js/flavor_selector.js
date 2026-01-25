@@ -106,7 +106,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (Number.isNaN(idx)) idx = 0;
         const variant = carousel.querySelectorAll('.flavor-variant')[idx];
         if (!variant) {
-          alert('Please select a flavor');
+          Swal.fire({
+            icon: 'info',
+            title: 'Flavor Selection',
+            text: 'Please select a flavor',
+            background: '#0e1828',
+            color: '#fff',
+            confirmButtonColor: '#69CEE9'
+          });
           return;
         }
 

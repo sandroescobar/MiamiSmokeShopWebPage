@@ -97,6 +97,12 @@ const STORE_CHOICES = [
     address: CONTACT_INFO.addresses[1],
     note: 'Best for Upper Eastside, Wynwood, Miami Shores, Biscayne Corridor',
   },
+  {
+    id: 'mkt',
+    label: 'Market',
+    address: process.env.MARKET_ADDRESS_FULL || 'Miami Mkt Bodega • 214 NW 8th St, Miami, FL 33136',
+    note: 'Best for Downtown, Overtown, Brickell area deliveries',
+  },
 ];
 
 const STORE_CHOICE_MAP = new Map(STORE_CHOICES.map((choice) => [choice.id, choice]));
@@ -130,7 +136,7 @@ const FEATURED_FULL_PRODUCTS = [
   'BACKWOODS 5PK',
   'ZYN 3MG',
   'ZYN 6MG',
-  'GRABBA LEAF WHOLE LEAF',
+  'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K'
 ];
@@ -140,11 +146,16 @@ const FEATURED_IMAGE_GAPS = new Set([
   'BACKWOODS 5PK',
   'LOST MARY ULTRASONIC',
   'DESTINO PRE ROLL 1GR'
-].map(name => name.toUpperCase()));
-const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
+].map(name => {
+  // Normalize to base key for consistent gap checking
+  const normalized = normalizeProductName(name);
+  const base = extractProductVariantKey(normalized);
+  return (base || normalized).toUpperCase();
+}));
+const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL', 'GRABBA LEAF WHOLE'].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF SMALL',
-  'GRABBA LEAF WHOLE LEAF',
+  'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K'
 ].map((name) => name.toUpperCase()));
@@ -167,10 +178,11 @@ const PRODUCT_EXCLUSION_KEYWORDS = [
   'PRE-ROLL'
 ];
 const PRODUCTS_PAGE_SIZE = 30;
-const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th'];
+const SNAPSHOT_TABLES = ['inventory_calle8', 'inventory_79th', 'inventory_mkt'];
 const SHOP_TABLES = {
   calle8: ['inventory_calle8'],
-  '79th': ['inventory_79th']
+  '79th': ['inventory_79th'],
+  mkt: ['inventory_mkt']
 };
 const SHOP_ALIAS_MAP = new Map([
   ['calle8', 'calle8'],
@@ -179,7 +191,10 @@ const SHOP_ALIAS_MAP = new Map([
   ['8th', 'calle8'],
   ['79th', '79th'],
   ['79', '79th'],
-  ['79th street', '79th']
+  ['79th street', '79th'],
+  ['mkt', 'mkt'],
+  ['market', 'mkt'],
+  ['bodega', 'mkt']
 ]);
 
 function buildSnapshotAggSql(tables = SNAPSHOT_TABLES) {
@@ -247,6 +262,18 @@ function buildVariantImageLookup(entries = []) {
     const key = normalizeVariantKey(entry.match);
     if (!key) continue;
     map.set(key, entry);
+
+    // If the match starts with the brand name and the flavor part is redundant (same as brand)
+    // also map it to just the brand name key for easier lookups
+    if (entry.imageAlt && entry.imageAlt.includes(' • ')) {
+      const [brand, flavor] = entry.imageAlt.split(' • ');
+      if (normalizeVariantKey(brand) === normalizeVariantKey(flavor)) {
+        const brandKey = normalizeVariantKey(brand);
+        if (!map.has(brandKey)) {
+          map.set(brandKey, entry);
+        }
+      }
+    }
   }
   return map;
 }
@@ -269,6 +296,25 @@ function buildImageReadyBaseSet(map = new Map()) {
 
 function applyLocalQtyOverride(items = []) {
   if (!SHOW_ALL_LOCAL) return items;
+
+  const targetBases = new Set([
+    'GRABBA LEAF WHOLE',
+    'CUVIE 2.0 NO NICOTINE',
+    'NEXA 35K'
+  ].map(n => {
+    const norm = normalizeProductName(n);
+    const base = extractProductVariantKey(norm);
+    return (base || norm).toUpperCase();
+  }));
+
+  items.forEach(item => {
+    const norm = normalizeProductName(item.name);
+    const base = extractProductVariantKey(norm).toUpperCase();
+    if (targetBases.has(base)) {
+      item.any_active = 1;
+    }
+  });
+
   return items;
 }
 
@@ -286,7 +332,17 @@ function getVariantImage(baseName, flavor) {
   const variantName = `${baseName} ${flavor}`.trim();
   const key = normalizeVariantKey(variantName);
   if (!key) return null;
-  return VARIANT_IMAGE_LOOKUP.get(key) || null;
+  
+  const match = VARIANT_IMAGE_LOOKUP.get(key);
+  if (match) return match;
+
+  // Fallback: If flavor is "Original" or matches baseName, try baseName alone
+  if (flavor === 'Original' || normalizeVariantKey(flavor) === normalizeVariantKey(baseName)) {
+    const baseKey = normalizeVariantKey(baseName);
+    return VARIANT_IMAGE_LOOKUP.get(baseKey) || null;
+  }
+
+  return null;
 }
 
 const VARIANT_IMAGE_MAPPINGS = [
@@ -1623,7 +1679,11 @@ const VARIANT_IMAGE_REFRESH_INTERVAL_MS = Number(process.env.STATIC_IMAGE_REFRES
 const VARIANT_IMAGE_REFRESH_DEBOUNCE_MS = 250;
 const variantImageWatchers = [];
 let FEATURED_BASE_PRODUCTS = [...FEATURED_FULL_PRODUCTS];
-let FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => name.toUpperCase()));
+let FEATURED_BASE_SET = new Set(FEATURED_BASE_PRODUCTS.map((name) => {
+  const normalized = normalizeProductName(name);
+  const base = extractProductVariantKey(normalized);
+  return (base || normalized).toUpperCase();
+}));
 let FEATURED_NAME_CLAUSE = FEATURED_BASE_PRODUCTS.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
 let FEATURED_NAME_PARAMS = FEATURED_BASE_PRODUCTS.map((name) => buildFeaturedNamePattern(name));
 let variantImageRefreshTimer;
@@ -1640,14 +1700,18 @@ function buildFeaturedNamePattern(name = '') {
 }
 
 function rebuildFeaturedBaseFilters() {
-  const sources = FEATURED_LIMIT_ENV
+  const sources = (FEATURED_LIMIT_ENV && !SHOW_ALL_LOCAL)
     ? FEATURED_FULL_PRODUCTS.filter((name) => {
         const upper = name.toUpperCase();
         return isImageReadyBase(name) || IMAGE_READY_ALLOWLIST.has(upper);
       })
     : FEATURED_FULL_PRODUCTS;
   FEATURED_BASE_PRODUCTS = sources;
-  FEATURED_BASE_SET = new Set(sources.map((name) => name.toUpperCase()));
+  FEATURED_BASE_SET = new Set(sources.map((name) => {
+    const normalized = normalizeProductName(name);
+    const base = extractProductVariantKey(normalized);
+    return (base || normalized).toUpperCase();
+  }));
   FEATURED_NAME_CLAUSE = sources.map(() => 'UPPER(p.name) LIKE ?').join(' OR ');
   FEATURED_NAME_PARAMS = sources.map((name) => buildFeaturedNamePattern(name));
 }
@@ -1990,6 +2054,21 @@ function normalizeProductName(name) {
       value = value.replace(/^BB PEN\b/i, 'BB PEN 1GR');
     }
   }
+  if (/^NEXA\b/i.test(value)) {
+    value = value.replace(/\bPIX?A?\b/gi, '');
+    value = value.replace(/^NEXA\s*(?:35K?)?\b/i, 'NEXA 35K ');
+    value = value.replace(/^(NEXA 35K)\s*35K/i, '$1');
+  }
+  if (/^CUVIE\s*2\.0\b/i.test(value)) {
+    // Normalize NO NIC to NO NICOTINE first
+    value = value.replace(/\bNO\s*NIC\b/gi, 'NO NICOTINE');
+    if (!/\bNO\s*NICOTINE\b/i.test(value)) {
+      value = value.replace(/^(CUVIE\s*2\.0)\b/i, '$1 NO NICOTINE');
+    }
+  }
+  if (/^GRABBA\s+LEAF\s+WHOLE\s+LEAF$/i.test(value)) {
+    value = 'GRABBA LEAF WHOLE';
+  }
   value = value.replace(/\s+/g, ' ').trim();
   return value;
 }
@@ -2049,6 +2128,16 @@ function extractProductVariantKey(name) {
     return `${baseKey} ZERO NIC`.trim();
   }
 
+  // Handle NO NICOTINE separation (e.g. CUVIE 2.0 NO NICOTINE)
+  if (name.includes('NO NICOTINE')) {
+    return `${baseKey} NO NICOTINE`.trim();
+  }
+
+  // Handle WHOLE separation (e.g. GRABBA LEAF WHOLE)
+  if (name.includes('WHOLE')) {
+    return `${baseKey} WHOLE`.trim();
+  }
+
   return baseKey;
 }
 
@@ -2061,6 +2150,20 @@ function extractFlavor(name, baseKey) {
     const baseWithoutNic = baseKey.replace(/\s*ZERO\s*NIC(OTINE)?/i, '').trim();
     flavor = name.replace(new RegExp(`^${baseWithoutNic}\\s*`, 'i'), '').trim();
     flavor = flavor.replace(/\s*ZERO\s*NIC(OTINE)?/gi, '').trim();
+  }
+
+  // If the base key was artificially augmented with NO NICOTINE
+  if (baseKey.includes('NO NICOTINE')) {
+    const baseWithoutNic = baseKey.replace(/\s*NO\s*NICOTINE/i, '').trim();
+    flavor = name.replace(new RegExp(`^${baseWithoutNic}\\s*`, 'i'), '').trim();
+    flavor = flavor.replace(/\s*NO\s*NICOTINE/gi, '').trim();
+  }
+
+  // If the base key was artificially augmented with WHOLE
+  if (baseKey.includes('WHOLE')) {
+    const baseWithoutWhole = baseKey.replace(/\s*WHOLE/i, '').trim();
+    flavor = name.replace(new RegExp(`^${baseWithoutWhole}\\s*`, 'i'), '').trim();
+    flavor = flavor.replace(/\s*WHOLE/gi, '').trim();
   }
 
   return flavor || 'Original';
@@ -2165,7 +2268,7 @@ function groupProductsByVariant(products) {
 
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
       const baseKey = (group.base_name || group.name || '').toUpperCase();
-      return SINGLE_VARIANT_FEATURED_BASES.has(baseKey);
+      return SINGLE_VARIANT_FEATURED_BASES.has(baseKey) || FEATURED_BASE_SET.has(baseKey) || SHOW_ALL_LOCAL;
     }
     return true;
   });
@@ -2203,9 +2306,10 @@ async function initStoresTable() {
       await queryWithRetry(`
         INSERT INTO stores (name, address, latitude, longitude, is_active) VALUES
         ('Calle 8', '6346 SW 8th St, West Miami, FL 33144', 25.7635, -80.3103, true),
-        ('79th Street', '351 NE 79th St Unit 101, Miami, FL 33138', 25.8389, -80.1893, true)
+        ('79th Street', '351 NE 79th St Unit 101, Miami, FL 33138', 25.8389, -80.1893, true),
+        ('Market', '214 NW 8th St, Miami, FL 33136', 25.7813, -80.1982, true)
       `);
-      console.log('✓ Stores table initialized with 2 locations');
+      console.log('✓ Stores table initialized with 3 locations');
     }
   } catch (err) {
     console.error('Error initializing stores table:', err.message);
@@ -2544,6 +2648,7 @@ function normalizeStoreId(v) {
   if (s === '1' || s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
   if (s.includes('calleocho') || raw.includes('ocho')) return 'calle8';
   if (s === '2' || s.includes('79th') || s.includes('79') || s == '79th') return '79th';
+  if (s === '3' || s.includes('market') || s.includes('bodega') || s.includes('mkt')) return 'mkt';
   // Accept "Calle 8" / "79th Street" labels
   if (raw.includes('calle') && raw.includes('8')) return 'calle8';
   if (raw.includes('79')) return '79th';
@@ -2552,7 +2657,9 @@ function normalizeStoreId(v) {
 
 function storeLabelFromId(storeId) {
   const id = normalizeStoreId(storeId);
-  return id === '79th' ? '79th Street' : 'Calle 8';
+  if (id === '79th') return '79th Street';
+  if (id === 'mkt') return 'Market';
+  return 'Calle 8';
 }
 
 function buildStoreAddress(storeId) {
@@ -2567,6 +2674,18 @@ function buildStoreAddress(storeId) {
       zip_code: (process.env.STORE_79_ZIP || '').trim(),
       country: (process.env.STORE_79_COUNTRY || 'US').trim(),
       phone_number: toE164US(process.env.STORE_79_PHONE),
+      name: storeLabelFromId(id),
+    };
+  }
+
+  if (id === 'mkt') {
+    return {
+      street_address: [ (process.env.MARKET_STREET1 || '214 NW 8th St').trim() ],
+      city: (process.env.MARKET_CITY || 'Miami').trim(),
+      state: (process.env.MARKET_STATE || 'FL').trim(),
+      zip_code: (process.env.MARKET_ZIP || '33136').trim(),
+      country: (process.env.MARKET_COUNTRY || 'US').trim(),
+      phone_number: toE164US(process.env.MARKET_PHONE || '7869686843'),
       name: storeLabelFromId(id),
     };
   }
@@ -2773,11 +2892,15 @@ app.post('/api/uber/quote', async (req, res) => {
  */
 app.post('/api/uber/delivery-options', async (req, res) => {
   try {
-    const { dropoffAddress, productIds, lat, lng } = req.body;
+    const { dropoffAddress, cartItems, lat, lng } = req.body;
 
-    if (!dropoffAddress || !productIds || !Array.isArray(productIds)) {
-      return res.status(400).json({ error: 'dropoffAddress and productIds (array) are required.' });
+    if (!dropoffAddress || !cartItems || !Array.isArray(cartItems)) {
+      return res.status(400).json({ error: 'dropoffAddress and cartItems (array) are required.' });
     }
+
+    const productIds = cartItems
+      .map(it => it.id || it.product_id || it.productId)
+      .filter(id => id && Number.isFinite(Number(id)));
 
     // 1. Get all active stores from DB
     const [dbStores] = await queryWithRetry(
@@ -2788,28 +2911,42 @@ app.post('/api/uber/delivery-options', async (req, res) => {
       return res.json({ options: [] });
     }
 
-    // 2. Check inventory for all stores in one (or two) queries
-    const placeholders = productIds.length > 0 ? productIds.map(() => '?').join(',') : 'NULL';
-    const [invRows] = productIds.length > 0 
-      ? await queryWithRetry(
-          `SELECT product_id, quantity_on_hand, store_id
-           FROM product_inventory
-           WHERE product_id IN (${placeholders})`,
-          [...productIds]
-        )
-      : [[]];
-
+    // 2. Check inventory for all stores using their specific snapshot tables
     const invMap = {}; // storeId -> { productId -> hasStock }
-    dbStores.forEach(s => {
-      invMap[s.id] = {};
-      productIds.forEach(pid => { invMap[s.id][pid] = false; });
-    });
+    for (const store of dbStores) {
+      invMap[store.id] = {};
+      productIds.forEach(pid => { invMap[store.id][pid] = false; });
 
-    invRows.forEach(row => {
-      if (invMap[row.store_id]) {
-        invMap[row.store_id][row.product_id] = (row.quantity_on_hand > 0);
+      if (productIds.length > 0) {
+        const normalizedId = normalizeStoreId(store.id);
+        const tables = SHOP_TABLES[normalizedId] || SHOP_TABLES['calle8'];
+        const placeholders = productIds.map(() => '?').join(',');
+
+        for (const table of tables) {
+          const [rows] = await queryWithRetry(
+            `SELECT p.id as product_id, i.quantity
+             FROM \`${table}\` i
+             JOIN products p ON (
+               UPPER(p.name) = UPPER(i.name)
+               OR (UPPER(p.name) LIKE CONCAT('%', UPPER(i.name), '%'))
+               OR (UPPER(i.name) LIKE CONCAT('%', UPPER(p.name), '%'))
+             )
+             WHERE p.id IN (${placeholders}) AND i.is_active = 1`,
+            [...productIds]
+          );
+
+          rows.forEach(row => {
+            const requestedItem = cartItems.find(it => (it.id || it.product_id || it.productId) == row.product_id);
+            const reqQty = requestedItem ? Number(requestedItem.quantity || 1) : 1;
+            
+            // Critical check: must have at least the requested quantity
+            if (row.quantity >= reqQty) {
+              invMap[store.id][row.product_id] = true;
+            }
+          });
+        }
       }
-    });
+    }
 
     // 3. Request Uber quotes for each store in parallel
     const userLat = parseFloat(lat);
@@ -3489,17 +3626,10 @@ app.get('/products', async (req, res) => {
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const isStrictStore = selectedShop !== 'either';
-    const inventoryJoinSql = (SHOW_ALL_LOCAL && !isStrictStore)
-      ? `
-        LEFT JOIN (
-          ${snapshotAggSql}
-        ) snap ON snap.name_key = UPPER(p.name)
-        LEFT JOIN product_images pi ON pi.product_id = p.id
-      `
-      : `
+    const inventoryJoinSql = `
         INNER JOIN (
           ${snapshotAggSql}
-        ) snap ON snap.name_key = UPPER(p.name) AND snap.any_active = 1
+        ) snap ON snap.name_key = UPPER(p.name) AND (snap.any_active = 1 OR ${SHOW_ALL_LOCAL ? '1=1' : '0=1'})
         LEFT JOIN product_images pi ON pi.product_id = p.id
       `;
 

@@ -324,6 +324,10 @@ else:
 # keep only the categories you care about
 allowed = {
    "NICOTINE VAPES",
+   "NICOTINE VAPE",
+   "VAPES",
+   "VAPE",
+   "DISPOSABLE VAPES",
    "THCA PRODUCTS",
    "THCA RELATED: FLOWER, CARTS & VAPES",
    "TOBACCO PRODUCTS",
@@ -338,7 +342,7 @@ out = out[out["Category"].str.upper().str.strip().isin(allowed)]
 
 # Exclude specific flavors as requested by user
 out = out[~out["Name"].str.upper().str.contains("RAZ 9K CACTUS JACK", na=False)]
-out = out[~out["Name"].str.upper().str.contains("RAZ 9K ORANGE RASBERRY", na=False)]
+out = out[~out["Name"].str.upper().str.contains("RAZ 9K ORANGE RASPBERRY", na=False)]
 
 
 # final column order

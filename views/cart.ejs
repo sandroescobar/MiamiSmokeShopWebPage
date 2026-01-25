@@ -436,7 +436,14 @@ function updateQuantity(index, change) {
   const maxQty = item.maxQty || 999;
 
   if (change > 0 && newQty > maxQty) {
-    alert("THIS ITEMS QUANTITY IS ALREADY IN YOUR CART");
+    Swal.fire({
+      icon: 'warning',
+      title: 'Limit reached',
+      text: 'THIS ITEMS QUANTITY IS ALREADY IN YOUR CART',
+      background: '#0e1828',
+      color: '#fff',
+      confirmButtonColor: '#69CEE9'
+    });
     return;
   }
 
@@ -490,7 +497,14 @@ function updateCartCount() {
 function proceedToCheckout() {
   const cart = JSON.parse(localStorage.getItem('cart')) || [];
   if (cart.length === 0) {
-    alert('Your cart is empty. Add items before checking out.');
+    Swal.fire({
+      icon: 'info',
+      title: 'Empty Cart',
+      text: 'Your cart is empty. Add items before checking out.',
+      background: '#0e1828',
+      color: '#fff',
+      confirmButtonColor: '#69CEE9'
+    });
     return;
   }
   let shop = 'either';

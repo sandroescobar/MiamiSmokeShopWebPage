@@ -117,6 +117,7 @@
 
     .availability-notice { font-size: 13px; color: #475569; margin-top: 10px; padding: 10px;
       background: #f1f5f9; border-radius: 8px; border-left: 3px solid var(--focus); }
+    .best-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #4f46e5; color: #fff; font-weight: 700; text-transform: uppercase; margin-left: 8px; vertical-align: middle; }
     .loading { color: var(--ink-soft); font-size: 13px; margin-top: 8px; }
 
     /* Buttons */
@@ -595,29 +596,23 @@
 
       if (helper) helper.style.display = 'none';
 
-      // Option B: disable stores that are not fully stocked for this cart.
+      // Phase 2: Prioritize the best store. Only show eligible stores to avoid confusion.
       const totalItems = cartItemCount;
       const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
-      const resolvedSelected = eligibleStores.length
-        ? (eligibleStores.find(o => o.name === selectedDeliveryStore) || eligibleStores[0]).name
-        : null;
-
-      const cards = deliveryStoreOptions.map((option, idx) => {
-        const eligible = option.missingCount === 0;
-        const checked = eligible && (resolvedSelected ? resolvedSelected === option.name : idx === 0);
+      
+      const cards = eligibleStores.map((option, idx) => {
+        const isBest = idx === 0;
+        const checked = (selectedDeliveryStore ? selectedDeliveryStore === option.name : isBest);
         const availabilityLabel = totalItems ? `${option.availableCount}/${totalItems} ready` : 'Cart empty';
-        const availabilityClass = eligible ? 'available' : 'unavailable';
         const distanceLabel = Number.isFinite(option.distance) ? option.distance.toFixed(1) : '–';
-        const secondaryLine = eligible
-          ? `~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}`
-          : `~${distanceLabel} miles • Not available for this cart`;
+        const secondaryLine = `~${distanceLabel} miles • Delivery fee $${option.fee.toFixed(2)}`;
 
         return `
-          <label class="store-option ${eligible ? '' : 'disabled'}" ${eligible ? '' : 'title="Not available for this cart"'}>
-            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''} ${eligible ? '' : 'disabled'}>
+          <label class="store-option">
+            <input type="radio" name="store_delivery" value="${option.name}" ${checked ? 'checked' : ''}>
             <div class="store-header">
-              <div class="store-name">${option.name}</div>
-              <span class="availability ${availabilityClass}">${availabilityLabel}</span>
+              <div class="store-name">${option.name} ${isBest ? '<span class="best-badge">Best Choice</span>' : ''}</div>
+              <span class="availability available">${availabilityLabel}</span>
             </div>
             <div class="store-address">${option.address}</div>
             <div class="store-distance">${secondaryLine}</div>
@@ -698,7 +693,7 @@
         const res = await fetch('/api/uber/delivery-options', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dropoffAddress, productIds: cartProductIds, lat, lng })
+          body: JSON.stringify({ dropoffAddress, cartItems, lat, lng })
         });
 
         if (!res.ok) throw new Error('Failed to fetch delivery options');
@@ -726,14 +721,9 @@
 
         deliveryStoreOptions = results;
 
-        // Intelligent Auto-selection:
-        // Pick the closest store that can fulfill the entire cart.
-        const best = results.find(o => o.missingCount === 0);
-        if (best) {
-          selectedDeliveryStore = best.name;
-        } else {
-          // Fallback to closest even if incomplete (applyDeliverySelection will handle the UI warning)
-          selectedDeliveryStore = results[0] ? results[0].name : null;
+        // Auto-select the absolute best choice (results[0] after sorting by stock & distance)
+        if (results.length > 0) {
+          selectedDeliveryStore = results[0].name;
         }
 
         renderDeliveryStores();
@@ -789,7 +779,7 @@
           }
         }
 
-        selectedStore = (matched?.name || allStores[0].name);
+        selectedStore = matched?.name || null;
 
         // For Uber Delivery, prefer the shopping store when possible;
         // buildDeliveryStoreOptions() will fall back to the closest fully-stocked store if needed.
@@ -815,8 +805,13 @@
         return;
       }
 
+      // Phase 1: Only show the store the user selected on the products page.
+      const storesToRender = selectedStore 
+        ? allStores.filter(s => s.name === selectedStore)
+        : allStores;
+
       const totalItems = cartItemCount;
-      const results = await Promise.all(allStores.map(async store => {
+      const results = await Promise.all(storesToRender.map(async store => {
         const availability = await getStoreAvailability(store.name);
         const availableCount = Object.values(availability || {}).filter(Boolean).length;
         const isFullyAvailable = totalItems ? (availableCount === totalItems) : true;
@@ -1156,6 +1151,7 @@
       if (!s) return '';
       if (s === '1' || s.includes('calle8') || s.includes('sw8') || s == 'calle8') return 'calle8';
       if (s === '2' || s.includes('79th') || s == '79th' || s.includes('79street') || s.includes('79') ) return '79th';
+      if (s === '3' || s.includes('market') || s.includes('bodega') || s.includes('mkt')) return 'mkt';
       return raw; // fallback (server will normalize too)
     }
 

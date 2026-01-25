@@ -13,6 +13,7 @@ load_dotenv()
 PARENT_CATEGORIES = {
     "NICOTINE VAPES": "nicotine-vapes",
     "THCA PRODUCTS": "thca-products",
+    "THCA RELATED: FLOWER, CARTS & VAPES": "thca-products",
     "TOBACCO PRODUCTS": "tobacco-products",
     "EDIBLES": "edibles",
     "GRINDERS": "grinders",
@@ -29,7 +30,10 @@ SUBCATEGORY_RULES = [
     {"name": "LOST MARY TURBO 35K", "slug": "lost-mary-turbo", "parent": "NICOTINE VAPES", "tokens": ["LOST", "MARY", "TURBO"]},
     {"name": "BB CART 1GR", "slug": "bb-cart-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "CART"]},
     {"name": "BB PEN 1GR", "slug": "bb-pen-1gr", "parent": "THCA PRODUCTS", "tokens": ["BB", "PEN"]},
-    {"name": "GRABBA LEAF SMALL", "slug": "grabba-leaf-small", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "SMALL"]}
+    {"name": "GRABBA LEAF SMALL", "slug": "grabba-leaf-small", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "SMALL"]},
+    {"name": "GRABBA LEAF WHOLE", "slug": "grabba-leaf-whole", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "WHOLE"]},
+    {"name": "NEXA 35K", "slug": "nexa-35k", "parent": "NICOTINE VAPES", "tokens": ["NEXA", "35K"]},
+    {"name": "CUVIE 2.0 NO NICOTINE", "slug": "cuvie-2-no-nic", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "2.0", "NO", "NICOTINE"]}
 ]
 
 
@@ -271,6 +275,23 @@ def apply_brand_specific_rules(name):
         if not re.search(r'\b1GR\b', text, re.IGNORECASE):
             text = re.sub(r'^BB CART\b', 'BB CART 1GR', text, flags=re.IGNORECASE)
     
+    if re.search(r'^NEXA\b', text, re.IGNORECASE):
+        text = re.sub(r'\bPIX?A?\b', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^NEXA\s*(?:35K?)?\b', 'NEXA 35K ', text, flags=re.IGNORECASE)
+        text = re.sub(r'^(NEXA 35K)\s*35K', r'\1', text, flags=re.IGNORECASE)
+    
+    if re.search(r'^(?:HQD\s+)?CUVIE\s+PLUS\b', text, re.IGNORECASE):
+        text = re.sub(r'^(?:HQD\s+)?CUVIE\s+PLUS\b', 'CUVIE PLUS', text, flags=re.IGNORECASE)
+    
+    if re.search(r'^CUVIE\s*2\.0\b', text, re.IGNORECASE):
+        # Normalize NO NIC to NO NICOTINE first
+        text = re.sub(r'\bNO\s*NIC\b', 'NO NICOTINE', text, flags=re.IGNORECASE)
+        if not re.search(r'\bNO\s*NICOTINE\b', text, re.IGNORECASE):
+            text = re.sub(r'^(CUVIE\s*2\.0)\b', r'\1 NO NICOTINE', text, flags=re.IGNORECASE)
+    
+    if re.search(r'^GRABBA\s+LEAF\s+WHOLE\s+LEAF$', text, re.IGNORECASE):
+        text = 'GRABBA LEAF WHOLE'
+
     # Fix ZYN Peppermint typo
     if "PPEPERMINT" in text.upper():
         text = text.upper().replace("PPEPERMINT", "PEPPERMINT")
@@ -404,7 +425,7 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
     
     # Exclude specific flavors as requested by user
     df = df[~df["Name"].str.upper().str.contains("RAZ 9K CACTUS JACK", na=False)].copy()
-    df = df[~df["Name"].str.upper().str.contains("RAZ 9K ORANGE RASBERRY", na=False)].copy()
+    df = df[~df["Name"].str.upper().str.contains("RAZ 9K ORANGE RASPBERRY", na=False)].copy()
 
     df = df[df["Name"].str.len() > 0].copy()
     rows = len(df)
