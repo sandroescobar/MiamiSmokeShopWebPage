@@ -129,14 +129,20 @@ const FEATURED_FULL_PRODUCTS = [
   'GEEKBAR 15K',
   'BACKWOODS 5PK',
   'ZYN 3MG',
-  'ZYN 6MG'
+  'ZYN 6MG',
+  'GRABBA LEAF WHOLE LEAF',
+  'CUVIE 2.0 NO NICOTINE',
+  'NEXA 35K'
 ];
 
 const FEATURED_IMAGE_GAPS = new Set([
   'OLIT HOOKALIT 60K',
   'BACKWOODS 5PK',
   'LOST MARY ULTRASONIC',
-  'DESTINO PRE ROLL 1GR'
+  'DESTINO PRE ROLL 1GR',
+  'GRABBA LEAF WHOLE LEAF',
+  'CUVIE 2.0 NO NICOTINE',
+  'NEXA 35K'
 ].map(name => name.toUpperCase()));
 const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
