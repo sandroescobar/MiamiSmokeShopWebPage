@@ -139,13 +139,15 @@ const FEATURED_IMAGE_GAPS = new Set([
   'OLIT HOOKALIT 60K',
   'BACKWOODS 5PK',
   'LOST MARY ULTRASONIC',
-  'DESTINO PRE ROLL 1GR',
+  'DESTINO PRE ROLL 1GR'
+].map(name => name.toUpperCase()));
+const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
+const IMAGE_READY_ALLOWLIST = new Set([
+  'GRABBA LEAF SMALL',
   'GRABBA LEAF WHOLE LEAF',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K'
-].map(name => name.toUpperCase()));
-const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
-const IMAGE_READY_ALLOWLIST = new Set(['GRABBA LEAF SMALL'].map((name) => name.toUpperCase()));
+].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
 const HIDDEN_CATEGORY_NAMES = new Set([
