@@ -1,7 +1,8 @@
 // Track slide index for each slideshow independently
 const slideIndices = {
   slideshow1: 1,
-  slideshow2: 1
+  slideshow2: 1,
+  slideshow3: 1
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initSlideshows() {
   showSlides(slideIndices.slideshow1, 'slideshow1');
   showSlides(slideIndices.slideshow2, 'slideshow2');
+  showSlides(slideIndices.slideshow3, 'slideshow3');
 }
 
 function changeSlide(n, slideshowId) {
