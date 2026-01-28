@@ -20,7 +20,8 @@ PARENT_CATEGORIES = {
     "ROLLING PAPERS & CONES": "rolling-papers-cones",
     "VAPE JUICES": "vape-juices",
     "DEVICES: BATTERIES & MODS": "devices-batteries-mods",
-    "HOOKAH RELATED": "hookah-related"
+    "HOOKAH RELATED": "hookah-related",
+    "MISCELLANEOUS SMOKE SHOP": "misc-smoke-shop"
 }
 
 SUBCATEGORY_RULES = [
@@ -33,13 +34,15 @@ SUBCATEGORY_RULES = [
     {"name": "GRABBA LEAF SMALL", "slug": "grabba-leaf-small", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "SMALL"]},
     {"name": "GRABBA LEAF WHOLE", "slug": "grabba-leaf-whole", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "WHOLE"]},
     {"name": "NEXA 35K", "slug": "nexa-35k", "parent": "NICOTINE VAPES", "tokens": ["NEXA", "35K"]},
+    {"name": "CUVIE MARS", "slug": "cuvie-mars", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "MARS"]},
     {"name": "CUVIE 2.0 NO NICOTINE", "slug": "cuvie-2-no-nic", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "2.0", "NO", "NICOTINE"]}
 ]
 
 
 STORE_SNAPSHOT_TABLES = {
     "CALLE 8": "inventory_calle8",
-    "79TH STREET": "inventory_79th"
+    "79TH STREET": "inventory_79th",
+    "MARKET": "inventory_mkt"
 }
 
 PRODUCT_SQL = (
@@ -280,8 +283,8 @@ def apply_brand_specific_rules(name):
         text = re.sub(r'^NEXA\s*(?:35K?)?\b', 'NEXA 35K ', text, flags=re.IGNORECASE)
         text = re.sub(r'^(NEXA 35K)\s*35K', r'\1', text, flags=re.IGNORECASE)
     
-    if re.search(r'^(?:HQD\s+)?CUVIE\s+PLUS\b', text, re.IGNORECASE):
-        text = re.sub(r'^(?:HQD\s+)?CUVIE\s+PLUS\b', 'CUVIE PLUS', text, flags=re.IGNORECASE)
+    if re.search(r'^(?:HQD\s+)?CUVIE\b', text, re.IGNORECASE):
+        text = re.sub(r'^(?:HQD\s+)?CUVIE\b', 'CUVIE', text, flags=re.IGNORECASE)
     
     if re.search(r'^CUVIE\s*2\.0\b', text, re.IGNORECASE):
         # Normalize NO NIC to NO NICOTINE first

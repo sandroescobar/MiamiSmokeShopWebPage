@@ -154,18 +154,15 @@ def wait_for_csv(dir_path: str, timeout: int = 90) -> str:
 
 
 csv_path = wait_for_csv(DOWNLOAD_DIR)
-dest = os.path.join(DOWNLOAD_DIR, "inventory.csv")
+dest = os.path.join(DOWNLOAD_DIR, "inventory_mkt.csv")
 
 
-
-
-
-
-# force a stable file name in your project: downloads/inventory.csv
+# force a stable file name in your project: downloads/inventory_mkt.csv
 if os.path.abspath(csv_path) != os.path.abspath(dest):
    try:
        os.replace(csv_path, dest)              # atomic overwrite if possible
    except Exception:
+       import shutil
        shutil.copy2(csv_path, dest)            # fallback: copy if rename fails
 
 
@@ -277,18 +274,22 @@ else:
    out["Category"] = ""
 
 
-allowed = {
-   "NICOTINE VAPES",
-   "THCA PRODUCTS",
-   "HOOKAH RELATED",
-   "KRATOM",
-   "EDIBLES",
-   "TOBACCO PRODUCTS"
+# User requested specific products for Mkt
+requested_products = [
+    "FUME EXTRA", "FUME ULTRA", "FUME INFINITY",
+    "CUVIE PLUS", "CUVIE MARS",
+    "GEEKBAR 15K", "GEEKBAR X 25K",
+    "RAZ 9K", "RAZ LTX 25K",
+    "ZYN 3MG", "ZYN 6MG",
+    "GRABBA LEAF SMALL", "GRABBA LEAF WHOLE"
+]
 
+def matches_requested(name):
+    name_up = str(name).upper()
+    return any(p in name_up for p in requested_products)
 
-}
-
-out = out[out["Category"].str.upper().str.strip().isin(allowed)]
+out["is_requested"] = out["Name"].apply(matches_requested)
+out = out[out["is_requested"] == True].copy()
 
 # Exclude specific flavors as requested by user
 out = out[~out["Name"].str.upper().str.contains("RAZ 9K CACTUS JACK", na=False)]
@@ -301,10 +302,29 @@ out = out[cols]
 
 
 # save one cleaned CSV in your project downloads folder
-cleaned_path = os.path.join(DOWNLOAD_DIR, "inventory_clean.csv")
+cleaned_path = os.path.join(DOWNLOAD_DIR, "inventory_mkt_clean.csv")
 out.to_csv(cleaned_path, index=False)
 print(f"Cleaned CSV → {cleaned_path}  ({len(out)} rows)")
 # ───────────────
 
-input("press enter to quit")
+# ─────────────────────── Auto-load to DB with location ─────────────────────
+print("\n📦 Loading data into database...")
+import subprocess
+try:
+    result = subprocess.run(
+        ["python3", os.path.join(BASE_DIR, "clean_data.py"), cleaned_path, "Market"],
+        capture_output=True,
+        text=True,
+        timeout=480
+    )
+    print(result.stdout)
+    if result.stderr:
+        print("⚠️  Warnings:", result.stderr)
+    if result.returncode == 0:
+        print("✅ Database updated with Market inventory!")
+    else:
+        print(f"❌ Error loading data (exit code {result.returncode})")
+except Exception as e:
+    print(f"❌ Error running loader: {e}")
+
 driver.quit()

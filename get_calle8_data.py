@@ -198,14 +198,10 @@ def wait_for_csv(dir_path: str, timeout: int = 90) -> str:
 
 csv_path = wait_for_csv(DOWNLOAD_DIR)
 print(f"Detected raw download: {csv_path}")
-dest = os.path.join(DOWNLOAD_DIR, "inventory.csv")
+dest = os.path.join(DOWNLOAD_DIR, "inventory_calle8.csv")
 
 
-
-
-
-
-# force a stable file name in your project: downloads/inventory.csv
+# force a stable file name in your project: downloads/inventory_calle8.csv
 if os.path.abspath(csv_path) != os.path.abspath(dest):
    try:
        os.replace(csv_path, dest)              # atomic overwrite if possible
@@ -351,7 +347,7 @@ out = out[cols]
 
 
 # save one cleaned CSV in your project downloads folder
-cleaned_path = os.path.join(DOWNLOAD_DIR, "inventory_clean.csv")
+cleaned_path = os.path.join(DOWNLOAD_DIR, "inventory_calle8_clean.csv")
 out.to_csv(cleaned_path, index=False)
 print(f"Cleaned CSV → {cleaned_path}  ({len(out)} rows)")
 # ─────────────────────── End single-CSV cleaner ───────────────────────

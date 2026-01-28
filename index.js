@@ -100,7 +100,7 @@ const STORE_CHOICES = [
   {
     id: 'mkt',
     label: 'Market',
-    address: process.env.MARKET_ADDRESS_FULL || 'Miami Mkt Bodega • 214 NW 8th St, Miami, FL 33136',
+    address: process.env.MKT_ADDRESS_FULL || 'Miami Mkt Bodega • 214 NW 8th St, Miami, FL 33136',
     note: 'Best for Downtown, Overtown, Brickell area deliveries',
   },
 ];
@@ -120,11 +120,9 @@ const FEATURED_FULL_PRODUCTS = [
   'OLIT HOOKALIT 40K',
   'OLIT HOOKALIT 60K',
   'CUVIE PLUS',
-  'HQD CUVIE PLUS',
+  'CUVIE MARS',
   'CUVIE GLAZE',
-  'HQD CUVIE GLAZE',
   'CUVIE GO 35K',
-  'HQD CUVIE GO 35K',
   'FUME EXTRA',
   'FUME ULTRA',
   'FUME INFINITY',
@@ -2679,13 +2677,15 @@ function buildStoreAddress(storeId) {
   }
 
   if (id === 'mkt') {
+    const line2 = (process.env.MKT_STREET2 || '').trim();
+    const street = [(process.env.MKT_STREET1 || '214 NW 8th St').trim(), line2].filter(Boolean);
     return {
-      street_address: [ (process.env.MARKET_STREET1 || '214 NW 8th St').trim() ],
-      city: (process.env.MARKET_CITY || 'Miami').trim(),
-      state: (process.env.MARKET_STATE || 'FL').trim(),
-      zip_code: (process.env.MARKET_ZIP || '33136').trim(),
-      country: (process.env.MARKET_COUNTRY || 'US').trim(),
-      phone_number: toE164US(process.env.MARKET_PHONE || '7869686843'),
+      street_address: street,
+      city: (process.env.MKT_CITY || 'Miami').trim(),
+      state: (process.env.MKT_STATE || 'FL').trim(),
+      zip_code: (process.env.MKT_ZIP || '33136').trim(),
+      country: (process.env.MKT_COUNTRY || 'US').trim(),
+      phone_number: toE164US(process.env.MKT_PHONE || '7869686843'),
       name: storeLabelFromId(id),
     };
   }
@@ -3407,17 +3407,26 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     try {
       const normalizedId = normalizeStoreId(pickupStoreId);
-      const inventoryTable = normalizedId === '79th' ? 'inventory_79th' : 'inventory_calle8';
+      let inventoryTable = 'inventory_calle8';
+      if (normalizedId === '79th') inventoryTable = 'inventory_79th';
+      else if (normalizedId === 'mkt') inventoryTable = 'inventory_mkt';
 
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
 
         // Get numeric store ID for product_inventory table
-        const [storeRows] = await conn.query('SELECT id FROM stores WHERE name LIKE ?', [
-          normalizedId === '79th' ? '%79th%' : '%Calle 8%'
-        ]);
-        const numericStoreId = storeRows[0]?.id || (normalizedId === '79th' ? 2 : 1);
+        let numericStoreId = 1; // Default Calle 8
+        if (normalizedId === '79th') {
+          const [storeRows] = await conn.query('SELECT id FROM stores WHERE name LIKE ?', ['%79th%']);
+          numericStoreId = storeRows[0]?.id || 2;
+        } else if (normalizedId === 'mkt') {
+          const [storeRows] = await conn.query('SELECT id FROM stores WHERE name LIKE ?', ['%Market%']);
+          numericStoreId = storeRows[0]?.id || 3;
+        } else {
+          const [storeRows] = await conn.query('SELECT id FROM stores WHERE name LIKE ?', ['%Calle 8%']);
+          numericStoreId = storeRows[0]?.id || 1;
+        }
 
         await conn.query(
           `INSERT INTO order_receipts
