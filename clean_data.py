@@ -35,6 +35,7 @@ SUBCATEGORY_RULES = [
     {"name": "GRABBA LEAF WHOLE", "slug": "grabba-leaf-whole", "parent": "TOBACCO PRODUCTS", "tokens": ["GRABBA", "LEAF", "WHOLE"]},
     {"name": "NEXA 35K", "slug": "nexa-35k", "parent": "NICOTINE VAPES", "tokens": ["NEXA", "35K"]},
     {"name": "CUVIE MARS", "slug": "cuvie-mars", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "MARS"]},
+    {"name": "CUVIE PLUS", "slug": "cuvie-plus", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "PLUS"]},
     {"name": "CUVIE 2.0 NO NICOTINE", "slug": "cuvie-2-no-nic", "parent": "NICOTINE VAPES", "tokens": ["CUVIE", "2.0", "NO", "NICOTINE"]}
 ]
 
@@ -283,8 +284,11 @@ def apply_brand_specific_rules(name):
         text = re.sub(r'^NEXA\s*(?:35K?)?\b', 'NEXA 35K ', text, flags=re.IGNORECASE)
         text = re.sub(r'^(NEXA 35K)\s*35K', r'\1', text, flags=re.IGNORECASE)
     
-    if re.search(r'^(?:HQD\s+)?CUVIE\b', text, re.IGNORECASE):
-        text = re.sub(r'^(?:HQD\s+)?CUVIE\b', 'CUVIE', text, flags=re.IGNORECASE)
+    if re.search(r'^(?:HQD|H1D)\s+CUVIE\b', text, re.IGNORECASE):
+        text = re.sub(r'^(?:HQD|H1D)\s+', '', text, flags=re.IGNORECASE)
+    elif re.search(r'^CUVIE\b', text, re.IGNORECASE):
+        # Already starts with CUVIE, no prefix to strip
+        pass
     
     if re.search(r'^CUVIE\s*2\.0\b', text, re.IGNORECASE):
         # Normalize NO NIC to NO NICOTINE first

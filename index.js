@@ -81,6 +81,7 @@ const CONTACT_INFO = {
   addresses: [
     'Miami Vape Smoke Shop #1 • 6346 SW 8th St, West Miami, FL 33144',
     'Miami Vape Smoke Shop #2 • 351 NE 79th St Unit 101, Miami, FL 33138',
+    process.env.MKT_ADDRESS_FULL || 'Miami Mkt Bodega • 214 NW 8th St, Miami, FL 33136'
   ],
 };
 
@@ -100,7 +101,7 @@ const STORE_CHOICES = [
   {
     id: 'mkt',
     label: 'Market',
-    address: process.env.MKT_ADDRESS_FULL || 'Miami Mkt Bodega • 214 NW 8th St, Miami, FL 33136',
+    address: CONTACT_INFO.addresses[2],
     note: 'Best for Downtown, Overtown, Brickell area deliveries',
   },
 ];
@@ -155,7 +156,8 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF SMALL',
   'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
-  'NEXA 35K'
+  'NEXA 35K',
+  'CUVIE PLUS'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -298,7 +300,8 @@ function applyLocalQtyOverride(items = []) {
   const targetBases = new Set([
     'GRABBA LEAF WHOLE',
     'CUVIE 2.0 NO NICOTINE',
-    'NEXA 35K'
+    'NEXA 35K',
+    'CUVIE PLUS'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
@@ -1694,7 +1697,7 @@ function buildFeaturedNamePattern(name = '') {
   rest.forEach((token) => {
     pattern += `%${token}`;
   });
-  return `${pattern}%`;
+  return `%${pattern}%`;
 }
 
 function rebuildFeaturedBaseFilters() {
@@ -1931,6 +1934,14 @@ app.get(
   (_req, res) => res.redirect('/products')
 );
 
+app.get('/faq', (req, res) => {
+  res.render('faq', {
+    title: 'FAQ • Miami Vape Smoke Shop',
+    description: 'Frequently asked questions about delivery, pickup, and product policies at Miami Vape Smoke Shop.',
+    contact: CONTACT_INFO,
+  });
+});
+
 app.get('/policy/:slug', (req, res) => {
   const page = policyPages[req.params.slug];
   if (!page) {
@@ -2030,8 +2041,8 @@ function normalizeProductName(name) {
     }
     value = value.replace(/\bVAPE\b/gi, '');
   }
-  if (/^HQD\s+CUVIE\b/i.test(value)) {
-    value = value.replace(/^HQD\s+/, '');
+  if (/^(?:HQD|H1D)\s+CUVIE\b/i.test(value)) {
+    value = value.replace(/^(?:HQD|H1D)\s+/, '');
   }
   value = value.replace(/\b\d+(?:\.\d+)?%\s*/g, '');
   if (/^BB\s*CART\b/i.test(value)) {
