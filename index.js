@@ -137,7 +137,11 @@ const FEATURED_FULL_PRODUCTS = [
   'ZYN 6MG',
   'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
-  'NEXA 35K'
+  'NEXA 35K',
+  'RAW CONES 20PK 1/4',
+  'RAW CONE CLASSIC 1/4',
+  'RAW CONE 3PK CLASSIC KING',
+  'RAW CONE 20PK CLASSIC BLACK KING'
 ];
 
 const FEATURED_IMAGE_GAPS = new Set([
@@ -157,7 +161,11 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K',
   'CUVIE PLUS',
-  'BACKWOODS 5PK'
+  'BACKWOODS 5PK',
+  'RAW CONES 20PK 1/4',
+  'RAW CONE CLASSIC 1/4',
+  'RAW CONE 3PK CLASSIC KING',
+  'RAW CONE 20PK CLASSIC BLACK KING'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -302,7 +310,11 @@ function applyLocalQtyOverride(items = [], shopId = '') {
     'CUVIE 2.0 NO NICOTINE',
     'NEXA 35K',
     'CUVIE PLUS',
-    'BACKWOODS 5PK'
+    'BACKWOODS 5PK',
+    'RAW CONES 20PK 1/4',
+    'RAW CONE CLASSIC 1/4',
+    'RAW CONE 3PK CLASSIC KING',
+    'RAW CONE 20PK CLASSIC BLACK KING'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
