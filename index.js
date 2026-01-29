@@ -142,7 +142,6 @@ const FEATURED_FULL_PRODUCTS = [
 
 const FEATURED_IMAGE_GAPS = new Set([
   'OLIT HOOKALIT 60K',
-  'BACKWOODS 5PK',
   'LOST MARY ULTRASONIC',
   'DESTINO PRE ROLL 1GR'
 ].map(name => {
@@ -157,7 +156,8 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K',
-  'CUVIE PLUS'
+  'CUVIE PLUS',
+  'BACKWOODS 5PK'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -294,14 +294,24 @@ function buildImageReadyBaseSet(map = new Map()) {
   return bases;
 }
 
-function applyLocalQtyOverride(items = []) {
+function applyLocalQtyOverride(items = [], shopId = '') {
   if (!SHOW_ALL_LOCAL) return items;
 
   const targetBases = new Set([
     'GRABBA LEAF WHOLE',
     'CUVIE 2.0 NO NICOTINE',
     'NEXA 35K',
-    'CUVIE PLUS'
+    'CUVIE PLUS',
+    'BACKWOODS 5PK'
+  ].map(n => {
+    const norm = normalizeProductName(n);
+    const base = extractProductVariantKey(norm);
+    return (base || norm).toUpperCase();
+  }));
+
+  const shopRestrictedBases = new Set([
+    'CUVIE 2.0 NO NICOTINE',
+    'BACKWOODS 5PK'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
@@ -312,7 +322,14 @@ function applyLocalQtyOverride(items = []) {
     const norm = normalizeProductName(item.name);
     const base = extractProductVariantKey(norm).toUpperCase();
     if (targetBases.has(base)) {
-      item.any_active = 1;
+      // If it's a restricted base, only override if it's 79th or calle8
+      if (shopRestrictedBases.has(base)) {
+        if (shopId === '79th' || shopId === 'calle8') {
+          item.any_active = 1;
+        }
+      } else {
+        item.any_active = 1;
+      }
     }
   });
 
@@ -3678,7 +3695,7 @@ app.get('/products', async (req, res) => {
       ${sortSql}
     `;
     const [rows] = await queryWithRetry(pageSql, params);
-    applyLocalQtyOverride(rows);
+    applyLocalQtyOverride(rows, selectedShop);
 
     // Group the fetched products by variant
     const groupedProducts = groupProductsByVariant(rows).filter(group =>
@@ -3713,7 +3730,7 @@ app.get('/products', async (req, res) => {
           WHERE (${variantConditions}) ${where.length ? 'AND ' + where.join(' AND ') : ''}
         `;
         const [variantRows] = await queryWithRetry(variantSql, [...variantParams, ...params]);
-        applyLocalQtyOverride(variantRows);
+        applyLocalQtyOverride(variantRows, selectedShop);
         const variantGroups = groupProductsByVariant(variantRows);
         const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
         finalProducts = paginatedProducts.map(group => {
