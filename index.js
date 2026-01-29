@@ -138,10 +138,10 @@ const FEATURED_FULL_PRODUCTS = [
   'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K',
-  'RAW CONES 20PK 1/4',
-  'RAW CONE CLASSIC 1/4',
-  'RAW CONE 3PK CLASSIC KING',
-  'RAW CONE 20PK CLASSIC BLACK KING'
+  'RAW CONES 20PK',
+  'RAW CONE CLASSIC',
+  'RAW CONE 3PK',
+  'RAW CONE 20PK'
 ];
 
 const FEATURED_IMAGE_GAPS = new Set([
@@ -154,7 +154,14 @@ const FEATURED_IMAGE_GAPS = new Set([
   const base = extractProductVariantKey(normalized);
   return (base || normalized).toUpperCase();
 }));
-const SINGLE_VARIANT_FEATURED_BASES = new Set(['GRABBA LEAF SMALL', 'GRABBA LEAF WHOLE'].map((name) => name.toUpperCase()));
+const SINGLE_VARIANT_FEATURED_BASES = new Set([
+  'GRABBA LEAF SMALL',
+  'GRABBA LEAF WHOLE',
+  'RAW CONES 20PK',
+  'RAW CONE CLASSIC',
+  'RAW CONE 3PK',
+  'RAW CONE 20PK'
+].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF SMALL',
   'GRABBA LEAF WHOLE',
@@ -162,10 +169,9 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'NEXA 35K',
   'CUVIE PLUS',
   'BACKWOODS 5PK',
-  'RAW CONES 20PK 1/4',
-  'RAW CONE CLASSIC 1/4',
-  'RAW CONE 3PK CLASSIC KING',
-  'RAW CONE 20PK CLASSIC BLACK KING'
+  'RAW CONES 20PK',
+  'RAW CONE CLASSIC',
+  'RAW CONE 3PK'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -311,10 +317,9 @@ function applyLocalQtyOverride(items = [], shopId = '') {
     'NEXA 35K',
     'CUVIE PLUS',
     'BACKWOODS 5PK',
-    'RAW CONES 20PK 1/4',
-    'RAW CONE CLASSIC 1/4',
-    'RAW CONE 3PK CLASSIC KING',
-    'RAW CONE 20PK CLASSIC BLACK KING'
+    'RAW CONES 20PK',
+    'RAW CONE CLASSIC',
+    'RAW CONE 3PK'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
