@@ -138,10 +138,9 @@ const FEATURED_FULL_PRODUCTS = [
   'GRABBA LEAF WHOLE',
   'CUVIE 2.0 NO NICOTINE',
   'NEXA 35K',
-  'RAW CONES 20PK',
-  'RAW CONE CLASSIC',
+  'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE 20PK'
+  'RAW CONE CLASSIC 1/4'
 ];
 
 const FEATURED_IMAGE_GAPS = new Set([
@@ -157,10 +156,9 @@ const FEATURED_IMAGE_GAPS = new Set([
 const SINGLE_VARIANT_FEATURED_BASES = new Set([
   'GRABBA LEAF SMALL',
   'GRABBA LEAF WHOLE',
-  'RAW CONES 20PK',
-  'RAW CONE CLASSIC',
+  'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE 20PK'
+  'RAW CONE CLASSIC 1/4'
 ].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF SMALL',
@@ -169,9 +167,9 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'NEXA 35K',
   'CUVIE PLUS',
   'BACKWOODS 5PK',
-  'RAW CONES 20PK',
-  'RAW CONE CLASSIC',
-  'RAW CONE 3PK'
+  'RAW CONE 20PK',
+  'RAW CONE 3PK',
+  'RAW CONE CLASSIC 1/4'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -254,7 +252,14 @@ function buildStaticVariantImageMappings() {
       for (const file of files) {
         if (!file.isFile() || !VALID_IMAGE_EXT.test(file.name)) continue;
         const flavorLabel = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
-        const match = `${brandName} ${flavorLabel}`.trim();
+        let match;
+        const normFlavor = normalizeVariantKey(flavorLabel);
+        const normBrand = normalizeVariantKey(brandName);
+        if (normFlavor.startsWith(normBrand)) {
+          match = flavorLabel;
+        } else {
+          match = `${brandName} ${flavorLabel}`.trim();
+        }
         const encodedBrand = encodeURIComponent(dir.name).replace(/%2F/gi, '/');
         const encodedFile = encodeURIComponent(file.name).replace(/%2F/gi, '/');
         entries.push({
@@ -317,9 +322,9 @@ function applyLocalQtyOverride(items = [], shopId = '') {
     'NEXA 35K',
     'CUVIE PLUS',
     'BACKWOODS 5PK',
-    'RAW CONES 20PK',
-    'RAW CONE CLASSIC',
-    'RAW CONE 3PK'
+    'RAW CONE 20PK',
+    'RAW CONE 3PK',
+    'RAW CONE CLASSIC 1/4'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
@@ -337,7 +342,15 @@ function applyLocalQtyOverride(items = [], shopId = '') {
 
   items.forEach(item => {
     const norm = normalizeProductName(item.name);
+    const upperName = norm.toUpperCase();
     const base = extractProductVariantKey(norm).toUpperCase();
+
+    // Force rolling papers, cones, wraps, and tips to be live
+    if (/\b(PAPER|CONE|WRAP|TIPS)\b/i.test(upperName)) {
+      item.any_active = 1;
+      return;
+    }
+
     if (targetBases.has(base)) {
       // If it's a restricted base, only override if it's 79th or calle8
       if (shopRestrictedBases.has(base)) {
@@ -2112,6 +2125,40 @@ function normalizeProductName(name) {
   if (/^GRABBA\s+LEAF\s+WHOLE\s+LEAF$/i.test(value)) {
     value = 'GRABBA LEAF WHOLE';
   }
+  if (/^RAW\s+CONES?\b/i.test(value)) {
+    value = value.replace(/^RAW\s+CONES?\b/i, 'RAW CONE');
+    
+    // Normalize 1 1/4 or 1/4 or 1 4 or 1_4 to 1_4
+    value = value.replace(/\b(?:1\s+)?1[\/\s]4\b/g, '1_4');
+    value = value.replace(/\b1_4\b/g, '1_4');
+
+    // Normalize Organic Hemp to Organic
+    value = value.replace(/\bORGANIC\s+HEMP\b/gi, 'ORGANIC');
+
+    // If it doesn't have 20PK or 3PK, and it's not the 1_4 base, 
+    // it's likely a 3PK (standard for these smaller quantities)
+    if (!/\b\d+PK\b/i.test(value) && !/\b1_4\b/.test(value) && !/\bTIPS\b/i.test(value) && !/\bSTAGE\b/i.test(value)) {
+       if (/\b(CLASSIC|BLACK|ORGANIC|KING)\b/i.test(value)) {
+         value = value.replace(/^(RAW CONE)/i, '$1 3PK');
+       }
+    }
+
+    // Move 20PK or 3PK to be right after RAW CONE
+    const pkMatch = value.match(/\b(\d+PK)\b/i);
+    if (pkMatch) {
+      const pk = pkMatch[1].toUpperCase();
+      value = value.replace(/\b\d+PK\b/gi, '').replace(/\s+/g, ' ').trim();
+      value = value.replace(/^(RAW CONE)/i, `$1 ${pk}`);
+    }
+    
+    // Strip SIZE from the end or after KING
+    value = value.replace(/\bSIZE\b/gi, '');
+
+    // Normalize flavor names
+    if (/\bBLACK\b/i.test(value) && /\bCLASSIC\b/i.test(value)) {
+      value = value.replace(/\bCLASSIC\b/gi, '');
+    }
+  }
   value = value.replace(/\s+/g, ' ').trim();
   return value;
 }
@@ -2159,8 +2206,13 @@ function extractProductVariantKey(name) {
       // If there's a 3rd word and it looks like a descriptor/quantity, include it
       // (e.g., "SINGLE", "ORIGINAL", "KINGS", "SLIM", etc.)
       if (words.length > 2 &&
-          /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL)$/.test(words[2])) {
+          /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL|CLASSIC|ORGANIC)$/.test(words[2])) {
         baseWords.push(words[2]);
+
+        // Specific for RAW CONE CLASSIC 1_4 or RAW CONE ORGANIC 1_4
+        if ((words[2] === 'CLASSIC' || words[2] === 'ORGANIC') && words[3] === '1_4') {
+          baseWords.push(words[3]);
+        }
       }
       baseKey = baseWords.join(' ');
     }
