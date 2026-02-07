@@ -1312,6 +1312,26 @@
         types: ["address"],
       });
 
+      // Prevent Enter key from submitting the form if a suggestion is highlighted
+      streetInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          // If the Google Places dropdown is visible, prevent default to avoid accidental form submission
+          const pacContainer = document.querySelector('.pac-container');
+          if (pacContainer && pacContainer.style.display !== 'none') {
+            e.preventDefault();
+          }
+        }
+      });
+
+      // Reset Google Autocomplete UI styles when user types, so it can show up again
+      streetInput.addEventListener('input', () => {
+        const containers = document.querySelectorAll('.pac-container');
+        containers.forEach(c => {
+          c.style.display = '';
+          c.style.visibility = '';
+        });
+      });
+
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (!place.address_components) return;
@@ -1344,6 +1364,7 @@
           }
         }
 
+        // 1. Update the fields
         streetInput.value = `${streetNumber} ${route}`.trim();
         const cityInput = document.querySelector('input[name="city"]');
         const stateInput = document.querySelector('input[name="state"]');
@@ -1353,20 +1374,29 @@
         if (stateInput) stateInput.value = state;
         if (zipInput) zipInput.value = zip;
 
-        // More aggressive dropdown dismissal:
-        // 1. Remove focus immediately
+        // 2. Immediate cleanup of Google Autocomplete UI
+        // Blur to close any mobile keyboards or focus states
         streetInput.blur();
         
-        // 2. Clear any lingering Google containers visually if they persist
-        setTimeout(() => {
+        // Use a more robust way to hide all pac-containers
+        const dismissAutocomplete = () => {
           const containers = document.querySelectorAll('.pac-container');
           containers.forEach(c => {
-            if (c) c.style.display = 'none';
+            c.style.display = 'none';
+            // Also move it out of the way just in case
+            c.style.visibility = 'hidden';
           });
-        }, 50);
+        };
+        
+        dismissAutocomplete();
+        // Sometimes Google re-renders it after a few ms, so double-tap it
+        setTimeout(dismissAutocomplete, 100);
+        setTimeout(dismissAutocomplete, 300);
 
-        // Trigger 'input' event so findClosestStore() runs
+        // 3. Trigger 'input' event so findClosestStore() and other logic runs
         streetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (cityInput) cityInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (zipInput) zipInput.dispatchEvent(new Event('input', { bubbles: true }));
       });
     }
     window.initAutocomplete = initAutocomplete;
