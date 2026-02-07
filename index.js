@@ -31,6 +31,32 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
+
+const AGECHECKER_ACCOUNT_SECRET = process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe41D0My3QjL';
+
+app.get('/agechecker/init.js', async (req, res) => {
+  try {
+    const upstream = `https://agechecker.net/h/${AGECHECKER_ACCOUNT_SECRET}/init.js`;
+    const r = await fetch(upstream);
+
+    // If AgeChecker ever returns non-200, surface it for debugging
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return res.status(r.status).send(txt || `AgeChecker upstream error: ${r.status}`);
+    }
+
+    const js = await r.text();
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(js);
+  } catch (err) {
+    res.status(502).send('AgeChecker proxy failed');
+  }
+});
+
+
+
 // Fix for "NotSameOrigin" and CORS issues with 3rd party scripts (AgeChecker, Google Maps)
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
