@@ -3246,7 +3246,33 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 
 
 app.post('/api/authorize/charge', async (req, res) => {
-  // Important: if something fails AFTER the card is successfully charged,
+  const axios = require("axios");
+
+const uuid = req.body.agechecker_uuid;
+
+if (!uuid) {
+  return res.status(403).json({ error: "Age verification required." });
+}
+
+try {
+  const response = await axios.get(
+    `https://api.agechecker.net/v1/status/${uuid}`,
+    {
+      headers: {
+        "X-AgeChecker-Secret": process.env.AGECHECKER_ACCOUNT_SECRET
+      }
+    }
+  );
+
+  if (response.data.status !== "accepted") {
+    return res.status(403).json({ error: "Age verification not accepted." });
+  }
+
+} catch (err) {
+  return res.status(500).json({ error: "Age verification failed." });
+}
+
+  //Important: if something fails AFTER the card is successfully charged,
   // return 200 with a warning (not 500) so the client does not retry and risk double-charging.
   let chargeResponse = null;
   let transactionId = null;
@@ -3314,35 +3340,7 @@ app.post('/api/authorize/charge', async (req, res) => {
       return res.status(400).json({ error: 'Invalid charge amount.' });
     }
 
-    // --- PRE-CHARGE AGE VERIFICATION ---
-    const agecheckerSignature = body.agecheckerSignature;
-    const agecheckerApiKey = getAgeCheckerKey(req.hostname);
 
-    if (agecheckerApiKey) {
-      if (!agecheckerSignature) {
-        return res.status(403).json({ error: 'Age verification required. Please complete verification before paying.' });
-      }
-      try {
-        const verifyResp = await fetch('https://api.agechecker.net/v1/verify', {
-          method: 'POST',
-          headers: {
-            'X-AgeChecker-Secret': agecheckerApiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ signature: agecheckerSignature })
-        });
-        const verifyData = await verifyResp.json();
-        if (verifyData.status !== 'verified') {
-          console.warn('[AgeChecker] Verification failed', verifyData);
-          return res.status(403).json({ error: 'Age verification failed or expired. Please verify again.' });
-        }
-      } catch (err) {
-        console.error('[AgeChecker] Verification error', err);
-        // If AgeChecker API is down, we might want to allow or block. Usually safer to block or log and manual review.
-        // For now, let's block to ensure compliance.
-        return res.status(500).json({ error: 'Age verification service unavailable. Please try again later.' });
-      }
-    }
 
     // --- PRE-CHARGE ADDRESS VALIDATION ---
     if (deliveryOption === 'delivery' || deliveryOption === 'uber') {

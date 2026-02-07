@@ -247,6 +247,15 @@
                   <input type="tel" name="phone" placeholder="(305) 555-0123" required>
                 </label>
               </div>
+
+            <label>Date of Birth</label>
+<div style="display:flex; gap:10px; margin-bottom:15px;">
+  <input type="number" id="dob_month" name="dob_month" placeholder="MM" min="1" max="12" required>
+  <input type="number" id="dob_day" name="dob_day" placeholder="DD" min="1" max="31" required>
+  <input type="number" id="dob_year" name="dob_year" placeholder="YYYY" min="1900" max="2026" required>
+</div>
+
+
             </div>
 
             <div class="section" id="address-section">
@@ -1374,11 +1383,51 @@
       }
     };
   </script>
-<script src="https://cdn.agechecker.net/static/age-gate/v1/age-gate.js"></script>
+
 
 
 
   <!-- Google Maps SDK for Places Autocomplete -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBY9pqxZth54lLRl-AqU4PhpCWGUAJuKbc&libraries=places&callback=initAutocomplete&loading=async" async defer></script>
+
+
+  <noscript>
+  <meta http-equiv="refresh" content="0;url=https://agechecker.net/noscript">
+</noscript>
+
+<script>
+(function(w,d) {
+  var config = {
+    key: "<%= ageCheckerApiKey %>",
+    element: "#zp-pay-btn",
+    debug: true,
+    disable_fields: true,
+    require_email: true,
+
+    fields: {
+      first_name: "input[name='first_name']",
+      last_name: "input[name='last_name']",
+      contact_email: "input[name='email']",
+      address: "input[name='address']",
+      zip: "input[name='zip']",
+      city: "input[name='city']",
+      state: "input[name='state']",
+      dob_month: "#dob_month",
+      dob_day: "#dob_day",
+      dob_year: "#dob_year"
+    }
+  };
+
+  w.AgeCheckerConfig = config;
+
+  var h=d.getElementsByTagName("head")[0];
+  var a=d.createElement("script");
+  a.src="https://cdn.agechecker.net/static/popup/v1/popup.js";
+  a.crossOrigin="anonymous";
+  a.onerror=function(){ w.location.href="https://agechecker.net/loaderror"; };
+  h.insertBefore(a,h.firstChild);
+})(window, document);
+</script>
+
 </body>
 </html>
