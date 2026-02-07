@@ -15,6 +15,9 @@ const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForPro
 
 const app = express();
 
+app.set('trust proxy', true);
+
+
 /* --------------------  EJS + layouts  -------------------- */
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
