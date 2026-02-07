@@ -28,6 +28,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Fix for "NotSameOrigin" and CORS issues with 3rd party scripts (AgeChecker, Google Maps)
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 /* --------------------  Config resolve  -------------------- */
 const clean = (v) => (typeof v === 'string' ? v.trim() : v);
 
