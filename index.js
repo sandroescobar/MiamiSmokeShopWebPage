@@ -2372,12 +2372,22 @@ function groupProductsByVariant(products) {
   });
 }
 
+/* --------------------  AgeChecker Helper  -------------------- */
+function getAgeCheckerKey(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  if (host.includes('miamivapedelivery.com')) {
+    return process.env.AGECHECKER_API_KEY_DELIVERY || process.env.AGECHECKER_API_KEY;
+  }
+  // Default to smoke shop key
+  return process.env.AGECHECKER_API_KEY_SMOKE || process.env.AGECHECKER_API_KEY;
+}
+
 /* --------------------  Shopping Cart  -------------------- */
-app.get('/cart', (_req, res) => {
+app.get('/cart', (req, res) => {
   res.render('cart', {
     title: 'Shopping Cart • Miami Vape Smoke Shop',
     description: 'Review your items and proceed to checkout.',
-    ageCheckerApiKey: process.env.AGECHECKER_API_KEY,
+    ageCheckerApiKey: getAgeCheckerKey(req.hostname),
   });
 });
 
@@ -2544,7 +2554,7 @@ app.get('/checkout', (req, res) => {
     authorizeClientKey: _getAuthNetConfig().clientKey,
     
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
-    ageCheckerApiKey: process.env.AGECHECKER_API_KEY,
+    ageCheckerApiKey: getAgeCheckerKey(req.hostname),
   });
 
 
@@ -3271,7 +3281,7 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     // --- PRE-CHARGE AGE VERIFICATION ---
     const agecheckerSignature = body.agecheckerSignature;
-    const agecheckerApiKey = process.env.AGECHECKER_API_KEY;
+    const agecheckerApiKey = getAgeCheckerKey(req.hostname);
 
     if (agecheckerApiKey) {
       if (!agecheckerSignature) {
