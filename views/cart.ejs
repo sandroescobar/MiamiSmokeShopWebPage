@@ -507,6 +507,17 @@ function proceedToCheckout() {
     });
     return;
   }
+
+  // Trigger AgeChecker
+  if (typeof AgeChecker !== 'undefined') {
+    AgeChecker.show();
+  } else {
+    // Fallback if script failed to load
+    performCheckoutRedirect();
+  }
+}
+
+function performCheckoutRedirect() {
   let shop = 'either';
   try {
     const saved = localStorage.getItem('preferredShop');
@@ -517,4 +528,18 @@ function proceedToCheckout() {
   const url = shop ? `/checkout?shop=${encodeURIComponent(shop)}` : '/checkout';
   window.location.href = url;
 }
+
+// AgeChecker Configuration
+window.AgeCheckerConfig = {
+  key: '<%= ageCheckerApiKey %>',
+  onStatusChange: function(response) {
+    if (response.status === 'verified') {
+      if (response.signature) {
+        sessionStorage.setItem('agechecker_signature', response.signature);
+      }
+      performCheckoutRedirect();
+    }
+  }
+};
 </script>
+<script src="https://agechecker.net/h/6.0/init.js"></script>

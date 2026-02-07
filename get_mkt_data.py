@@ -13,7 +13,7 @@ import pandas as pd  # keeping since you had it (not used yet)
 # 0) Configure downloads BEFORE launching Chrome (single driver only)
 # ─────────────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))       # folder with this script
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads", "mkt")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 chrome_options = webdriver.ChromeOptions()
@@ -78,6 +78,13 @@ def switch_into_frame_with_login_fields() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # 1) Open login page (start at /admin/ for reliability)
 # ─────────────────────────────────────────────────────────────────────────────
+# Pre-cleanup: remove old items-*.csv files to ensure we pick the fresh one
+for old_file in glob.glob(os.path.join(DOWNLOAD_DIR, "items-*.csv")):
+    try:
+        os.remove(old_file)
+    except Exception:
+        pass
+
 driver.get("https://ms.bottlepos.com/admin/")
 
 # Close any initial dialog(s)
@@ -142,15 +149,16 @@ export_btn.click()
 # 6) Wait for download to finish and rename to downloads/inventory.csv
 # ─────────────────────────────────────────────────────────────────────────────
 def wait_for_csv(dir_path: str, timeout: int = 90) -> str:
-   """Wait until a .csv appears and all .crdownload files are gone."""
+   """Wait until a new items-*.csv appears and all .crdownload files are gone."""
    end = time.time() + timeout
    while time.time() < end:
-       csvs = glob.glob(os.path.join(dir_path, "*.csv"))
+       # ONLY look for the POS export pattern, ignore inventory*.csv
+       csvs = glob.glob(os.path.join(dir_path, "items-*.csv"))
        crdl = glob.glob(os.path.join(dir_path, "*.crdownload"))
        if csvs and not crdl:
            return max(csvs, key=os.path.getmtime)
        time.sleep(0.5)
-   raise TimeoutException(f"No CSV found in {dir_path} within {timeout}s")
+   raise TimeoutException(f"No new items-*.csv found in {dir_path} within {timeout}s")
 
 
 csv_path = wait_for_csv(DOWNLOAD_DIR)
@@ -281,7 +289,12 @@ requested_products = [
     "GEEKBAR 15K", "GEEKBAR X 25K",
     "RAZ 9K", "RAZ LTX 25K",
     "ZYN 3MG", "ZYN 6MG",
-    "GRABBA LEAF SMALL", "GRABBA LEAF WHOLE"
+    "GRABBA LEAF SMALL", "GRABBA LEAF WHOLE",
+    "RAW CONE 20PK CLASSIC BLACK KING",
+    "RAW CONE 20PK CLASSIC KING",
+    "RAW CONE CLASSIC 20PK 1/4",
+    "RAW CONE CLASSIC 1/4"
+
 ]
 
 def matches_requested(name):

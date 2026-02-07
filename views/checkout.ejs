@@ -253,7 +253,7 @@
               <h3>Delivery address</h3>
               <div class="row-1">
                 <label>Street address
-                  <input type="text" name="street" placeholder="123 Main Street">
+                  <input type="text" name="street" placeholder="123 Main Street" required autocomplete="off">
                 </label>
               </div>
               <div class="row-1">
@@ -263,15 +263,15 @@
               </div>
               <div class="row">
                 <label>City
-                  <input type="text" name="city" placeholder="Miami">
+                  <input type="text" name="city" placeholder="Miami" required>
                 </label>
                 <label>State
-                  <input type="text" name="state" placeholder="FL">
+                  <input type="text" name="state" placeholder="FL" required>
                 </label>
               </div>
               <div class="row-1">
                 <label>ZIP Code
-                  <input type="text" name="zip" placeholder="33101">
+                  <input type="text" name="zip" placeholder="33101" required>
                 </label>
               </div>
             </div>
@@ -1128,7 +1128,8 @@
         pickupStoreLabel: storeLabelFromId(pickupStoreId),
         pickupStore: selectedStore,
         selectedDeliveryStore,
-        items: cartItems
+        items: cartItems,
+        agecheckerSignature: sessionStorage.getItem('agechecker_signature')
       };
 
       const resp = await fetch('/api/authorize/charge', {
@@ -1166,6 +1167,15 @@
     function tokenizeAndPay() {
       const btn = document.getElementById('zp-pay-btn');
       if (!btn) return;
+
+      // AgeChecker verification check
+      if (typeof AgeChecker !== 'undefined') {
+        const status = AgeChecker.status();
+        if (status !== 'verified') {
+          AgeChecker.show();
+          return;
+        }
+      }
 
       if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
         paySetError('Payment configuration missing (Authorize.net keys not set).');
@@ -1281,6 +1291,92 @@
 
     bindPayButton();
     document.addEventListener('DOMContentLoaded', bindPayButton);
+
+    /* ---------------- Google Places Autocomplete ---------------- */
+    function initAutocomplete() {
+      const streetInput = document.querySelector('input[name="street"]');
+      if (!streetInput) return;
+
+      const autocomplete = new google.maps.places.Autocomplete(streetInput, {
+        componentRestrictions: { country: "us" },
+        fields: ["address_components", "geometry"],
+        types: ["address"],
+      });
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.address_components) return;
+
+        let streetNumber = "";
+        let route = "";
+        let city = "";
+        let state = "";
+        let zip = "";
+
+        for (const component of place.address_components) {
+          const componentType = component.types[0];
+
+          switch (componentType) {
+            case "street_number":
+              streetNumber = component.long_name;
+              break;
+            case "route":
+              route = component.short_name; 
+              break;
+            case "locality":
+              city = component.long_name;
+              break;
+            case "administrative_area_level_1":
+              state = component.short_name;
+              break;
+            case "postal_code":
+              zip = component.long_name;
+              break;
+          }
+        }
+
+        streetInput.value = `${streetNumber} ${route}`.trim();
+        const cityInput = document.querySelector('input[name="city"]');
+        const stateInput = document.querySelector('input[name="state"]');
+        const zipInput = document.querySelector('input[name="zip"]');
+
+        if (cityInput) cityInput.value = city;
+        if (stateInput) stateInput.value = state;
+        if (zipInput) zipInput.value = zip;
+
+        // More aggressive dropdown dismissal:
+        // 1. Remove focus immediately
+        streetInput.blur();
+        
+        // 2. Clear any lingering Google containers visually if they persist
+        setTimeout(() => {
+          const containers = document.querySelectorAll('.pac-container');
+          containers.forEach(c => {
+            if (c) c.style.display = 'none';
+          });
+        }, 50);
+
+        // Trigger 'input' event so findClosestStore() runs
+        streetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+    window.initAutocomplete = initAutocomplete;
   </script>
+
+  <!-- AgeChecker.net -->
+  <script>
+    window.AgeCheckerConfig = {
+      key: '<%= ageCheckerApiKey %>',
+      onStatusChange: function(response) {
+        if (response.status === 'verified' && response.signature) {
+          sessionStorage.setItem('agechecker_signature', response.signature);
+        }
+      }
+    };
+  </script>
+  <script src="https://agechecker.net/h/6.0/init.js"></script>
+
+  <!-- Google Maps SDK for Places Autocomplete -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBY9pqxZth54lLRl-AqU4PhpCWGUAJuKbc&libraries=places&callback=initAutocomplete" async defer></script>
 </body>
 </html>

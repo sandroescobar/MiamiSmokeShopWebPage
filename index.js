@@ -91,18 +91,21 @@ const STORE_CHOICES = [
     label: 'Calle 8',
     address: CONTACT_INFO.addresses[0],
     note: 'Closest for Coral Gables, West Miami, Little Havana deliveries',
+    image: '/images/calle_ocho.jpg'
   },
   {
     id: '79th',
     label: '79th Street',
     address: CONTACT_INFO.addresses[1],
     note: 'Best for Upper Eastside, Wynwood, Miami Shores, Biscayne Corridor',
+    image: '/images/miami_vape_storefront_clean.webp'
   },
   {
     id: 'mkt',
     label: 'Market',
     address: CONTACT_INFO.addresses[2],
     note: 'Best for Downtown, Overtown, Brickell area deliveries',
+    image: '/images/miami_mkt_front.webp'
   },
 ];
 
@@ -140,7 +143,7 @@ const FEATURED_FULL_PRODUCTS = [
   'NEXA 35K',
   'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE CLASSIC 1/4'
+  'RAW CONE CLASSIC 1_4'
 ];
 
 const FEATURED_IMAGE_GAPS = new Set([
@@ -158,7 +161,7 @@ const SINGLE_VARIANT_FEATURED_BASES = new Set([
   'GRABBA LEAF WHOLE',
   'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE CLASSIC 1/4'
+  'RAW CONE CLASSIC 1_4'
 ].map((name) => name.toUpperCase()));
 const IMAGE_READY_ALLOWLIST = new Set([
   'GRABBA LEAF SMALL',
@@ -169,7 +172,7 @@ const IMAGE_READY_ALLOWLIST = new Set([
   'BACKWOODS 5PK',
   'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE CLASSIC 1/4'
+  'RAW CONE CLASSIC 1_4'
 ].map((name) => name.toUpperCase()));
 const SHOW_ALL_LOCAL = String(process.env.LOCAL_SHOW_ALL || '').toLowerCase() === 'true';
 const VALID_IMAGE_EXT = /\.(?:png|jpe?g|webp)$/i;
@@ -324,7 +327,7 @@ function applyLocalQtyOverride(items = [], shopId = '') {
     'BACKWOODS 5PK',
     'RAW CONE 20PK',
     'RAW CONE 3PK',
-    'RAW CONE CLASSIC 1/4'
+    'RAW CONE CLASSIC 1_4'
   ].map(n => {
     const norm = normalizeProductName(n);
     const base = extractProductVariantKey(norm);
@@ -2069,7 +2072,7 @@ function normalizeProductName(name) {
     value = value.replace(/^FUME\s*ULTRA\b/i, 'FUME ULTRA');
   }
   if (/^FUME\s*INFINITY\b/i.test(value)) {
-    value = value.replace(/^FUME\s*INFINITY\b/i, 'FUME INFINITY');
+    value = value.replace(/^FUME\s*INFINITY(?:\s*4500)?\b/i, 'FUME INFINITY');
   }
   if (/^LOST\s*MARY\s*PRO\b/i.test(value)) {
     value = value.replace(/^LOST\s*MARY\s*PRO\b/i, 'LOST MARY PRO');
@@ -2374,6 +2377,7 @@ app.get('/cart', (_req, res) => {
   res.render('cart', {
     title: 'Shopping Cart • Miami Vape Smoke Shop',
     description: 'Review your items and proceed to checkout.',
+    ageCheckerApiKey: process.env.AGECHECKER_API_KEY,
   });
 });
 
@@ -2540,6 +2544,7 @@ app.get('/checkout', (req, res) => {
     authorizeClientKey: _getAuthNetConfig().clientKey,
     
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
+    ageCheckerApiKey: process.env.AGECHECKER_API_KEY,
   });
 
 
@@ -3262,6 +3267,52 @@ app.post('/api/authorize/charge', async (req, res) => {
 
     if (!Number.isFinite(orderTotal) || orderTotal <= 0) {
       return res.status(400).json({ error: 'Invalid charge amount.' });
+    }
+
+    // --- PRE-CHARGE AGE VERIFICATION ---
+    const agecheckerSignature = body.agecheckerSignature;
+    const agecheckerApiKey = process.env.AGECHECKER_API_KEY;
+
+    if (agecheckerApiKey) {
+      if (!agecheckerSignature) {
+        return res.status(403).json({ error: 'Age verification required. Please complete verification before paying.' });
+      }
+      try {
+        const verifyResp = await fetch('https://api.agechecker.net/v1/verify', {
+          method: 'POST',
+          headers: {
+            'X-AgeChecker-Secret': agecheckerApiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ signature: agecheckerSignature })
+        });
+        const verifyData = await verifyResp.json();
+        if (verifyData.status !== 'verified') {
+          console.warn('[AgeChecker] Verification failed', verifyData);
+          return res.status(403).json({ error: 'Age verification failed or expired. Please verify again.' });
+        }
+      } catch (err) {
+        console.error('[AgeChecker] Verification error', err);
+        // If AgeChecker API is down, we might want to allow or block. Usually safer to block or log and manual review.
+        // For now, let's block to ensure compliance.
+        return res.status(500).json({ error: 'Age verification service unavailable. Please try again later.' });
+      }
+    }
+
+    // --- PRE-CHARGE ADDRESS VALIDATION ---
+    if (deliveryOption === 'delivery' || deliveryOption === 'uber') {
+      const billing = body.billing || {};
+      const missingFields = [];
+      if (!billing.street) missingFields.push('Street Address');
+      if (!billing.city) missingFields.push('City');
+      if (!billing.state) missingFields.push('State');
+      if (!billing.zip) missingFields.push('ZIP Code');
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({
+          error: `Missing required delivery information: ${missingFields.join(', ')}.`
+        });
+      }
     }
 
     // --- PRE-CHARGE INVENTORY VALIDATION ---

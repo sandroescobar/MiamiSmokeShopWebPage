@@ -15,7 +15,7 @@ import pandas as pd
 # 0) Configure downloads BEFORE launching Chrome (single driver only)
 # ─────────────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))       # folder with this script
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads", "calle8")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
@@ -330,6 +330,7 @@ allowed = {
    "EDIBLES",
    "GRINDERS",
    "ROLLING PAPERS & CONES",
+   "ROLLING PAPER,CONES, TIPS AND WRAPS",
    "VAPE JUICES",
    "DEVICES: BATTERIES & MODS",
    "HOOKAH RELATED",

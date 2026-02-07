@@ -18,6 +18,10 @@ PARENT_CATEGORIES = {
     "EDIBLES": "edibles",
     "GRINDERS": "grinders",
     "ROLLING PAPERS & CONES": "rolling-papers-cones",
+    "ROLLING PAPERS": "rolling-papers-cones",
+    "ROLLING PAPER,CONES, TIPS AND WRAPS": "rolling-papers-cones",
+    "PAPERS": "rolling-papers-cones",
+    "CONES": "rolling-papers-cones",
     "VAPE JUICES": "vape-juices",
     "DEVICES: BATTERIES & MODS": "devices-batteries-mods",
     "HOOKAH RELATED": "hookah-related",
@@ -298,6 +302,39 @@ def apply_brand_specific_rules(name):
     
     if re.search(r'^GRABBA\s+LEAF\s+WHOLE\s+LEAF$', text, re.IGNORECASE):
         text = 'GRABBA LEAF WHOLE'
+
+    # RAW Cone normalization
+    if re.search(r'^RAW\s+CONES?\b', text, re.IGNORECASE):
+        text = re.sub(r'^RAW\s+CONES?\b', 'RAW CONE', text, flags=re.IGNORECASE)
+
+        # Normalize 1 1/4 or 1/4 or 1 4 or 1_4 to 1_4
+        text = re.sub(r'\b(?:1\s+)?1[/\s]4\b', '1_4', text)
+        text = re.sub(r'\b1_4\b', '1_4', text)
+
+        # Normalize Organic Hemp to Organic
+        text = re.sub(r'\bORGANIC\s+HEMP\b', 'ORGANIC', text, flags=re.IGNORECASE)
+
+        # If it doesn't have 20PK or 3PK, and it's not the 1_4 base,
+        # it's likely a 3PK (standard for these smaller quantities)
+        if not re.search(r'\b\d+PK\b', text, re.IGNORECASE) and not re.search(r'\b1_4\b', text) and \
+                not re.search(r'\bTIPS\b', text, re.IGNORECASE) and not re.search(r'\bSTAGE\b', text, re.IGNORECASE):
+            if re.search(r'\b(CLASSIC|BLACK|ORGANIC|KING)\b', text, re.IGNORECASE):
+                text = re.sub(r'^(RAW CONE)', r'\1 3PK', text, flags=re.IGNORECASE)
+
+        # Move 20PK or 3PK to be right after RAW CONE
+        pk_match = re.search(r'\b(\d+PK)\b', text, re.IGNORECASE)
+        if pk_match:
+            pk = pk_match.group(1).upper()
+            text = re.sub(r'\b\d+PK\b', '', text, flags=re.IGNORECASE)
+            text = ' '.join(text.split())
+            text = re.sub(r'^(RAW CONE)', f'\\1 {pk}', text, flags=re.IGNORECASE)
+
+        # Strip SIZE from the end or after KING
+        text = re.sub(r'\bSIZE\b', '', text, flags=re.IGNORECASE)
+
+        # Normalize flavor names
+        if re.search(r'\bBLACK\b', text, re.IGNORECASE) and re.search(r'\bCLASSIC\b', text, re.IGNORECASE):
+            text = re.sub(r'\bCLASSIC\b', '', text, flags=re.IGNORECASE)
 
     # Fix ZYN Peppermint typo
     if "PPEPERMINT" in text.upper():
