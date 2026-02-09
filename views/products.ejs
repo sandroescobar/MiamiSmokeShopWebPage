@@ -197,12 +197,59 @@
     .product-card .btn-accent{width:100%;text-align:center}
     .product-card .price{font-size:.9rem}
   }
+
+  /* Promo Image Styles */
+  .hero-header-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .lmn-promo-wrapper {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .lmn-promo-img {
+    width: 240px;
+    height: auto;
+    transition: transform 0.2s ease;
+    display: block;
+  }
+  .lmn-promo-img:hover {
+    transform: scale(1.05);
+  }
+  @media (max-width: 1100px) {
+    .lmn-promo-wrapper {
+      position: static;
+      transform: none;
+      margin-top: 1rem;
+    }
+    .hero-header-container {
+      flex-direction: column;
+    }
+  }
+  @media (max-width: 640px) {
+    .lmn-promo-img {
+      width: 120px;
+    }
+  }
 </style>
 
 <!-- HERO (unchanged structure) -->
 <header class="hero-products">
   <div class="hero-inner container">
-    <h1 class="hero-title">Shop Products</h1>
+    <div class="hero-header-container">
+      <h1 class="hero-title">Shop Products</h1>
+      <div class="lmn-promo-wrapper">
+        <a href="https://LoveMeNowMiami.com" target="_blank" rel="noopener noreferrer">
+          <img src="/images/lmn_standalone_circle_with_link.png" alt="Love Me Now Miami" class="lmn-promo-img">
+        </a>
+      </div>
+    </div>
     <p class="hero-sub">Same-day pickup or delivery from either location.</p>
     <div class="hero-chips">
       <span>Best prices</span>
