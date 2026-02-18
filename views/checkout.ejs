@@ -1141,6 +1141,13 @@ python3
         ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
         : null;
 
+      // Ensure we have the latest UUID
+      let ageUuid = sessionStorage.getItem('agechecker_uuid');
+      if (typeof AgeChecker !== 'undefined') {
+        const s = AgeChecker.status();
+        if (typeof s === 'object' && s.uuid) ageUuid = s.uuid;
+      }
+
       const payload = {
         opaqueData,
         totals: checkoutTotals,
@@ -1154,7 +1161,7 @@ python3
         pickupStore: selectedStore,
         selectedDeliveryStore,
         items: cartItems,
-        agechecker_uuid: sessionStorage.getItem('agechecker_uuid')
+        agechecker_uuid: ageUuid
       };
 
       const resp = await fetch('/api/authorize/charge', {
@@ -1195,7 +1202,14 @@ python3
 
       // AgeChecker verification check
       if (typeof AgeChecker !== 'undefined') {
-        const status = AgeChecker.status();
+        const statusObj = AgeChecker.status();
+        const status = (typeof statusObj === 'string') ? statusObj : statusObj?.status;
+        const uuid = (typeof statusObj === 'object') ? statusObj?.uuid : null;
+        
+        if (uuid) {
+          sessionStorage.setItem('agechecker_uuid', uuid);
+        }
+
         if (status !== 'verified') {
           AgeChecker.show();
           return;

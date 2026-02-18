@@ -3246,7 +3246,13 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 
 
 app.post('/api/authorize/charge', async (req, res) => {
-  const uuid = req.body.agechecker_uuid;
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch { /* ignore */ }
+  }
+  body = body || {};
+
+  const uuid = body.agechecker_uuid;
 
   if (!uuid) {
     return res.status(403).json({ error: "Age verification required." });
@@ -3296,12 +3302,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     }
 
     // Accept.js typically sends: { opaqueData: { dataDescriptor, dataValue }, totals: { total }, ... }
-    let body = req.body;
-    // Some proxies / middleware can hand us a raw JSON string. Normalize to an object.
-    if (typeof body === 'string') {
-      try { body = JSON.parse(body); } catch { /* ignore */ }
-    }
-    body = body || {};
+    // body is already normalized above
 
     // Extract common fields from body
     const items = Array.isArray(body.items) ? body.items : [];
