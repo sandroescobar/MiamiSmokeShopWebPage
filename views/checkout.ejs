@@ -1141,19 +1141,17 @@ python3
         ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
         : null;
 
-      // Ensure we have the latest UUID
+      // Ensure we have the latest UUID/token
       let ageUuid = sessionStorage.getItem('agechecker_uuid');
       if (typeof AgeChecker !== 'undefined') {
         const s = AgeChecker.status();
-        if (typeof s === 'object' && s.uuid) {
-          ageUuid = s.uuid;
-        } else if (typeof s === 'object' && s.signature) {
-          // If they return signature but no uuid, we might have a name mismatch
-          ageUuid = s.signature;
+        console.log("[submitCharge] AgeChecker.status() raw:", s);
+        if (typeof s === 'object') {
+          ageUuid = s.uuid || s.signature || s.token || ageUuid;
         }
       }
       
-      console.log("[submitCharge] Payload UUID:", ageUuid);
+      console.log("[submitCharge] Final payload UUID/Token:", ageUuid);
 
       const payload = {
         opaqueData,
@@ -1211,9 +1209,9 @@ python3
       if (typeof AgeChecker !== 'undefined') {
         const statusObj = AgeChecker.status();
         const status = (typeof statusObj === 'string') ? statusObj : statusObj?.status;
-        const uuid = (typeof statusObj === 'object') ? statusObj?.uuid : null;
+        const uuid = (typeof statusObj === 'object') ? (statusObj?.uuid || statusObj?.signature || statusObj?.token) : null;
         
-        console.log("[tokenizeAndPay] AgeChecker Status:", status, "UUID:", uuid);
+        console.log("[tokenizeAndPay] AgeChecker Status:", status, "Captured ID:", uuid);
 
         if (uuid) {
           sessionStorage.setItem('agechecker_uuid', uuid);
@@ -1495,9 +1493,10 @@ python3
           dob_year: "#dob_year"
         },
         onStatusChange: function(response) {
-          console.log("[AgeChecker] Status change:", response.status, response.uuid);
-          if (response.uuid) {
-            sessionStorage.setItem('agechecker_uuid', response.uuid);
+          console.log("[AgeChecker] Status change:", response);
+          const token = response.uuid || response.signature || response.token;
+          if (token) {
+            sessionStorage.setItem('agechecker_uuid', token);
           }
         }
       };

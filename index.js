@@ -3254,9 +3254,8 @@ app.post('/api/authorize/charge', async (req, res) => {
   body = body || {};
 
   const uuid = body.agechecker_uuid;
-  console.log("[Charge Route] UUID extracted:", uuid);
-
   if (!uuid) {
+    console.error("[Charge Route] REJECTED: No UUID in body. Keys present:", Object.keys(body));
     return res.status(403).json({ error: "Age verification required." });
   }
 
