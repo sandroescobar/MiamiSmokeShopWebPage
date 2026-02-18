@@ -389,9 +389,12 @@ python3
             </div>
 
             <div class="actions" style="margin-top:16px">
+
               <button type="button" id="zp-pay-btn" class="btn btn-primary" style="width:100%">Complete Order</button>
               <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a>
             </div>
+            <input type="hidden" id="agechecker_uuid" value="">
+
           </div>
         </div>
       </aside>
@@ -1239,6 +1242,21 @@ python3
       const btn = document.getElementById('zp-pay-btn');
       if (!btn) return;
 
+
+      // pull anything we already stored from onStatusChange
+const storedAge = sessionStorage.getItem('agechecker_uuid') ||
+                  localStorage.getItem('agechecker_uuid') ||
+                  window.__agechecker_uuid ||
+                  document.getElementById("agechecker_uuid")?.value;
+
+if (storedAge) {
+  window.__agechecker_uuid = storedAge;
+  const hidden = document.getElementById("agechecker_uuid");
+  if (hidden) hidden.value = storedAge;
+}
+
+
+
       // AgeChecker verification check
       if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
         const statusObj = AgeChecker.status();
@@ -1537,9 +1555,43 @@ python3
         onStatusChange: function(response) {
           console.log("[AgeChecker] Status change:", response);
           const status = (typeof response === 'string') ? response : response?.status;
-          const token = (typeof response === 'object')
-            ? (response.uuid || response.signature || response.token || response.verification_token || response.verificationToken || response.id)
-            : null;
+          function extractToken(obj) {
+  if (!obj || typeof obj !== "object") return null;
+
+  // direct
+  const direct =
+    obj.uuid || obj.signature || obj.token ||
+    obj.verification_token || obj.verificationToken ||
+    obj.verification_uuid || obj.verificationUuid ||
+    obj.id;
+
+  if (direct) return direct;
+
+  // nested common wrappers
+  const nested = obj.data || obj.payload || obj.result || obj.verification || null;
+  if (nested && typeof nested === "object") {
+    return (
+      nested.uuid || nested.signature || nested.token ||
+      nested.verification_token || nested.verificationToken ||
+      nested.verification_uuid || nested.verificationUuid ||
+      nested.id
+    ) || null;
+  }
+
+  return null;
+}
+
+const token = extractToken(response);
+console.log("[AgeChecker] extracted token:", token);
+if (token) {
+  sessionStorage.setItem('agechecker_uuid', token);
+  localStorage.setItem('agechecker_uuid', token);
+  window.__agechecker_uuid = token;
+
+  const hidden = document.getElementById("agechecker_uuid");
+  if (hidden) hidden.value = token;
+}
+
 
           if (token) {
             sessionStorage.setItem('agechecker_uuid', token);
