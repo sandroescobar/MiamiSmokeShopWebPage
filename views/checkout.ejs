@@ -225,7 +225,7 @@
                 <div id="pickup-stores" class="store-selector"></div>
                 <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
               </div>
-
+python3
               <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
                 <h3 id="delivery-header" style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
@@ -1154,7 +1154,7 @@
         pickupStore: selectedStore,
         selectedDeliveryStore,
         items: cartItems,
-        agecheckerSignature: sessionStorage.getItem('agechecker_signature')
+        agechecker_uuid: sessionStorage.getItem('agechecker_uuid')
       };
 
       const resp = await fetch('/api/authorize/charge', {
@@ -1450,18 +1450,43 @@
 
   <!-- AgeChecker.net -->
   <script>
-    window.AgeCheckerConfig = {
-      key: '<%= ageCheckerApiKey %>',
-      onStatusChange: function(response) {
-        if (response.status === 'verified' && response.signature) {
-          sessionStorage.setItem('agechecker_signature', response.signature);
+    (function(w,d) {
+      var config = {
+        key: "<%= ageCheckerApiKey %>",
+        element: "#zp-pay-btn",
+        debug: true,
+        disable_fields: true,
+        require_email: true,
+        fields: {
+          first_name: "input[name='first_name']",
+          last_name: "input[name='last_name']",
+          contact_email: "input[name='email']",
+          address: "input[name='address']",
+          zip: "input[name='zip']",
+          city: "input[name='city']",
+          state: "input[name='state']",
+          dob_month: "#dob_month",
+          dob_day: "#dob_day",
+          dob_year: "#dob_year"
+        },
+        onStatusChange: function(response) {
+          console.log("[AgeChecker] Status change:", response.status, response.uuid);
+          if (response.status === 'verified' && response.uuid) {
+            sessionStorage.setItem('agechecker_uuid', response.uuid);
+          }
         }
-      }
-    };
+      };
+
+      w.AgeCheckerConfig = config;
+
+      var h=d.getElementsByTagName("head")[0];
+      var a=d.createElement("script");
+      a.src="https://cdn.agechecker.net/static/popup/v1/popup.js";
+      a.crossOrigin="anonymous";
+      a.onerror=function(){ w.location.href="https://agechecker.net/loaderror"; };
+      h.insertBefore(a,h.firstChild);
+    })(window, document);
   </script>
-
-
-
 
   <!-- Google Maps SDK for Places Autocomplete -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBY9pqxZth54lLRl-AqU4PhpCWGUAJuKbc&libraries=places&callback=initAutocomplete&loading=async" async defer></script>
@@ -1470,40 +1495,6 @@
   <noscript>
   <meta http-equiv="refresh" content="0;url=https://agechecker.net/noscript">
 </noscript>
-
-<script>
-(function(w,d) {
-  var config = {
-    key: "<%= ageCheckerApiKey %>",
-    element: "#zp-pay-btn",
-    debug: true,
-    disable_fields: true,
-    require_email: true,
-
-    fields: {
-      first_name: "input[name='first_name']",
-      last_name: "input[name='last_name']",
-      contact_email: "input[name='email']",
-      address: "input[name='address']",
-      zip: "input[name='zip']",
-      city: "input[name='city']",
-      state: "input[name='state']",
-      dob_month: "#dob_month",
-      dob_day: "#dob_day",
-      dob_year: "#dob_year"
-    }
-  };
-
-  w.AgeCheckerConfig = config;
-
-  var h=d.getElementsByTagName("head")[0];
-  var a=d.createElement("script");
-  a.src="https://cdn.agechecker.net/static/popup/v1/popup.js";
-  a.crossOrigin="anonymous";
-  a.onerror=function(){ w.location.href="https://agechecker.net/loaderror"; };
-  h.insertBefore(a,h.firstChild);
-})(window, document);
-</script>
 
 </body>
 </html>

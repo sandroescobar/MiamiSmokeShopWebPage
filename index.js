@@ -3246,31 +3246,36 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 
 
 app.post('/api/authorize/charge', async (req, res) => {
-  const axios = require("axios");
+  const uuid = req.body.agechecker_uuid;
 
-const uuid = req.body.agechecker_uuid;
-
-if (!uuid) {
-  return res.status(403).json({ error: "Age verification required." });
-}
-
-try {
-  const response = await axios.get(
-    `https://api.agechecker.net/v1/status/${uuid}`,
-    {
-      headers: {
-        "X-AgeChecker-Secret": process.env.AGECHECKER_ACCOUNT_SECRET
-      }
-    }
-  );
-
-  if (response.data.status !== "accepted") {
-    return res.status(403).json({ error: "Age verification not accepted." });
+  if (!uuid) {
+    return res.status(403).json({ error: "Age verification required." });
   }
 
-} catch (err) {
-  return res.status(500).json({ error: "Age verification failed." });
-}
+  try {
+    const response = await fetch(
+      `https://api.agechecker.net/v1/status/${uuid}`,
+      {
+        headers: {
+          "X-AgeChecker-Secret": AGECHECKER_ACCOUNT_SECRET
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`AgeChecker API returned ${response.status}`);
+    }
+
+    const ageData = await response.json();
+
+    if (ageData.status !== "accepted") {
+      return res.status(403).json({ error: "Age verification not accepted." });
+    }
+
+  } catch (err) {
+    console.error("[AgeChecker] Verification failed:", err);
+    return res.status(500).json({ error: "Age verification failed." });
+  }
 
   //Important: if something fails AFTER the card is successfully charged,
   // return 200 with a warning (not 500) so the client does not retry and risk double-charging.
