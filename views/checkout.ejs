@@ -1145,8 +1145,15 @@ python3
       let ageUuid = sessionStorage.getItem('agechecker_uuid');
       if (typeof AgeChecker !== 'undefined') {
         const s = AgeChecker.status();
-        if (typeof s === 'object' && s.uuid) ageUuid = s.uuid;
+        if (typeof s === 'object' && s.uuid) {
+          ageUuid = s.uuid;
+        } else if (typeof s === 'object' && s.signature) {
+          // If they return signature but no uuid, we might have a name mismatch
+          ageUuid = s.signature;
+        }
       }
+      
+      console.log("[submitCharge] Payload UUID:", ageUuid);
 
       const payload = {
         opaqueData,
@@ -1206,11 +1213,15 @@ python3
         const status = (typeof statusObj === 'string') ? statusObj : statusObj?.status;
         const uuid = (typeof statusObj === 'object') ? statusObj?.uuid : null;
         
+        console.log("[tokenizeAndPay] AgeChecker Status:", status, "UUID:", uuid);
+
         if (uuid) {
           sessionStorage.setItem('agechecker_uuid', uuid);
         }
 
-        if (status !== 'verified') {
+        const isOk = (status === 'verified' || status === 'accepted');
+
+        if (!isOk) {
           AgeChecker.show();
           return;
         }
@@ -1485,7 +1496,7 @@ python3
         },
         onStatusChange: function(response) {
           console.log("[AgeChecker] Status change:", response.status, response.uuid);
-          if (response.status === 'verified' && response.uuid) {
+          if (response.uuid) {
             sessionStorage.setItem('agechecker_uuid', response.uuid);
           }
         }

@@ -3246,6 +3246,7 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 
 
 app.post('/api/authorize/charge', async (req, res) => {
+  console.log("[Charge Route] Body:", JSON.stringify(req.body).slice(0, 200));
   let body = req.body;
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch { /* ignore */ }
@@ -3253,6 +3254,7 @@ app.post('/api/authorize/charge', async (req, res) => {
   body = body || {};
 
   const uuid = body.agechecker_uuid;
+  console.log("[Charge Route] UUID extracted:", uuid);
 
   if (!uuid) {
     return res.status(403).json({ error: "Age verification required." });
