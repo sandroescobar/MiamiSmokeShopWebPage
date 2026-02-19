@@ -33,11 +33,12 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-const AGECHECKER_ACCOUNT_SECRET = process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe41D0My3QjL';
+const AGECHECKER_ACCOUNT_HASH = process.env.AGECHECKER_ACCOUNT_HASH || '21LdVe41D0My3QjL';
+const AGECHECKER_API_KEY = process.env.AGECHECKER_API_KEY || '9g2Z8WhFz2LhbQANYf8YjPf7930jzSrY';
 
 app.get('/agechecker/init.js', async (req, res) => {
   try {
-    const upstream = `https://agechecker.net/h/${AGECHECKER_ACCOUNT_SECRET}/init.js`;
+    const upstream = `https://agechecker.net/h/${AGECHECKER_ACCOUNT_HASH}/init.js`;
     const r = await fetch(upstream);
 
     // If AgeChecker ever returns non-200, surface it for debugging
@@ -3270,16 +3271,20 @@ app.post('/api/authorize/charge', async (req, res) => {
       `https://api.agechecker.net/v1/status/${uuid}`,
       {
         headers: {
-          "X-AgeChecker-Secret": AGECHECKER_ACCOUNT_SECRET
+          "X-AgeChecker-Secret": AGECHECKER_API_KEY
         }
       }
     );
 
+    const ageText = await response.text();
+    console.log("[AgeChecker] API response status:", response.status, "body:", ageText.slice(0, 500));
+    
     if (!response.ok) {
-      throw new Error(`AgeChecker API returned ${response.status}`);
+      throw new Error(`AgeChecker API returned ${response.status}: ${ageText.slice(0, 200)}`);
     }
 
-    const ageData = await response.json();
+    let ageData;
+    try { ageData = JSON.parse(ageText); } catch { throw new Error(`AgeChecker API returned invalid JSON: ${ageText.slice(0, 200)}`); }
 
     if (ageData.status !== "accepted") {
       return res.status(403).json({ error: "Age verification not accepted." });
