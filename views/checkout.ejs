@@ -1247,14 +1247,21 @@ function paySetHint(msg) {
         ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
         : null;
 
-      // Ensure we have the latest UUID/token
-      let ageUuid = sessionStorage.getItem('agechecker_uuid');
-      if (typeof AgeChecker !== 'undefined') {
+      // Ensure we have the latest UUID/token — try every source
+      let ageUuid = getAgeCheckerToken();
+      if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
         const s = AgeChecker.status();
-        console.log("[submitCharge] AgeChecker.status() raw:", s);
-        if (typeof s === 'object') {
-          ageUuid = s.uuid || s.signature || s.token || ageUuid;
+        console.log("[submitCharge] AgeChecker.status() raw:", JSON.stringify(s));
+        if (typeof s === 'object' && s !== null) {
+          const fromObj = s.uuid || s.signature || s.token || s.verification_token || s.verificationToken || s.id;
+          if (looksLikeToken(fromObj)) ageUuid = String(fromObj).trim();
+        } else if (typeof s === 'string' && looksLikeToken(s)) {
+          ageUuid = s.trim();
         }
+      }
+      // Fallback: scan storage one more time
+      if (!ageUuid) {
+        ageUuid = scanStorageForAgeToken();
       }
 
       console.log("[submitCharge] Final payload UUID/Token:", ageUuid);
@@ -1331,6 +1338,7 @@ function paySetHint(msg) {
         const isOk = (status === 'verified' || status === 'accepted');
 
         if (!isOk) {
+          window.__agechecker_pending_payment = true;
           AgeChecker.show();
           return;
         }
@@ -1615,7 +1623,27 @@ function paySetHint(msg) {
             setAgeCheckerToken(tokenFromResponse);
             console.log("[AgeChecker] Stored token from response:", tokenFromResponse);
           } else {
-            // Try to pull token from the SDK / storage right after status update
+            // popup.js stores the token internally — try AgeChecker.status() after a brief delay
+            setTimeout(function() {
+              try {
+                if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
+                  const s = AgeChecker.status();
+                  console.log("[AgeChecker] Deferred status() call:", s);
+                  const t = extractAgeToken(s);
+                  // Also check if status() returns the token as a direct string property
+                  const fromUuid = (typeof s === 'object') ? (s.uuid || s.token || s.signature || s.verification_token) : null;
+                  if (t) { setAgeCheckerToken(t); console.log("[AgeChecker] Got token from deferred status():", t); }
+                  else if (looksLikeToken(fromUuid)) { setAgeCheckerToken(fromUuid); console.log("[AgeChecker] Got uuid from deferred status():", fromUuid); }
+                }
+              } catch(e) { console.warn("[AgeChecker] Deferred status() error:", e); }
+              // Also scan storage — popup.js may have written it
+              const scanned = scanStorageForAgeToken();
+              if (scanned && !getAgeCheckerToken()) {
+                setAgeCheckerToken(scanned);
+                console.log("[AgeChecker] Got token from storage scan:", scanned);
+              }
+            }, 200);
+
             const t2 = getAgeCheckerToken();
             if (t2) console.log("[AgeChecker] Stored token from status/storage:", t2);
             else console.warn("[AgeChecker] No token detected yet (status:", status, ")");
@@ -1626,9 +1654,10 @@ function paySetHint(msg) {
           const isOk = (sLower === 'verified' || sLower === 'accepted');
           if (isOk && window.__agechecker_pending_payment && !window.__payment_in_flight) {
             window.__agechecker_pending_payment = false;
+            // Wait 400ms to let deferred token capture complete (200ms + margin)
             setTimeout(() => {
               try { tokenizeAndPay(); } catch (e) { console.error(e); }
-            }, 50);
+            }, 400);
           }
         }
       };
