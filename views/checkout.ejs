@@ -1079,6 +1079,29 @@ python3
     }
 
 
+    // ---------------- Intercept AgeChecker token from popup.js console log ----
+    // popup.js logs "[AgeChecker.Net] Received verification token: XXXX"
+    // but never exposes it via API. Capture it by intercepting console.log.
+    (function() {
+      const _origLog = console.log;
+      console.log = function() {
+        _origLog.apply(console, arguments);
+        for (let i = 0; i < arguments.length; i++) {
+          const arg = String(arguments[i] || '');
+          const match = arg.match(/\[AgeChecker\.Net\]\s*Received verification token:\s*(\S+)/);
+          if (match && match[1]) {
+            const token = match[1].trim();
+            console.info('[AgeChecker Intercept] Captured token:', token);
+            try { sessionStorage.setItem('agechecker_uuid', token); } catch(_) {}
+            try { localStorage.setItem('agechecker_uuid', token); } catch(_) {}
+            window.__agechecker_uuid = token;
+            var hidden = document.getElementById('agechecker_uuid');
+            if (hidden) hidden.value = token;
+          }
+        }
+      };
+    })();
+
     // ---------------- AgeChecker token helpers (robust) ----------------
     function looksLikeToken(s) {
       if (!s) return false;
