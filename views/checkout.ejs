@@ -1636,7 +1636,7 @@ function paySetHint(msg) {
           dob_day: "#dob_day",
           dob_year: "#dob_year"
         },
-        onStatusChange: function(response) {
+        onstatuschanged: function(response) {
           console.log("[AgeChecker] Status change:", response);
 
           const status = (typeof response === 'string') ? response : response?.status;
