@@ -3254,19 +3254,16 @@ app.post('/api/authorize/charge', async (req, res) => {
   body = body || {};
 
   const uuid =
-    body.agechecker_uuid ||
-    body.agechecker_token ||
-    body.agecheckerUUID ||
-    body.ageCheckerUuid ||
-    (body.agechecker && (body.agechecker.uuid || body.agechecker.token || body.agechecker.signature)) ||
-    null;
-
-  console.log("[Charge Route] Parsed AgeChecker UUID:", uuid);
+    (body.agechecker_uuid || body.agechecker_token || body.agecheckerUUID || body.agecheckerToken ||
+     body.age_uuid || body.ageToken ||
+     (req.headers['x-agechecker-uuid'] || req.headers['x-agechecker-token'] || '')).toString().trim();
 
   if (!uuid) {
-    console.error("[Charge Route] REJECTED: No UUID in body. Keys present:", Object.keys(body));
+    console.error("[Charge Route] REJECTED: No AgeChecker token/uuid found. Keys present:", Object.keys(body));
     return res.status(403).json({ error: "Age verification required." });
   }
+
+  console.log("[Charge Route] Parsed AgeChecker UUID:", uuid);
 
   try {
     const response = await fetch(
