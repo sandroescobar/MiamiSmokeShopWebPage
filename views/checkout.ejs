@@ -225,6 +225,7 @@
                 <div id="pickup-stores" class="store-selector"></div>
                 <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
               </div>
+python3
               <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
                 <h3 id="delivery-header" style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
@@ -390,7 +391,7 @@
             <div class="actions" style="margin-top:16px">
               <button type="button" id="zp-pay-btn" class="btn btn-primary" style="width:100%">Complete Order</button>
               <input type="hidden" id="agechecker_uuid" value="">
-              <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a>
+              <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a
             </div>
           </div>
         </div>
@@ -1129,20 +1130,21 @@
       return { month, year };
     }
 
-    // ---------------- AgeChecker token helpers (single source of truth) ----------------
+    // --- AgeChecker token helpers (robust across SDK response shapes) ---
     function extractAgeToken(v) {
       if (!v) return null;
 
-      // Sometimes the SDK gives a raw token string; sometimes a status string.
+      // If a token string is passed directly, ignore status-like strings.
       if (typeof v === "string") {
         const s = v.trim();
-        if (["verified","accepted","pending","denied","rejected","unverified"].includes(s.toLowerCase())) return null;
-        return s.length >= 12 ? s : null;
+        const bad = ["verified","accepted","pending","denied","rejected","unverified"];
+        if (bad.includes(s.toLowerCase())) return null;
+        return (s.length >= 12) ? s : null;
       }
 
       if (typeof v !== "object") return null;
 
-      // Common top-level keys
+      // Direct keys
       let t =
         v.uuid || v.signature || v.token ||
         v.verification_token || v.verificationToken ||
@@ -1151,8 +1153,8 @@
 
       if (t) return t;
 
-      // Common nested wrappers
-      const nested = v.data || v.payload || v.result || v.verification;
+      // Nested common wrappers
+      const nested = v.data || v.payload || v.result || v.verification || null;
       if (nested && typeof nested === "object") {
         t =
           nested.uuid || nested.signature || nested.token ||
@@ -1165,41 +1167,23 @@
       return null;
     }
 
-    function setAgeCheckerToken(token) {
+    function storeAgeToken(token) {
       if (!token) return;
-      const t = String(token).trim();
-      if (!t) return;
-
-      try { sessionStorage.setItem("agechecker_uuid", t); } catch (_) {}
-      try { localStorage.setItem("agechecker_uuid", t); } catch (_) {}
-      window.__agechecker_uuid = t;
+      try { sessionStorage.setItem("agechecker_uuid", token); } catch(e) {}
+      try { localStorage.setItem("agechecker_uuid", token); } catch(e) {}
+      window.__agechecker_uuid = token;
 
       const hidden = document.getElementById("agechecker_uuid");
-      if (hidden) hidden.value = t;
+      if (hidden) hidden.value = token;
     }
 
-    // Reads from: memory -> hidden -> session/local -> AgeChecker.status()
-    function getAgeCheckerToken(opts) {
-      const alsoTrySDK = !!(opts && opts.alsoTrySDK);
-
-      const hiddenVal = document.getElementById("agechecker_uuid")?.value;
-      const memVal = window.__agechecker_uuid;
-
-      let t =
-        memVal ||
-        hiddenVal ||
-        (() => { try { return sessionStorage.getItem("agechecker_uuid"); } catch (_) { return null; } })() ||
-        (() => { try { return localStorage.getItem("agechecker_uuid"); } catch (_) { return null; } })();
-
-      t = extractAgeToken(t) || t;
-
-      if (!t && alsoTrySDK && typeof AgeChecker !== "undefined" && typeof AgeChecker.status === "function") {
-        const s = AgeChecker.status();
-        console.log("[AgeChecker] AgeChecker.status() raw:", s);
-        t = extractAgeToken(s);
-      }
-
-      return t || null;
+    function getAgeTokenFromStorage() {
+      return (
+        (function(){ try { return sessionStorage.getItem("agechecker_uuid"); } catch(e){ return null; } })() ||
+        (function(){ try { return localStorage.getItem("agechecker_uuid"); } catch(e){ return null; } })() ||
+        window.__agechecker_uuid ||
+        (document.getElementById("agechecker_uuid") ? document.getElementById("agechecker_uuid").value : null)
+      );
     }
 
     async function submitCharge(opaqueData) {
@@ -1213,9 +1197,19 @@
       const selectedOption = (deliveryMethod === 'delivery' && deliveryStoreOptions.length)
         ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
         : null;
-      // Ensure we have the latest UUID/token
-      const ageUuid = getAgeCheckerToken({ alsoTrySDK: true });
-      if (ageUuid) setAgeCheckerToken(ageUuid);
+
+      // Ensure we have the latest UUID/token (AgeChecker may return nested objects)
+      let ageUuid = getAgeTokenFromStorage();
+
+      if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
+        const s = AgeChecker.status();
+        console.log("[submitCharge] AgeChecker.status() raw:", s);
+        const maybe = extractAgeToken(s);
+        if (maybe) {
+          storeAgeToken(maybe);
+          ageUuid = maybe;
+        }
+      }
 
       console.log("[submitCharge] Final payload UUID/Token:", ageUuid);
 
@@ -1271,30 +1265,32 @@
       const btn = document.getElementById('zp-pay-btn');
       if (!btn) return;
 
+      // Pull anything we already stored from onStatusChange (or previous attempts)
+      const storedAge = getAgeTokenFromStorage();
+      if (storedAge) storeAgeToken(storedAge);
+
       // AgeChecker verification check
-      if (typeof AgeChecker !== 'undefined') {
+      if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
         const statusObj = AgeChecker.status();
         const status = (typeof statusObj === 'string') ? statusObj : statusObj?.status;
-        const uuid = extractAgeToken(statusObj);
+        const uuid = extractAgeToken(statusObj) || getAgeTokenFromStorage();
 
+        console.log("[tokenizeAndPay] AgeChecker.status() raw:", statusObj);
         console.log("[tokenizeAndPay] AgeChecker Status:", status, "Extracted token:", uuid);
 
-        const fallbackToken = uuid || getAgeCheckerToken({ alsoTrySDK: false });
-        if (fallbackToken) setAgeCheckerToken(fallbackToken);
+        if (uuid) storeAgeToken(uuid);
 
-        if (uuid) {
-          sessionStorage.setItem('agechecker_uuid', uuid);
-        }
-
-        const isOk = (status === 'verified' || status === 'accepted');
+        const sLower = String(status || '').toLowerCase();
+        const isOk = (sLower === 'verified' || sLower === 'accepted');
 
         if (!isOk) {
+          // Remember the click; when verification succeeds we auto-continue.
+          window.__agechecker_pending_payment = true;
           AgeChecker.show();
           return;
         }
       }
-
-      if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
+if (!AUTH_NET_LOGIN_ID || !AUTH_NET_CLIENT_KEY) {
         paySetError('Payment configuration missing (Authorize.net keys not set).');
         return;
       }
@@ -1553,7 +1549,7 @@
           first_name: "input[name='first_name']",
           last_name: "input[name='last_name']",
           contact_email: "input[name='email']",
-          address: "input[name='address']",
+          address: "input[name='street']",  // FIX: form uses name='street'
           zip: "input[name='zip']",
           city: "input[name='city']",
           state: "input[name='state']",
@@ -1563,11 +1559,29 @@
         },
         onStatusChange: function(response) {
           console.log("[AgeChecker] Status change:", response);
-          const token = response.uuid || response.signature || response.token;
+
+          const status = (typeof response === 'string') ? response : response?.status;
+          const token = extractAgeToken(response);
+
           if (token) {
-            sessionStorage.setItem('agechecker_uuid', token);
+            storeAgeToken(token);
+            console.log("[AgeChecker] Stored token:", token);
+          } else {
+            console.warn("[AgeChecker] No token found in response (status:", status, ")", response);
           }
-        }
+
+          const sLower = String(status || '').toLowerCase();
+          const isOk = (sLower === 'verified' || sLower === 'accepted');
+
+          // If the user already clicked "Complete Order" and verification just finished,
+          // auto-continue without requiring a second click.
+          if (isOk && window.__agechecker_pending_payment) {
+            window.__agechecker_pending_payment = false;
+            setTimeout(() => {
+              try { tokenizeAndPay(); } catch (e) { console.error(e); }
+            }, 50);
+          }
+}
       };
 
       w.AgeCheckerConfig = config;

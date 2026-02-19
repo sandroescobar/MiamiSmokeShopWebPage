@@ -418,7 +418,7 @@ function getVariantImage(baseName, flavor) {
   const variantName = `${baseName} ${flavor}`.trim();
   const key = normalizeVariantKey(variantName);
   if (!key) return null;
-  
+
   const match = VARIANT_IMAGE_LOOKUP.get(key);
   if (match) return match;
 
@@ -2063,7 +2063,7 @@ function isRestrictedProduct(normalizedName = '', normalizedKey = '', rawName = 
 function normalizeProductName(name) {
   let value = String(name || '').trim();
   if (!value) return value;
-  
+
   // Normalize ZERO NICOTINE to ZERO NIC for consistent matching
   value = value.replace(/\bZERO\s+NICOTINE\b/gi, 'ZERO NIC');
 
@@ -2165,7 +2165,7 @@ function normalizeProductName(name) {
   }
   if (/^RAW\s+CONES?\b/i.test(value)) {
     value = value.replace(/^RAW\s+CONES?\b/i, 'RAW CONE');
-    
+
     // Normalize 1 1/4 or 1/4 or 1 4 or 1_4 to 1_4
     value = value.replace(/\b(?:1\s+)?1[\/\s]4\b/g, '1_4');
     value = value.replace(/\b1_4\b/g, '1_4');
@@ -2173,7 +2173,7 @@ function normalizeProductName(name) {
     // Normalize Organic Hemp to Organic
     value = value.replace(/\bORGANIC\s+HEMP\b/gi, 'ORGANIC');
 
-    // If it doesn't have 20PK or 3PK, and it's not the 1_4 base, 
+    // If it doesn't have 20PK or 3PK, and it's not the 1_4 base,
     // it's likely a 3PK (standard for these smaller quantities)
     if (!/\b\d+PK\b/i.test(value) && !/\b1_4\b/.test(value) && !/\bTIPS\b/i.test(value) && !/\bSTAGE\b/i.test(value)) {
        if (/\b(CLASSIC|BLACK|ORGANIC|KING)\b/i.test(value)) {
@@ -2188,7 +2188,7 @@ function normalizeProductName(name) {
       value = value.replace(/\b\d+PK\b/gi, '').replace(/\s+/g, ' ').trim();
       value = value.replace(/^(RAW CONE)/i, `$1 ${pk}`);
     }
-    
+
     // Strip SIZE from the end or after KING
     value = value.replace(/\bSIZE\b/gi, '');
 
@@ -2585,9 +2585,9 @@ app.get('/checkout', (req, res) => {
     // These get injected into checkout.ejs so the browser can tokenize card data.
     // Make sure these env vars are set where your app runs.
     authorizeLoginId: _getAuthNetConfig().apiLoginId,
-    
+
     authorizeClientKey: _getAuthNetConfig().clientKey,
-    
+
     authorizeEnv: (process.env.AUTH_NET_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')),
     ageCheckerApiKey: getAgeCheckerKey(req.hostname),
   });
@@ -3085,7 +3085,7 @@ app.post('/api/uber/delivery-options', async (req, res) => {
           rows.forEach(row => {
             const requestedItem = cartItems.find(it => (it.id || it.product_id || it.productId) == row.product_id);
             const reqQty = requestedItem ? Number(requestedItem.quantity || 1) : 1;
-            
+
             // Critical check: must have at least the requested quantity
             if (row.quantity >= reqQty) {
               invMap[store.id][row.product_id] = true;
@@ -3112,7 +3112,7 @@ app.post('/api/uber/delivery-options', async (req, res) => {
       } catch (e) {
         console.warn(`[delivery-options] Quote failed for store ${store.id}: ${e.message}`);
         error = e.message;
-        
+
         // If it's a known range error or API failure, we flag as manual
         if (e.message.toLowerCase().includes('range') || e.message.toLowerCase().includes('out of service')) {
           isManual = true;
@@ -3253,8 +3253,16 @@ app.post('/api/authorize/charge', async (req, res) => {
   }
   body = body || {};
 
-  // Client may send different key names depending on implementation/version
-  const uuid = body.agechecker_uuid || body.agechecker_token || body.agecheckerUUID || body.ageCheckerUuid;
+  const uuid =
+    body.agechecker_uuid ||
+    body.agechecker_token ||
+    body.agecheckerUUID ||
+    body.ageCheckerUuid ||
+    (body.agechecker && (body.agechecker.uuid || body.agechecker.token || body.agechecker.signature)) ||
+    null;
+
+  console.log("[Charge Route] Parsed AgeChecker UUID:", uuid);
+
   if (!uuid) {
     console.error("[Charge Route] REJECTED: No UUID in body. Keys present:", Object.keys(body));
     return res.status(403).json({ error: "Age verification required." });
@@ -3370,7 +3378,7 @@ app.post('/api/authorize/charge', async (req, res) => {
     try {
       const normalizedId = normalizeStoreId(pickupStoreId);
       const inventoryTable = normalizedId === '79th' ? 'inventory_79th' : 'inventory_calle8';
-      
+
       for (const it of items) {
         const reqQty = Number(it?.quantity || 0);
         if (reqQty <= 0) continue;
@@ -3380,7 +3388,7 @@ app.post('/api/authorize/charge', async (req, res) => {
         let availableQty = 0;
         if (productId) {
           const [rows] = await queryWithRetry(
-            `SELECT i.quantity 
+            `SELECT i.quantity
              FROM ${inventoryTable} i
              JOIN products p ON UPPER(p.name) = UPPER(i.name)
              WHERE p.id = ? AND i.is_active = 1`,
@@ -3396,7 +3404,7 @@ app.post('/api/authorize/charge', async (req, res) => {
         }
 
         if (availableQty < reqQty) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             error: `Insufficient stock for one or more items in your cart. Please review your order.`
           });
         }
@@ -3504,10 +3512,10 @@ app.post('/api/authorize/charge', async (req, res) => {
     if (responseCode !== '1') {
       const errorText = trx?.errors?.[0]?.errorText || 'Transaction was declined or held for review.';
       console.error('[Authorize.Net] Transaction not approved', { responseCode, transId, errorText });
-      return res.status(402).json({ 
-        error: errorText, 
-        responseCode, 
-        transactionId: transId 
+      return res.status(402).json({
+        error: errorText,
+        responseCode,
+        transactionId: transId
       });
     }
 
@@ -3583,7 +3591,7 @@ app.post('/api/authorize/charge', async (req, res) => {
       });
     }
 
-    
+
     // --- Persist order receipt + decrement inventory (best-effort) ---
     orderId = crypto.randomUUID();
     const createdAtIso = new Date().toISOString();
@@ -3668,7 +3676,7 @@ app.post('/api/authorize/charge', async (req, res) => {
               );
               // 2. Update central product_inventory table (used for real-time checks)
               await conn.query(
-                `UPDATE product_inventory 
+                `UPDATE product_inventory
                  SET quantity_on_hand = GREATEST(CAST(quantity_on_hand AS SIGNED) - ?, 0)
                  WHERE product_id = ? AND store_id = ?`,
                 [qty, productId, numericStoreId]
@@ -3694,10 +3702,10 @@ app.post('/api/authorize/charge', async (req, res) => {
         }
 
         await conn.commit();
-        
-        // Notify Slack (async, don't await if you don't want to delay response, 
+
+        // Notify Slack (async, don't await if you don't want to delay response,
         // but we're in an async block already and it's best-effort)
-        sendSlackOrderNotification(receiptPayload).catch(e => 
+        sendSlackOrderNotification(receiptPayload).catch(e =>
           console.error('[Slack] notification failed:', e?.message || e)
         );
 
