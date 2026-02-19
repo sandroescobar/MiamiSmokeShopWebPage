@@ -225,7 +225,6 @@
                 <div id="pickup-stores" class="store-selector"></div>
                 <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
               </div>
-python3
               <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
                 <h3 id="delivery-header" style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
@@ -389,12 +388,10 @@ python3
             </div>
 
             <div class="actions" style="margin-top:16px">
-
               <button type="button" id="zp-pay-btn" class="btn btn-primary" style="width:100%">Complete Order</button>
+              <input type="hidden" id="agechecker_uuid" value="">
               <a class="btn btn-secondary" href="/cart" style="width:100%">Back to cart</a>
             </div>
-            <input type="hidden" id="agechecker_uuid" value="">
-
           </div>
         </div>
       </aside>
@@ -603,7 +600,7 @@ python3
       if (closest && closest.missingCount > 0) messages.push(`Closest store (${closest.name}) is missing ${closest.missingCount} item(s).`);
       if (selectedOption && selectedOption.missingCount > 0) messages.push(`${selectedOption.name} cannot fulfill your full cart. Choose another store or swap items.`);
       if (selectedOption && selectedOption.warning) messages.push(`<strong>Note:</strong> ${selectedOption.warning}`);
-      
+
       if (messages.length > 0) { notice.innerHTML = messages.join('<br>'); notice.style.display = 'block'; }
       else { notice.style.display = 'none'; }
     }
@@ -627,7 +624,7 @@ python3
       // Phase 2: Prioritize the best store. Only show eligible stores to avoid confusion.
       const totalItems = cartItemCount;
       const eligibleStores = deliveryStoreOptions.filter(o => o.missingCount === 0);
-      
+
       const cards = eligibleStores.map((option, idx) => {
         const isBest = idx === 0;
         const checked = (selectedDeliveryStore ? selectedDeliveryStore === option.name : isBest);
@@ -727,7 +724,7 @@ python3
         if (!res.ok) throw new Error('Failed to fetch delivery options');
 
         const { options } = await res.json();
-        
+
         // Map backend response to frontend format
         const results = (options || []).map(opt => ({
           ...opt,
@@ -738,7 +735,7 @@ python3
           missingCount: opt.inventory.missingCount
         }));
 
-        // Sort: 
+        // Sort:
         // 1. Fully stocked stores first
         // 2. Then by distance (closest first)
         results.sort((a, b) => {
@@ -782,11 +779,11 @@ python3
 
         // Respect the store the user is shopping from (passed via ?shop=... or from storage)
         const params = new URLSearchParams(window.location.search);
-        const shopParamRaw = params.get('shop') || 
-                            localStorage.getItem('preferredShop') || 
-                            localStorage.getItem('selectedShop') || 
-                            localStorage.getItem('selectedStore') || 
-                            localStorage.getItem('shop') || 
+        const shopParamRaw = params.get('shop') ||
+                            localStorage.getItem('preferredShop') ||
+                            localStorage.getItem('selectedShop') ||
+                            localStorage.getItem('selectedStore') ||
+                            localStorage.getItem('shop') ||
                             '';
         const normalizeKey = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const shopKey = normalizeKey(shopParamRaw);
@@ -834,7 +831,7 @@ python3
       }
 
       // Phase 1: Only show the store the user selected on the products page.
-      const storesToRender = selectedStore 
+      const storesToRender = selectedStore
         ? allStores.filter(s => s.name === selectedStore)
         : allStores;
 
@@ -986,7 +983,7 @@ python3
           }
 
           userDeliveryLocation = coords;
-          
+
           const header = document.getElementById('delivery-header');
           if (header) {
             header.textContent = coords.display_name ? `Delivery to: ${coords.display_name.split(',').slice(0, 2).join(',')}` : 'Delivery to';
@@ -1132,6 +1129,79 @@ python3
       return { month, year };
     }
 
+    // ---------------- AgeChecker token helpers (single source of truth) ----------------
+    function extractAgeToken(v) {
+      if (!v) return null;
+
+      // Sometimes the SDK gives a raw token string; sometimes a status string.
+      if (typeof v === "string") {
+        const s = v.trim();
+        if (["verified","accepted","pending","denied","rejected","unverified"].includes(s.toLowerCase())) return null;
+        return s.length >= 12 ? s : null;
+      }
+
+      if (typeof v !== "object") return null;
+
+      // Common top-level keys
+      let t =
+        v.uuid || v.signature || v.token ||
+        v.verification_token || v.verificationToken ||
+        v.verification_uuid || v.verificationUuid ||
+        v.id;
+
+      if (t) return t;
+
+      // Common nested wrappers
+      const nested = v.data || v.payload || v.result || v.verification;
+      if (nested && typeof nested === "object") {
+        t =
+          nested.uuid || nested.signature || nested.token ||
+          nested.verification_token || nested.verificationToken ||
+          nested.verification_uuid || nested.verificationUuid ||
+          nested.id;
+        if (t) return t;
+      }
+
+      return null;
+    }
+
+    function setAgeCheckerToken(token) {
+      if (!token) return;
+      const t = String(token).trim();
+      if (!t) return;
+
+      try { sessionStorage.setItem("agechecker_uuid", t); } catch (_) {}
+      try { localStorage.setItem("agechecker_uuid", t); } catch (_) {}
+      window.__agechecker_uuid = t;
+
+      const hidden = document.getElementById("agechecker_uuid");
+      if (hidden) hidden.value = t;
+    }
+
+    // Reads from: memory -> hidden -> session/local -> AgeChecker.status()
+    function getAgeCheckerToken(opts) {
+      const alsoTrySDK = !!(opts && opts.alsoTrySDK);
+
+      const hiddenVal = document.getElementById("agechecker_uuid")?.value;
+      const memVal = window.__agechecker_uuid;
+
+      let t =
+        memVal ||
+        hiddenVal ||
+        (() => { try { return sessionStorage.getItem("agechecker_uuid"); } catch (_) { return null; } })() ||
+        (() => { try { return localStorage.getItem("agechecker_uuid"); } catch (_) { return null; } })();
+
+      t = extractAgeToken(t) || t;
+
+      if (!t && alsoTrySDK && typeof AgeChecker !== "undefined" && typeof AgeChecker.status === "function") {
+        const s = AgeChecker.status();
+        console.log("[AgeChecker] AgeChecker.status() raw:", s);
+        t = extractAgeToken(s);
+      }
+
+      return t || null;
+    }
+
     async function submitCharge(opaqueData) {
       const { customer, billing } = buildBillingFromForm();
 
@@ -1143,51 +1213,10 @@ python3
       const selectedOption = (deliveryMethod === 'delivery' && deliveryStoreOptions.length)
         ? deliveryStoreOptions.find(o => o.name === selectedDeliveryStore)
         : null;
+      // Ensure we have the latest UUID/token
+      const ageUuid = getAgeCheckerToken({ alsoTrySDK: true });
+      if (ageUuid) setAgeCheckerToken(ageUuid);
 
-      // Ensure we have the latest UUID/token (AgeChecker returns different shapes depending on config/version)
-      function extractAgeToken(v) {
-        if (!v) return null;
-        if (typeof v === 'string') {
-          const s = v.trim();
-          // Ignore status strings
-          if (['verified', 'accepted', 'pending', 'denied', 'rejected', 'unverified'].includes(s.toLowerCase())) return null;
-          // Token-like strings are usually long-ish
-          if (s.length >= 12) return s;
-          return null;
-        }
-        if (typeof v === 'object') {
-          return (
-            v.uuid || v.signature || v.token ||
-            v.verification_token || v.verificationToken ||
-            v.verification_uuid || v.verificationUuid ||
-            v.id ||
-            (v.data && (v.data.uuid || v.data.token || v.data.signature || v.data.verification_token))
-          ) || null;
-        }
-        return null;
-      }
-
-      function getAgeCheckerToken() {
-        // Prefer what we stored from onStatusChange
-        let t = sessionStorage.getItem('agechecker_uuid') || localStorage.getItem('agechecker_uuid') || window.__agechecker_uuid;
-        if (t) return t;
-        // Fall back to whatever the SDK exposes
-        if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
-          const s = AgeChecker.status();
-          console.log("[submitCharge] AgeChecker.status() raw:", s);
-          t = extractAgeToken(s);
-          if (t) {
-            sessionStorage.setItem('agechecker_uuid', t);
-            localStorage.setItem('agechecker_uuid', t);
-            window.__agechecker_uuid = t;
-            return t;
-          }
-        }
-        return null;
-      }
-
-      const ageUuid = getAgeCheckerToken();
-      
       console.log("[submitCharge] Final payload UUID/Token:", ageUuid);
 
       const payload = {
@@ -1242,43 +1271,24 @@ python3
       const btn = document.getElementById('zp-pay-btn');
       if (!btn) return;
 
-
-      // pull anything we already stored from onStatusChange
-const storedAge = sessionStorage.getItem('agechecker_uuid') ||
-                  localStorage.getItem('agechecker_uuid') ||
-                  window.__agechecker_uuid ||
-                  document.getElementById("agechecker_uuid")?.value;
-
-if (storedAge) {
-  window.__agechecker_uuid = storedAge;
-  const hidden = document.getElementById("agechecker_uuid");
-  if (hidden) hidden.value = storedAge;
-}
-
-
-
       // AgeChecker verification check
-      if (typeof AgeChecker !== 'undefined' && typeof AgeChecker.status === 'function') {
+      if (typeof AgeChecker !== 'undefined') {
         const statusObj = AgeChecker.status();
         const status = (typeof statusObj === 'string') ? statusObj : statusObj?.status;
-        const uuid = (typeof statusObj === 'object')
-          ? (statusObj?.uuid || statusObj?.signature || statusObj?.token || statusObj?.verification_token || statusObj?.verificationToken)
-          : null;
-        
-        console.log("[tokenizeAndPay] AgeChecker Status:", status, "Captured ID:", uuid);
+        const uuid = extractAgeToken(statusObj);
+
+        console.log("[tokenizeAndPay] AgeChecker Status:", status, "Extracted token:", uuid);
+
+        const fallbackToken = uuid || getAgeCheckerToken({ alsoTrySDK: false });
+        if (fallbackToken) setAgeCheckerToken(fallbackToken);
 
         if (uuid) {
           sessionStorage.setItem('agechecker_uuid', uuid);
-          localStorage.setItem('agechecker_uuid', uuid);
-          window.__agechecker_uuid = uuid;
         }
 
-        const sLower = String(status || '').toLowerCase();
-        const isOk = (sLower === 'verified' || sLower === 'accepted');
+        const isOk = (status === 'verified' || status === 'accepted');
 
         if (!isOk) {
-          // Remember that the user clicked pay; when verification succeeds we auto-continue.
-          window.__agechecker_pending_payment = true;
           AgeChecker.show();
           return;
         }
@@ -1430,7 +1440,7 @@ if (storedAge) {
         clearBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          
+
           // Clear all related fields
           streetInput.value = '';
           const cityInput = document.querySelector('input[name="city"]');
@@ -1439,11 +1449,11 @@ if (storedAge) {
           if (cityInput) cityInput.value = '';
           if (stateInput) stateInput.value = '';
           if (zipInput) zipInput.value = '';
-          
+
           // Reset UI
           restoreAutocompleteUI();
           streetInput.focus();
-          
+
           // Trigger input event to refresh store logic
           streetInput.dispatchEvent(new Event('input', { bubbles: true }));
         });
@@ -1454,10 +1464,10 @@ if (storedAge) {
         if (e.key === 'Enter') {
           // If the Google Places dropdown is visible, prevent default to avoid accidental form submission
           const pacContainer = document.querySelector('.pac-container');
-          const isVisible = pacContainer && 
-                            pacContainer.style.display !== 'none' && 
+          const isVisible = pacContainer &&
+                            pacContainer.style.display !== 'none' &&
                             window.getComputedStyle(pacContainer).display !== 'none';
-          
+
           if (isVisible) {
             e.preventDefault();
           }
@@ -1482,7 +1492,7 @@ if (storedAge) {
               streetNumber = component.long_name;
               break;
             case "route":
-              route = component.short_name; 
+              route = component.short_name;
               break;
             case "locality":
               city = component.long_name;
@@ -1508,14 +1518,14 @@ if (storedAge) {
 
         // 2. Immediate cleanup of Google Autocomplete UI
         streetInput.blur();
-        
+
         const dismissAutocomplete = () => {
           const containers = document.querySelectorAll('.pac-container');
           containers.forEach(c => {
             c.style.display = 'none';
           });
         };
-        
+
         dismissAutocomplete();
         // Google sometimes re-triggers the dropdown after selection, so ensure it stays closed
         setTimeout(dismissAutocomplete, 50);
@@ -1543,8 +1553,7 @@ if (storedAge) {
           first_name: "input[name='first_name']",
           last_name: "input[name='last_name']",
           contact_email: "input[name='email']",
-          // Your form uses name="street" (not "address")
-          address: "input[name='street']",
+          address: "input[name='address']",
           zip: "input[name='zip']",
           city: "input[name='city']",
           state: "input[name='state']",
@@ -1554,60 +1563,9 @@ if (storedAge) {
         },
         onStatusChange: function(response) {
           console.log("[AgeChecker] Status change:", response);
-          const status = (typeof response === 'string') ? response : response?.status;
-          function extractToken(obj) {
-  if (!obj || typeof obj !== "object") return null;
-
-  // direct
-  const direct =
-    obj.uuid || obj.signature || obj.token ||
-    obj.verification_token || obj.verificationToken ||
-    obj.verification_uuid || obj.verificationUuid ||
-    obj.id;
-
-  if (direct) return direct;
-
-  // nested common wrappers
-  const nested = obj.data || obj.payload || obj.result || obj.verification || null;
-  if (nested && typeof nested === "object") {
-    return (
-      nested.uuid || nested.signature || nested.token ||
-      nested.verification_token || nested.verificationToken ||
-      nested.verification_uuid || nested.verificationUuid ||
-      nested.id
-    ) || null;
-  }
-
-  return null;
-}
-
-const token = extractToken(response);
-console.log("[AgeChecker] extracted token:", token);
-if (token) {
-  sessionStorage.setItem('agechecker_uuid', token);
-  localStorage.setItem('agechecker_uuid', token);
-  window.__agechecker_uuid = token;
-
-  const hidden = document.getElementById("agechecker_uuid");
-  if (hidden) hidden.value = token;
-}
-
-
+          const token = response.uuid || response.signature || response.token;
           if (token) {
             sessionStorage.setItem('agechecker_uuid', token);
-            localStorage.setItem('agechecker_uuid', token);
-            window.__agechecker_uuid = token;
-          }
-
-          // If the user already clicked "Complete Order" and verification just finished,
-          // auto-continue without requiring a second click.
-          const sLower = String(status || '').toLowerCase();
-          const isOk = (sLower === 'verified' || sLower === 'accepted');
-          if (isOk && window.__agechecker_pending_payment) {
-            window.__agechecker_pending_payment = false;
-            setTimeout(() => {
-              try { tokenizeAndPay(); } catch (e) { console.error(e); }
-            }, 50);
           }
         }
       };
