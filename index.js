@@ -33,9 +33,12 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-const AGECHECKER_ACCOUNT_HASH = process.env.AGECHECKER_ACCOUNT_HASH || '21LdVe4lD0My3QjL';
-const AGECHECKER_ACCOUNT_SECRET = process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe4lD0My3QjL';
-const AGECHECKER_API_KEY = process.env.AGECHECKER_API_KEY_DELIVERY || '9g2Z8WhFz2LhbQANYf8YjPf7930jzSrY';
+const normalizeAgeKey = (k) => String(k || '').replace('21LdVe41D0My3QjL', '21LdVe4lD0My3QjL').trim();
+
+const AGECHECKER_ACCOUNT_HASH = normalizeAgeKey(process.env.AGECHECKER_ACCOUNT_HASH || '21LdVe4lD0My3QjL');
+const AGECHECKER_ACCOUNT_SECRET = normalizeAgeKey(process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe4lD0My3QjL');
+const AGECHECKER_API_KEY_DELIVERY = (process.env.AGECHECKER_API_KEY_DELIVERY || '9g2Z8WhFz2LhbQANYf8YjPf7930jzSrY').trim();
+const AGECHECKER_API_KEY_SMOKE = (process.env.AGECHECKER_API_KEY_SMOKE || 'eukmuPOZ34wvj2Ljf8zO8v3aXHjeCVof').trim();
 
 app.get('/agechecker/init.js', async (req, res) => {
   try {
@@ -2413,10 +2416,10 @@ function groupProductsByVariant(products) {
 function getAgeCheckerKey(hostname) {
   const host = String(hostname || '').toLowerCase();
   if (host.includes('miamivapedelivery.com')) {
-    return process.env.AGECHECKER_API_KEY_DELIVERY || process.env.AGECHECKER_API_KEY;
+    return AGECHECKER_API_KEY_DELIVERY;
   }
   // Default to smoke shop key
-  return process.env.AGECHECKER_API_KEY_SMOKE || process.env.AGECHECKER_API_KEY;
+  return AGECHECKER_API_KEY_SMOKE;
 }
 
 /* --------------------  Shopping Cart  -------------------- */
