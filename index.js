@@ -33,7 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-const AGECHECKER_ACCOUNT_HASH = process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe41D0My3QjL';
+const AGECHECKER_ACCOUNT_HASH = process.env.AGECHECKER_ACCOUNT_SECRET || '21LdVe4lD0My3QjL';
 const AGECHECKER_API_KEY = process.env.AGECHECKER_API_KEY_DELIVERY || '9g2Z8WhFz2LhbQANYf8YjPf7930jzSrY';
 
 app.get('/agechecker/init.js', async (req, res) => {
