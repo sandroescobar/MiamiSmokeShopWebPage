@@ -12,6 +12,15 @@ import { sendSlackOrderNotification } from './utils/slack.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATIC_IMAGE_ROOT = path.join(__dirname, 'public', 'images', 'imagesForProducts');
+const IMAGE_MAPPING_PATH = path.join(__dirname, 'image_folder_mapping.json');
+
+let imageFolderMapping = {};
+try {
+  const mappingData = fs.readFileSync(IMAGE_MAPPING_PATH, 'utf-8');
+  imageFolderMapping = JSON.parse(mappingData);
+} catch (err) {
+  console.warn('Warning: image_folder_mapping.json not found or invalid. Using folder names as-is.');
+}
 
 const app = express();
 
@@ -183,8 +192,19 @@ const FEATURED_FULL_PRODUCTS = [
   'NEXA 35K',
   'RAW CONE 20PK',
   'RAW CONE 3PK',
-  'RAW CONE CLASSIC 1_4'
+  'RAW CONE CLASSIC 1_4',
+  'RAW PAPER CLASSIC BLACK 1/4',
+  'RAW PAPER CLASSIC 1/4',
+  'RAW PAPER CLASSIC 1/4 WITH TIP',
+  'RAW PAPER CLASSIC 1/4 MASTERPIECE'
 ];
+
+const NO_GROUP_PRODUCTS = new Set([
+  'RAW PAPER CLASSIC 1/4',
+  'RAW PAPER CLASSIC BLACK 1/4',
+  'RAW PAPER CLASSIC 1/4 MASTERPIECE',
+  'RAW PAPER CLASSIC 1/4 WITH TIP'
+]);
 
 const FEATURED_IMAGE_GAPS = new Set([
   'OLIT HOOKALIT 60K',
@@ -221,7 +241,14 @@ const HIDDEN_CATEGORY_NAMES = new Set([
   'EDIBLES',
   'DEVICES: BATTERIES & MODS',
   'BB CART 1GR',
-  'BB PEN 1GR'
+  'BB PEN 1GR',
+  'ROLLING PAPERS',
+  'ROLLING PAPER,CONES, TIPS AND WRAPS',
+  'ROLLING PAPER/CONES/WRAPS',
+  'PAPERS',
+  'PAPERS/CONES',
+  'CONES',
+  'CONES TIPS AND WRAPS'
 ]);
 const PRODUCT_EXCLUSION_KEYWORDS = [
   'THC',
@@ -289,7 +316,8 @@ function buildStaticVariantImageMappings() {
     const brandDirs = fs.readdirSync(STATIC_IMAGE_ROOT, { withFileTypes: true });
     for (const dir of brandDirs) {
       if (!dir.isDirectory()) continue;
-      const brandName = dir.name.trim();
+      const folderName = dir.name.trim();
+      const mappedBrandName = imageFolderMapping[folderName] || folderName;
       const dirPath = path.join(STATIC_IMAGE_ROOT, dir.name);
       const files = fs.readdirSync(dirPath, { withFileTypes: true });
       for (const file of files) {
@@ -297,18 +325,18 @@ function buildStaticVariantImageMappings() {
         const flavorLabel = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
         let match;
         const normFlavor = normalizeVariantKey(flavorLabel);
-        const normBrand = normalizeVariantKey(brandName);
+        const normBrand = normalizeVariantKey(mappedBrandName);
         if (normFlavor.startsWith(normBrand)) {
           match = flavorLabel;
         } else {
-          match = `${brandName} ${flavorLabel}`.trim();
+          match = `${mappedBrandName} ${flavorLabel}`.trim();
         }
         const encodedBrand = encodeURIComponent(dir.name).replace(/%2F/gi, '/');
         const encodedFile = encodeURIComponent(file.name).replace(/%2F/gi, '/');
         entries.push({
           match,
           imageUrl: `/images/imagesForProducts/${encodedBrand}/${encodedFile}`,
-          imageAlt: `${brandName} • ${flavorLabel || brandName}`
+          imageAlt: `${mappedBrandName} • ${flavorLabel || mappedBrandName}`
         });
       }
     }
@@ -2221,10 +2249,11 @@ function extractProductVariantKey(name) {
   //   "SWISHER SWEETS 2PK BANANA SMASH" → "SWISHER SWEETS 2PK"
   //   "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" → "BLACK & MILD ORIGINAL SINGLE PLASTIC TIP" (no size, use fallback)
 
-  // Size spec pattern: number (with optional decimal) + unit
+  // Size spec pattern: number (with optional decimal/fraction) + unit
   // Units: K, KMG (puff counts), GR (grams), MG (milligrams), ML (milliliters),
   //        OZ (ounces), PK (pack count), CT (count), G (grams)
-  const sizePattern = /\d+(?:\.\d+)?(?:K|KMG|GR|MG|ML|OZ|PK|CT|G)\b/;
+  // Also handles fractions like 1/4 or 1_4
+  const sizePattern = /\d+(?:\/\d+|_\d+|\.\d+)?(?:K|KMG|GR|MG|ML|OZ|PK|CT|G)?\b/;
 
   const words = name.split(/\s+/);
   let baseKey = '';
@@ -2252,8 +2281,8 @@ function extractProductVariantKey(name) {
           /^(SINGLE|ORIGINAL|KINGS|SLIM|MINI|EXTRA|DOUBLE|TRIPLE|DUAL|WOOD|PLASTIC|SMALL|CLASSIC|ORGANIC)$/.test(words[2])) {
         baseWords.push(words[2]);
 
-        // Specific for RAW CONE CLASSIC 1_4 or RAW CONE ORGANIC 1_4
-        if ((words[2] === 'CLASSIC' || words[2] === 'ORGANIC') && words[3] === '1_4') {
+        // Specific for RAW CONE CLASSIC 1_4 or RAW CONE ORGANIC 1_4 or RAW PAPER CLASSIC 1/4
+        if ((words[2] === 'CLASSIC' || words[2] === 'ORGANIC') && (words[3] === '1_4' || words[3] === '1/4')) {
           baseWords.push(words[3]);
         }
       }
@@ -2372,7 +2401,7 @@ function groupProductsByVariant(products) {
     } else {
       const variantPayload = {
         id: product.id,
-        name: normalizedName,
+        name: product.name,
         flavor,
         price: product.price,
         total_qty: product.total_qty,
@@ -2399,16 +2428,37 @@ function groupProductsByVariant(products) {
     delete group.variantMap;
   });
 
-  return Object.values(grouped).filter(group => {
+  return Object.values(grouped).flatMap(group => {
     if (group.variants.length === 0) {
-      return false;
+      return [];
+    }
+
+    const baseKey = (group.base_name || group.name || '').toUpperCase();
+    
+    const hasNoGroupVariant = group.variants.some(v => NO_GROUP_PRODUCTS.has(v.name.toUpperCase()));
+    
+    if (hasNoGroupVariant) {
+      return group.variants.map(v => ({
+        base_name: group.base_name,
+        display_name: v.name,
+        name: v.name,
+        flavor: v.flavor,
+        variants: [v],
+        variantMap: new Map(),
+        image_url: v.image_url,
+        image_alt: v.image_alt,
+        price: v.price,
+        total_qty: v.total_qty
+      }));
     }
 
     if (group.variants.length === 1 && group.variants[0].flavor === 'Original') {
-      const baseKey = (group.base_name || group.name || '').toUpperCase();
-      return SINGLE_VARIANT_FEATURED_BASES.has(baseKey) || FEATURED_BASE_SET.has(baseKey) || SHOW_ALL_LOCAL;
+      if (SINGLE_VARIANT_FEATURED_BASES.has(baseKey) || FEATURED_BASE_SET.has(baseKey) || SHOW_ALL_LOCAL) {
+        return [group];
+      }
+      return [];
     }
-    return true;
+    return [group];
   });
 }
 
@@ -3919,6 +3969,10 @@ app.get('/products', async (req, res) => {
         const variantGroups = groupProductsByVariant(variantRows);
         const variantMap = new Map(variantGroups.map(group => [group.base_name.toUpperCase(), group]));
         finalProducts = paginatedProducts.map(group => {
+          // Skip variant override for NO_GROUP split products — they already have correct individual variants
+          if (group.display_name) {
+            return group;
+          }
           const fullGroup = variantMap.get(group.base_name.toUpperCase());
           if (!fullGroup) {
             return group;

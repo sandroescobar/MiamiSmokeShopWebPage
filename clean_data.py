@@ -17,15 +17,23 @@ PARENT_CATEGORIES = {
     "TOBACCO PRODUCTS": "tobacco-products",
     "EDIBLES": "edibles",
     "GRINDERS": "grinders",
-    "ROLLING PAPERS & CONES": "rolling-papers-cones",
-    "ROLLING PAPERS": "rolling-papers-cones",
-    "ROLLING PAPER,CONES, TIPS AND WRAPS": "rolling-papers-cones",
-    "PAPERS": "rolling-papers-cones",
-    "CONES": "rolling-papers-cones",
+    "ROLLING PAPERS AND CONES": "rolling-papers-cones",
     "VAPE JUICES": "vape-juices",
     "DEVICES: BATTERIES & MODS": "devices-batteries-mods",
     "HOOKAH RELATED": "hookah-related",
     "MISCELLANEOUS SMOKE SHOP": "misc-smoke-shop"
+}
+
+CATEGORY_ALIASES = {
+    "ROLLING PAPERS & CONES": "ROLLING PAPERS AND CONES",
+    "ROLLING PAPERS": "ROLLING PAPERS AND CONES",
+    "ROLLING PAPER,CONES, TIPS AND WRAPS": "ROLLING PAPERS AND CONES",
+    "ROLLING PAPER/CONES/WRAPS": "ROLLING PAPERS AND CONES",
+    "PAPERS": "ROLLING PAPERS AND CONES",
+    "PAPERS/CONES": "ROLLING PAPERS AND CONES",
+    "CONES": "ROLLING PAPERS AND CONES",
+    "CONES TIPS AND WRAPS": "ROLLING PAPERS AND CONES",
+    "RAW": "ROLLING PAPERS AND CONES",
 }
 
 SUBCATEGORY_RULES = [
@@ -497,6 +505,7 @@ def load_csv_to_db(csv_path, supplier_label=None, location=None):
         processed = 0
         for _, record in df.iterrows():
             parent_name = as_str(record["Category"]).upper()
+            parent_name = CATEGORY_ALIASES.get(parent_name, parent_name)
             if parent_name not in parent_ids:
                 continue
             parent_id = parent_ids[parent_name]

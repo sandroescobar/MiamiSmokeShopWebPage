@@ -63,15 +63,15 @@
     @media (max-width: 600px){ .option-row{grid-template-columns:1fr} }
     .option{
       position:relative; border:1px solid var(--line); border-radius:12px; background:#fff;
-      padding:14px; display:flex; gap:12px; align-items:center; cursor:pointer;
+      padding:20px; display:flex; gap:12px; align-items:center; cursor:pointer;
     }
     .option input{ position:absolute; inset:0; opacity:0; }
     .option .icon{
-      width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:var(--pill);
-      font-size:16px;
+      width:36px; height:36px; border-radius:8px; display:grid; place-items:center; background:var(--pill);
+      font-size:20px;
     }
-    .option .title{ font-weight:600; }
-    .option .sub{ color:var(--ink-soft); font-size:13px; }
+    .option .title{ font-weight:600; font-size:16px; }
+    .option .sub{ color:var(--ink-soft); font-size:14px; }
     .option:has(input:checked){
       border-color: var(--focus); box-shadow:0 0 0 4px rgba(79,70,229,.12);
     }
@@ -201,7 +201,7 @@
               <h3>Delivery options</h3>
               <div class="option-row">
                 <label class="option">
-                  <input type="radio" name="delivery_method" value="pickup" checked>
+                  <input type="radio" name="delivery_method" value="pickup">
                   <div class="icon">🏪</div>
                   <div>
                     <div class="title">Store pickup</div>
@@ -210,7 +210,7 @@
                 </label>
 
                 <label class="option">
-                  <input type="radio" name="delivery_method" value="delivery">
+                  <input type="radio" name="delivery_method" value="delivery" checked>
                   <div class="icon">🛵</div>
                   <div>
                     <div class="title">Uber Delivery</div>
@@ -426,7 +426,7 @@ python3
     (function(){
       const cart = JSON.parse(localStorage.getItem('cart')) || [];
       const container = document.getElementById('order-items-container');
-      const TAX_RATE = 0.0875;
+      const TAX_RATE = 0.07;
 
       cartItems = cart;
 
