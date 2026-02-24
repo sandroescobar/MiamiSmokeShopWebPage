@@ -225,7 +225,7 @@
                 <div id="pickup-stores" class="store-selector"></div>
                 <div id="pickup-availability-notice" class="availability-notice" style="display:none;"></div>
               </div>
-python3
+
               <!-- Store Detection (Delivery) -->
               <div id="delivery-stores-section" style="margin-top: 16px; display:none;">
                 <h3 id="delivery-header" style="margin-top: 12px; margin-bottom: 8px;">Delivery to</h3>
@@ -384,7 +384,7 @@ python3
             <div class="totals">
               <div class="line"><span>Subtotal</span><span id="summary-subtotal">$0.00</span></div>
               <div class="line"><span>Delivery</span><span id="summary-delivery">$0.00</span></div>
-              <div class="line"><span>Tax (est)</span><span id="summary-tax">$0.00</span></div>
+              <div class="line"><span>Taxes and fees </span><span id="summary-tax">$0.00</span></div>
               <div class="line grand"><span>Total</span><span id="summary-total">$0.00</span></div>
             </div>
 
@@ -426,7 +426,7 @@ python3
     (function(){
       const cart = JSON.parse(localStorage.getItem('cart')) || [];
       const container = document.getElementById('order-items-container');
-      const TAX_RATE = 0.07;
+      const TAX_RATE = 0.11;
 
       cartItems = cart;
 

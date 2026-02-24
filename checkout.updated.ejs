@@ -392,7 +392,7 @@
     (function(){
       const cart = JSON.parse(localStorage.getItem('cart')) || [];
       const container = document.getElementById('order-items-container');
-      const TAX_RATE = 0.0875;
+      const TAX_RATE = 0.11;
 
       // Extract product IDs from cart for inventory checks
       cartProductIds = cart.map(item => item.id).filter(Boolean);

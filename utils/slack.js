@@ -103,9 +103,9 @@ export function buildSlackPayload(order) {
 
   if (isDelivery) {
     if (uberError) {
-      mrkdwnText += `*Uber status:* Manual dispatch needed — ${uberError}.\n`;
+      mrkdwnText += `*Uber status:* ⚠️ MANUAL DELIVERY REQUIRED — ${uberError}\n`;
     } else if (uber) {
-      mrkdwnText += `*Uber status:* Dispatched. Tracking: ${uber.tracking_url || "—"}\n`;
+      mrkdwnText += `*Uber status:* Dispatched. Tracking: ${uber.trackingUrl || uber.tracking_url || "—"}\n`;
     }
   }
 

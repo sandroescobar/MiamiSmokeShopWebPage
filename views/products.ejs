@@ -334,7 +334,7 @@
   <!-- MOBILE toolbar (collapsible) -->
   <div class="toolbar-mobile">
     <details>
-      <summary>Filters</summary>
+      <summary>Select Store And More</summary>
       <div class="sheet">
         <div class="store-filter">
           <select name="shop" form="mobile-filters" aria-label="Preferred location" data-store-select>
@@ -394,7 +394,7 @@
        const hasImage = !!displayVariant.has_image;
        const imgSrc = displayVariant.image_url || '/images/products/placeholder.webp';
        const alt = (displayVariant.image_alt || 'Image coming soon') + ' - ' + (displayVariant.name || p.name);
-       const baseName = (p.base_name || p.name || '').trim();
+       const baseName = (p.display_name || p.base_name || p.name || '').trim();
        const isGrabbaLeafSmall = baseName.toUpperCase() === 'GRABBA LEAF SMALL';
   %>
     <article class="product-card <%= !anyAvailable ? 'sold-out' : '' %>" <%= isGrabbaLeafSmall ? 'id="product-grabba-leaf-small"' : '' %> 

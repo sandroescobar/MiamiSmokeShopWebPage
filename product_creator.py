@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import re
 from product_utils import (
     STORE_MAPPING,
     search_products,
@@ -8,8 +9,15 @@ from product_utils import (
     insert_product,
     insert_inventory,
     get_category_id_by_name,
-    normalize_product_name
+    normalize_product_name,
+    get_db_connection
 )
+
+SNAPSHOT_TABLES = {
+    "Calle 8": "inventory_calle8",
+    "79th Street": "inventory_79th",
+    "Market": "inventory_mkt"
+}
 
 
 def get_store_choice():
@@ -86,11 +94,107 @@ def select_products(matches):
         return matches
 
 
+def add_to_featured_list(product_name, group_variants=True):
+    """Add product to FEATURED_FULL_PRODUCTS in index.js"""
+    index_path = "/Users/sandrosMac/Desktop/pycharmProjects/miami_smoke/index.js"
+    try:
+        with open(index_path, 'r') as f:
+            content = f.read()
+        
+        pattern = r"(const FEATURED_FULL_PRODUCTS = \[[\s\S]*?)'([^']+)'\s*\]\s*;"
+        
+        match = re.search(pattern, content)
+        if not match:
+            return False
+        
+        last_product = match.group(2)
+        
+        if product_name in content:
+            if not group_variants and "NO_GROUP_PRODUCTS" in content:
+                add_to_no_group(product_name, index_path)
+            return True
+        
+        replacement = f"\\1'{last_product}',\n  '{product_name}'\n];"
+        content = re.sub(pattern, replacement, content)
+        
+        with open(index_path, 'w') as f:
+            f.write(content)
+        
+        if not group_variants:
+            add_to_no_group(product_name, index_path)
+        
+        return True
+    except Exception as e:
+        print(f"   ⚠️  Error adding to featured list: {e}")
+        return False
+
+
+def add_to_no_group(product_name, index_path):
+    """Add product to NO_GROUP_PRODUCTS set in index.js"""
+    try:
+        with open(index_path, 'r') as f:
+            content = f.read()
+        
+        pattern = r"(const NO_GROUP_PRODUCTS = new Set\(\[\s*)([\s\S]*?)(\s*\]\s*\)\s*;)"
+        
+        match = re.search(pattern, content)
+        if not match:
+            return
+        
+        existing_items = match.group(2)
+        
+        if product_name in existing_items:
+            return
+        
+        before = match.group(1)
+        after = match.group(3)
+        
+        new_items = existing_items.rstrip() + f",\n  '{product_name}'"
+        replacement = f"{before}{new_items}{after}"
+        
+        content = re.sub(pattern, replacement, content)
+        
+        with open(index_path, 'w') as f:
+            f.write(content)
+    except Exception as e:
+        print(f"   ⚠️  Error adding to NO_GROUP_PRODUCTS: {e}")
+
+
+def add_to_snapshot_table(store_name, name, upc, quantity):
+    """Add product to store's snapshot table."""
+    if store_name not in SNAPSHOT_TABLES:
+        return False
+    
+    table_name = SNAPSHOT_TABLES[store_name]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(f"""
+            DELETE FROM `{table_name}` WHERE UPPER(name) = UPPER(%s) AND upc = %s
+        """, (name, upc))
+        
+        cur.execute(f"""
+            INSERT INTO `{table_name}` (name, upc, quantity, is_active)
+            VALUES (%s, %s, %s, 1)
+        """, (name, upc, quantity))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"   ⚠️  Error adding to snapshot: {e}")
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
 def confirm_and_add(store_name, selected_products):
     """Confirm details and add products to database."""
     print("\n" + "="*50)
     print("CONFIRM & ADD PRODUCTS")
     print("="*50)
+    
+    group_variants = input("\n🔗 Group variants together? (y/n, default=y): ").strip().lower()
+    group_variants = group_variants != "n"
     
     added_count = 0
     skipped_count = 0
@@ -144,6 +248,16 @@ def confirm_and_add(store_name, selected_products):
         
         insert_inventory(product_id, store_name, quantity, price)
         print(f"   ✅ Inventory updated for {store_name}")
+        
+        add_to_snapshot_table(store_name, name, upc, quantity)
+        print(f"   ✅ Added to {store_name} snapshot table")
+        
+        if add_to_featured_list(name, group_variants):
+            if group_variants:
+                print(f"   ✅ Added to featured products (grouped)")
+            else:
+                print(f"   ✅ Added to featured products (separate cards)")
+        
         added_count += 1
     
     print("\n" + "="*50)
