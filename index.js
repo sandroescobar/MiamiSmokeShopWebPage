@@ -8,6 +8,7 @@ import ejsLayouts from 'express-ejs-layouts';
 import mysql from 'mysql2/promise';
 import { fileURLToPath } from 'url';
 import { sendSlackOrderNotification } from './utils/slack.js';
+import nodemailer from 'nodemailer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,7 +126,7 @@ console.log(
 );
 
 const CONTACT_INFO = {
-  email: process.env.SUPPORT_EMAIL || 'support@miamivapesmokeshop.com',
+  email: process.env.SUPPORT_EMAIL || 'miamivapedeliveryorders@gmail.com',
   phone: process.env.SALES_PHONE || '(305) 555-1212',
   addresses: [
     'Miami Vape Smoke Shop #1 • 6346 SW 8th St, West Miami, FL 33144',
@@ -3300,6 +3301,130 @@ app.get('/api/authorize/auth-test', async (req, res) => {
 });
 
 
+async function sendOrderReceiptEmail(receiptPayload) {
+  const {
+    orderId, createdAt, deliveryMethod, customer, items, totals,
+    uber, uberError, transactionId, billing,
+    pickupStoreLabel, pickupStoreAddress
+  } = receiptPayload;
+
+  const toEmail = customer?.email;
+  if (!toEmail) {
+    console.warn('[Email] No customer email — skipping receipt');
+    return;
+  }
+
+  const smtpUser = process.env.SENDLAYER_SMTP_USER;
+  const smtpPass = process.env.SENDLAYER_SMTP_PASS;
+  const fromEmail = process.env.SENDLAYER_FROM_EMAIL || 'orders@miamivapesmoke.com';
+
+  if (!smtpUser || !smtpPass) {
+    console.warn('[Email] SendLayer SMTP credentials not set — skipping receipt email');
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SENDLAYER_SMTP_HOST || 'smtp.sendlayer.net',
+    port: Number(process.env.SENDLAYER_SMTP_PORT || 587),
+    secure: false,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  const isDelivery = String(deliveryMethod || '').toLowerCase() === 'delivery';
+  const orderDate = createdAt ? new Date(createdAt).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '';
+
+  const itemRows = (items || []).map(it => {
+    const price = typeof it.price === 'string' ? parseFloat(it.price.replace('$', '')) : (it.price || 0);
+    const lineTotal = (price * (it.quantity || 1)).toFixed(2);
+    return `
+      <tr>
+        <td style="padding:8px 0; border-bottom:1px solid #e2e8f0;">${it.name || '—'}</td>
+        <td style="padding:8px 0; border-bottom:1px solid #e2e8f0; text-align:center;">×${it.quantity || 1}</td>
+        <td style="padding:8px 0; border-bottom:1px solid #e2e8f0; text-align:right;">$${lineTotal}</td>
+      </tr>`;
+  }).join('');
+
+  const trackingSection = isDelivery && uber?.trackingUrl
+    ? `<div style="margin:20px 0; padding:16px; background:#f0f9ff; border-radius:10px; border-left:4px solid #0284c7;">
+        <p style="margin:0 0 8px; font-weight:700; color:#0284c7;">📦 Track Your Uber Delivery</p>
+        <a href="${uber.trackingUrl}" style="color:#0284c7; font-size:14px; word-break:break-all;">${uber.trackingUrl}</a>
+      </div>`
+    : '';
+
+  const uberErrorSection = isDelivery && uberError && !uber?.trackingUrl
+    ? `<p style="color:#b91c1c; font-size:13px;">⚠️ Delivery dispatch note: ${uberError}</p>`
+    : '';
+
+  const fulfillmentSection = isDelivery
+    ? `<p style="margin:4px 0;"><strong>Fulfillment:</strong> Uber Delivery</p>
+       <p style="margin:4px 0;"><strong>Delivering from:</strong> ${pickupStoreLabel || '—'}</p>
+       <p style="margin:4px 0;"><strong>Store address:</strong> ${pickupStoreAddress?.full || pickupStoreLabel || '—'}</p>
+       <p style="margin:4px 0;"><strong>Delivering to:</strong> ${[billing?.street, billing?.unit, billing?.city, billing?.state, billing?.zip].filter(Boolean).join(', ')}</p>`
+    : `<p style="margin:4px 0;"><strong>Fulfillment:</strong> Store Pickup</p>
+       <p style="margin:4px 0;"><strong>Pickup location:</strong> ${pickupStoreLabel || '—'}</p>
+       <p style="margin:4px 0;"><strong>Address:</strong> ${pickupStoreAddress?.full || pickupStoreLabel || '—'}</p>`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f6f7fb;font-family:Inter,system-ui,-apple-system,sans-serif;">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,.08);overflow:hidden;">
+    <div style="background:#111827;padding:28px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Miami Vape Smoke Shop</h1>
+      <p style="margin:6px 0 0;color:#94a3b8;font-size:14px;">Order Confirmation</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="font-size:16px;margin:0 0 4px;">Hi ${customer?.firstName || 'there'},</p>
+      <p style="color:#475569;margin:0 0 20px;">Thanks for your order! Here's your receipt.</p>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:20px;font-size:14px;color:#0f172a;">
+        <p style="margin:4px 0;"><strong>Order ID:</strong> ${orderId}</p>
+        <p style="margin:4px 0;"><strong>Date:</strong> ${orderDate} ET</p>
+        <p style="margin:4px 0;"><strong>Transaction ID:</strong> ${transactionId}</p>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:20px;font-size:14px;color:#0f172a;">
+        ${fulfillmentSection}
+      </div>
+
+      ${trackingSection}
+      ${uberErrorSection}
+
+      <h3 style="font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:0 0 8px;">Items Ordered</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="color:#64748b;font-size:12px;">
+            <th style="text-align:left;padding-bottom:6px;">Item</th>
+            <th style="text-align:center;padding-bottom:6px;">Qty</th>
+            <th style="text-align:right;padding-bottom:6px;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <div style="margin-top:16px;border-top:2px solid #e2e8f0;padding-top:12px;font-size:14px;">
+        <div style="display:flex;justify-content:space-between;margin:4px 0;"><span style="color:#64748b;">Subtotal</span><span>$${(totals?.subtotal || 0).toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin:4px 0;"><span style="color:#64748b;">Tax</span><span>$${(totals?.tax || 0).toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin:4px 0;"><span style="color:#64748b;">Delivery fee</span><span>$${(totals?.delivery || 0).toFixed(2)}</span></div>
+        <div style="display:flex;justify-content:space-between;margin:10px 0 0;font-weight:700;font-size:16px;"><span>Total</span><span>$${(totals?.total || 0).toFixed(2)}</span></div>
+      </div>
+
+      <p style="margin:28px 0 0;font-size:13px;color:#64748b;">Questions? Reply to this email or contact us at <a href="mailto:${process.env.SUPPORT_EMAIL || 'miamivapedeliveryorders@gmail.com'}" style="color:#4f46e5;">${process.env.SUPPORT_EMAIL || 'miamivapedeliveryorders@gmail.com'}</a></p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: `"Miami Vape Smoke Shop" <${fromEmail}>`,
+    to: toEmail,
+    subject: `Your order is confirmed! 🎉 (#${orderId.slice(0, 8).toUpperCase()})`,
+    html,
+  });
+
+  console.log(`[Email] Receipt sent to ${toEmail} for order ${orderId}`);
+}
+
 app.post('/api/authorize/charge', async (req, res) => {
   console.log("[Charge Route] Body:", JSON.stringify(req.body).slice(0, 200));
   let body = req.body;
@@ -3763,6 +3888,10 @@ app.post('/api/authorize/charge', async (req, res) => {
         // but we're in an async block already and it's best-effort)
         sendSlackOrderNotification(receiptPayload).catch(e =>
           console.error('[Slack] notification failed:', e?.message || e)
+        );
+
+        sendOrderReceiptEmail(receiptPayload).catch(e =>
+          console.error('[Email] receipt failed:', e?.message || e)
         );
 
       } catch (dbErr) {
