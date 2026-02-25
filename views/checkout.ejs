@@ -283,20 +283,20 @@
               </div>
               <div class="row-1">
                 <label>Apt / Unit (optional)
-                  <input type="text" name="unit" placeholder="Apt 12B">
+                  <input type="text" name="unit" placeholder="Apt 12B" autocomplete="off">
                 </label>
               </div>
               <div class="row">
                 <label>City
-                  <input type="text" name="city" placeholder="Miami" required>
+                  <input type="text" name="city" placeholder="Miami" required autocomplete="off">
                 </label>
                 <label>State
-                  <input type="text" name="state" placeholder="FL" required>
+                  <input type="text" name="state" placeholder="FL" required autocomplete="off">
                 </label>
               </div>
               <div class="row-1">
                 <label>ZIP Code
-                  <input type="text" name="zip" placeholder="33101" required>
+                  <input type="text" name="zip" placeholder="33101" required autocomplete="off">
                 </label>
               </div>
             </div>
@@ -1495,19 +1495,52 @@ function paySetHint(msg) {
         types: ["address"],
       });
 
-      // Helper to restore Google Autocomplete UI visibility
-      const restoreAutocompleteUI = () => {
+      // Flag to track if an address has been successfully selected
+      let isAddressSet = false;
+
+      const dismissAutocomplete = () => {
         const containers = document.querySelectorAll('.pac-container');
         containers.forEach(c => {
-          c.style.display = '';
-          c.style.visibility = 'visible';
-          c.style.opacity = '1';
+          c.style.setProperty('display', 'none', 'important');
+          c.style.setProperty('visibility', 'hidden', 'important');
+          c.style.setProperty('opacity', '0', 'important');
+          c.style.setProperty('pointer-events', 'none', 'important');
         });
       };
 
-      // Restore visibility whenever the user interacts with the input
-      streetInput.addEventListener('input', restoreAutocompleteUI);
-      streetInput.addEventListener('focus', restoreAutocompleteUI);
+      const restoreAutocomplete = () => {
+        const containers = document.querySelectorAll('.pac-container');
+        containers.forEach(c => {
+          c.style.removeProperty('display');
+          c.style.removeProperty('visibility');
+          c.style.removeProperty('opacity');
+          c.style.removeProperty('pointer-events');
+        });
+      };
+
+      // Persistent enforcement: if an address is set, keep the dropdown dead
+      const enforceSelectionState = () => {
+        if (isAddressSet) {
+          dismissAutocomplete();
+        }
+      };
+
+      // Listen for focus and input to re-enforce the state
+      streetInput.addEventListener('focus', enforceSelectionState);
+      streetInput.addEventListener('input', (e) => {
+        if (!isAddressSet) {
+          restoreAutocomplete();
+        } else {
+          enforceSelectionState();
+        }
+      });
+
+      // Force close Google suggestions if ANY other field is focused
+      const otherAddressFields = document.querySelectorAll('input[name="unit"], input[name="city"], input[name="state"], input[name="zip"]');
+      otherAddressFields.forEach(field => {
+        field.addEventListener('focus', dismissAutocomplete);
+        field.addEventListener('click', dismissAutocomplete);
+      });
 
       // Handle the "Clear" button
       const clearBtn = document.getElementById('clear-street-btn');
@@ -1515,6 +1548,9 @@ function paySetHint(msg) {
         clearBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
+
+          isAddressSet = false; // Reset the flag
+          restoreAutocomplete(); // Allow dropdown again
 
           // Clear all related fields
           streetInput.value = '';
@@ -1525,8 +1561,6 @@ function paySetHint(msg) {
           if (stateInput) stateInput.value = '';
           if (zipInput) zipInput.value = '';
 
-          // Reset UI
-          restoreAutocompleteUI();
           streetInput.focus();
 
           // Trigger input event to refresh store logic
@@ -1552,6 +1586,8 @@ function paySetHint(msg) {
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (!place.address_components) return;
+
+        isAddressSet = true; // Lock the dropdown closed
 
         let streetNumber = "";
         let route = "";
@@ -1591,20 +1627,14 @@ function paySetHint(msg) {
         if (stateInput) stateInput.value = state;
         if (zipInput) zipInput.value = zip;
 
-        // 2. Immediate cleanup of Google Autocomplete UI
+        // 2. Immediate and persistent cleanup
         streetInput.blur();
-
-        const dismissAutocomplete = () => {
-          const containers = document.querySelectorAll('.pac-container');
-          containers.forEach(c => {
-            c.style.display = 'none';
-          });
-        };
-
         dismissAutocomplete();
-        // Google sometimes re-triggers the dropdown after selection, so ensure it stays closed
-        setTimeout(dismissAutocomplete, 50);
-        setTimeout(dismissAutocomplete, 150);
+        
+        // Extra insurance for the next 2 seconds
+        for (let i = 1; i <= 20; i++) {
+          setTimeout(dismissAutocomplete, i * 100);
+        }
 
         // 3. Trigger 'input' event so findClosestStore() and other logic runs
         streetInput.dispatchEvent(new Event('input', { bubbles: true }));
