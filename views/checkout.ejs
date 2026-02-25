@@ -1497,6 +1497,8 @@ function paySetHint(msg) {
 
       // Flag to track if an address has been successfully selected
       let isAddressSet = false;
+      // Flag to track if user is navigating dropdown with arrow keys (not yet confirmed)
+      let isArrowNavigating = false;
 
       const dismissAutocomplete = () => {
         const containers = document.querySelectorAll('.pac-container');
@@ -1528,6 +1530,9 @@ function paySetHint(msg) {
       // Listen for focus and input to re-enforce the state
       streetInput.addEventListener('focus', enforceSelectionState);
       streetInput.addEventListener('input', (e) => {
+        if (isAddressSet && streetInput.value.trim() === '') {
+          isAddressSet = false;
+        }
         if (!isAddressSet) {
           restoreAutocomplete();
         } else {
@@ -1568,24 +1573,36 @@ function paySetHint(msg) {
         });
       }
 
-      // Prevent Enter key from submitting the form if a suggestion is highlighted
+      // Track arrow key navigation and prevent auto-selection on ArrowDown/ArrowUp
       streetInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          // If the Google Places dropdown is visible, prevent default to avoid accidental form submission
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          isArrowNavigating = true;
+        } else if (e.key === 'Enter') {
+          isArrowNavigating = false;
           const pacContainer = document.querySelector('.pac-container');
           const isVisible = pacContainer &&
                             pacContainer.style.display !== 'none' &&
                             window.getComputedStyle(pacContainer).display !== 'none';
-
           if (isVisible) {
             e.preventDefault();
           }
+        } else if (e.key === 'Escape') {
+          isArrowNavigating = false;
         }
       });
+
+      // Reset arrow navigation flag on any mouse interaction (e.g. clicking a suggestion)
+      document.addEventListener('mousedown', () => {
+        isArrowNavigating = false;
+      }, { capture: true });
 
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (!place.address_components) return;
+
+        if (isArrowNavigating) {
+          return;
+        }
 
         isAddressSet = true; // Lock the dropdown closed
 
